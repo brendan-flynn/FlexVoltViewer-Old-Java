@@ -1,18 +1,18 @@
 //  Author:  Brendan Flynn - FlexVolt
-//  Date Modified:    2 June 2014
+//  Date Modified:    3 June 2014
 /*  FlexVolt Viewer v1.1
 
-    changes from 1.0:
-    corrected AmpGain
-    added DynamicRange
-
+    Recent Changes:
+    app size - all GUI features now scale with plot window size
+    
+    
+    Description:
     Processing sketch for visualization of data measured using a FlexVolt sensor
 
-    Uses the USB-serial port emulator to receive data and adjust settings on the FlexVolt
+    Uses the USB-serial (or Bluetooth-serial) port emulator to receive data and adjust settings on the FlexVolt
 
-    Exported to an executable for Mac OS X
-    Not yet exported to an executable for Windows - problems with export of Serial library...
-
+    Exportable to stand-alone executable program file for Windows and Mac using Processing 2.1.2
+    
     To Run this Sketch:
 
        1.  Download Processing - www.processing.org
@@ -37,11 +37,11 @@ Robot robot;
 
 // Constants
 Serial myPort;
-String RENDERMODE = "P2D";
-int FullPlotWidth = 600;
+//String RENDERMODE = "P2D";
+int FullPlotWidth = 500;
 int HalfPlotWidth = 250;
 int plotwidth = FullPlotWidth;
-int plotheight = 400;
+int plotheight = 300;
 int xx, yy;
 int xStep = 60;
 int yStep = 40;
@@ -49,11 +49,12 @@ int yTitle = 60;
 int barwidth = 100;
 int SerialBufferN = 5;
 int SerialBurstN = 30;
-int SerialPortSpeed = 115200;
+int SerialPortSpeed = 230400;
 int serialwritedelay = 50;
 int axisnumbersize = 16;
 int labelsize = 20;
-int smalllabelsize = 16;
+int labelsizes = 16;
+int labelsizexs = 14;
 int titlesize = 26;
 int buttontextsize = 16;
 
@@ -62,7 +63,7 @@ float FreqMax = 500;//Hz for fft display window
 float FreqAmpMin = 0;
 float FreqAmpMax = 1;
 int FFTscale = 80; // multiplying fft amplitude
-int VoltScale = 2;
+int VoltScale = 1;
 float VoltageMax = 10/VoltScale;
 float VoltageMin = -10/VoltScale;
 float AmpGain = 1845; // 495 from Instrumentation Amp, 3.73 from second stage.  1845 total.
@@ -200,7 +201,7 @@ BTPserialreset = ButtonNumTP++,
 BTPoffset = ButtonNumTP++, 
 BTPsmooth = ButtonNumTP++, 
 //BTPclear = ButtonNumTP++, 
-BTPpause = ButtonNumTP++, 
+//BTPpause = ButtonNumTP++, 
 BTPsave = ButtonNumTP++, 
 BTPreset = ButtonNumTP++, 
 BTPsetReps1 = ButtonNumTP++, 
@@ -227,7 +228,7 @@ BMPhelp = ButtonNumMP++,
 BMPrecordnextdata = ButtonNumMP++,
 //BMPdomain = ButtonNumMP++, 
 BMPtimedomain = ButtonNumMP++,
-BMPfreqdomain = ButtonNumMP++,
+//BMPfreqdomain = ButtonNumMP++,
 BMPtraindomain = ButtonNumMP++,
 BMPmousedomain = ButtonNumMP++,
 BMPserialreset = ButtonNumMP++, 
@@ -259,6 +260,7 @@ BSP4chan = ButtonNumSP++,
 BSP8chan = ButtonNumSP++,
 BSPcancel = ButtonNumSP++,
 BSPsave = ButtonNumSP++,
+BSPdefaults = ButtonNumSP++,
 BSPdownsampleup = ButtonNumSP++,
 BSPdownsampledown = ButtonNumSP++,
 BSPtimeradjustup = ButtonNumSP++,
@@ -599,10 +601,10 @@ void draw () {
     //    float tmp2 = ((float)tmp)/1000000000; // convert from ns to s
     //    int pointstep = int(UserFrequency*tmp); // FREQ*timeelapsed = number of points to plot
     if (!(xPos == plotwidth && PauseFlag)) {
-      startTime = System.nanoTime()/1000;
+//      startTime = System.nanoTime()/1000;
       DrawTrace();
-      endTime = System.nanoTime()/1000;
-      println("DrawTrace takes "+(endTime-startTime));
+//      endTime = System.nanoTime()/1000;
+//      println("DrawTrace takes "+(endTime-startTime));
     }
   }
   if (CurrentDomain == FreqDomain) {
@@ -616,12 +618,6 @@ void draw () {
   if (CurrentDomain == TrainingDomain) {
     DrawTrainingProgram();
   }
-//  if (CurrentDomain == SettingsDomain) {
-//    DrawSettings();
-//  }
-//  if (CurrentDomain == HelpDomain) {
-//    DrawHelp();
-//  }
 
 }
 
@@ -679,11 +675,11 @@ void serialEvent (Serial myPort) {
         myPort.clear();
         ConnectingFlag = true;
         drawConnectionIndicator();
-        if (initializeFlag){
+//        if (initializeFlag){
           UpdateSettings();
           println("updates settings");
-          initializeFlag = false;
-        }
+//          initializeFlag = false;
+//        }
         EstablishDataLink();
       }
       else if (inChar == 'g') {
@@ -951,7 +947,7 @@ void keyPressed() {
       }
       else {
         ChangeDomain(TimeDomain);
-        println("Mouse Turned OFF");
+        println("Workout Turned OFF");
       }
     }
     if (key == 'S' || key == 's') {
@@ -1235,32 +1231,15 @@ void mousePressed() {
         buttonsSP[currentbutton].BOn = true;
       }
       if (currentbutton == BSPsave) {
-        
-        UserFrequency = UserFreqArray[UserFreqIndexTmp];
-        UserFreqCustom = 0;
-        
-        DataRecordLength = DataRecordTime*UserFrequency;
-        buttonsTDP[BTDPrecordnextdata].label = "Record Next, "+DataRecordTime+" Seconds";
-        buttonsFDP[BFDPrecordnextdata].label = "Record Next, "+DataRecordTime+" Seconds";
-        buttonsTP[BTPrecordnextdata].label = "Record Next, "+DataRecordTime+" Seconds";
-        buttonsMP[BMPrecordnextdata].label = "Record Next, "+DataRecordTime+" Seconds";  
-        for(int i = 0; i<MaxSignalNumber;i++){
-          if (i < SignalNumberTmp){
-            ChannelOn[i]=true;
-          } else if (i >= SignalNumberTmp){
-            ChannelOn[i]=false;
-          }
-        }
-        
         saveSettings();
         ChangeDomain(OldDomain);
         buttonsSP[currentbutton].BOn = false;
-        TimeMax = float(FullPlotWidth)/float(UserFrequency);
+        return;
       }
       if (currentbutton == BSPcancel) {
-        //UpdateSettings();
         ChangeDomain(OldDomain);
         buttonsSP[currentbutton].BOn = false;
+        return;
       }
       DrawSettings();
     }
@@ -1508,25 +1487,25 @@ void mousePressed() {
         DataRecord = new int[DataRecordCols][DataRecordLength];
         DataRecordIndex = 0;
       }
-      if (currentbutton == BTPpause) {
-        PauseFlag = !PauseFlag;
-        if (!PauseFlag) {
-          buttonsTP[currentbutton].label = "Pause";
-          buttonsTP[currentbutton].DrawButton();
-          if (CurrentDomain == TimeDomain) {
-            if (ScrollMode == SMtrace) {
-              datacounter = 0;
-              xPos = 0;
-              labelaxes();
-            }
-          }
-        }
-        else if (PauseFlag) {
-          buttonsTP[currentbutton].label = "Play";
-          buttonsTP[currentbutton].DrawButton();
-        }
-        println("Pause Toggled");
-      }
+//      if (currentbutton == BTPpause) {
+//        PauseFlag = !PauseFlag;
+//        if (!PauseFlag) {
+//          buttonsTP[currentbutton].label = "Pause";
+//          buttonsTP[currentbutton].DrawButton();
+//          if (CurrentDomain == TimeDomain) {
+//            if (ScrollMode == SMtrace) {
+//              datacounter = 0;
+//              xPos = 0;
+//              labelaxes();
+//            }
+//          }
+//        }
+//        else if (PauseFlag) {
+//          buttonsTP[currentbutton].label = "Play";
+//          buttonsTP[currentbutton].DrawButton();
+//        }
+//        println("Pause Toggled");
+//      }
       if (currentbutton == BTPsave) {
         imagesavecounter = saveImage(imagesavecounter);
         println(imagesavecounter);
@@ -1670,7 +1649,7 @@ void mousePressed() {
         ChangeDomain(HelpDomain);
       }
       if (currentbutton == BMPtimedomain){ChangeDomain(TimeDomain);}
-      if (currentbutton == BMPfreqdomain){ChangeDomain(FreqDomain);}
+//      if (currentbutton == BMPfreqdomain){ChangeDomain(FreqDomain);}
       if (currentbutton == BMPtraindomain){ChangeDomain(TrainingDomain);}
       if (currentbutton == BMPmousedomain){ChangeDomain(MouseDomain);}
       if (currentbutton == BMPserialreset) {
@@ -1864,25 +1843,22 @@ void DrawTrace() {
           while(tmpind < 0){tmpind+=MaxSignalLength;}
           if (j == TrainChan[0]) {
             sigtmp = int(map(signalIn[j][tmpind]+Calibration[j], MaxSignalVal/2, MaxSignalVal, plotheight/2, plotheight));//*VoltScale)-1.5*plotheight);
+//            sigtmp = int(map(signalIn[j][tmpind]+Calibration[j], MaxSignalVal/2, MaxSignalVal, 0, plotheight/2));//*VoltScale)-1.5*plotheight);
             sigtmp = min(sigtmp,plotheight-pointThickness);
-            sigtmp = max(sigtmp,plotheight/2 + pointThickness + 10);
+            sigtmp = max(sigtmp,plotheight/2 + pointThickness);
             oldPlotSignal[j] = min(oldPlotSignal[j],plotheight-pointThickness);
-            oldPlotSignal[j] = max(oldPlotSignal[j],plotheight/2 + pointThickness + 10);
+            oldPlotSignal[j] = max(oldPlotSignal[j],plotheight/2 + pointThickness);
           }
           if (j==TrainChan[1]) {
-            sigtmp = int(map(signalIn[j][tmpind]+Calibration[j], MaxSignalVal/2, MaxSignalVal, 0, plotheight/2)-20);//2*plotheight);
-            sigtmp = min(sigtmp,plotheight/2-pointThickness-20);
+            sigtmp = int(map(signalIn[j][tmpind]+Calibration[j], MaxSignalVal/2, MaxSignalVal, 0, plotheight/2));//2*plotheight);
+            sigtmp = min(sigtmp,plotheight/2-pointThickness-5);
             sigtmp = max(sigtmp,pointThickness);
-            oldPlotSignal[j] = min(oldPlotSignal[j],plotheight/2-pointThickness-20);
+            oldPlotSignal[j] = min(oldPlotSignal[j],plotheight/2-pointThickness-5);
             oldPlotSignal[j] = max(oldPlotSignal[j],pointThickness); 
           }
 
           
           if (xPos > 1) {
-//            for (int jT = -pointThickness; jT <= pointThickness; jT++) {
-//              line(xPos+xStep-1, ytmp - oldPlotSignal[j] + jT, xPos+xStep, ytmp - sigtmp + jT);
-//            }
-//            strokeWeight(pointThickness);
             line(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp);
           }
           else {
@@ -1998,48 +1974,56 @@ void DrawSettings() {
   strokeWeight(4);
   fill(200);
   rectMode(CENTER);
-  rect(width/2, height/2, 800,500,12);
+  rect(width/2, height/2, FullPlotWidth+20,plotheight+40,12);
   
-  fill(0);
-  textSize(30);
-  text("FlexVolt Settings Menu",width/2,height/2-220);
-  fill(0);
-  textSize(20);
-  text("Saving Data & Images",width/2,height/2-175);
-  text("Directory",width/2-340,height/2-175);
-  strokeWeight(2);  
+  strokeWeight(2);
+  textSize(labelsizexs);  
+  textAlign(CENTER,CENTER);
   fill(200);
-  rect(width/2-150,height/2-140,470,30);
-//  println(textWidth(folder));
-  if (int(textWidth(folderTmp)) < 450){
-    fill(0);text(folderTmp,width/2-150,height/2-142);
+  rect(width/2-90,height/2-90,300,Bheights);
+  if (int(textWidth(folderTmp)) < 300){
+    fill(0);text(folderTmp,width/2-90,height/2-90);
   }
   else if (textWidth(folderTmp) >= 450){
-    fill(200);rect(width/2-150,height/2-110,470,30);
-    fill(0);text(folder,width/2-150,height/2-127,400,60);
+    fill(200);rect(width/2-90,height/2-70,300,Bheights);
+    fill(0);text(folderTmp,width/2-90,height/2-80,300,Bheights*2);
   }
-  fill(0);text("Data Recording Time (s)",width/2+240,height/2-145);
-  text(str(DataRecordTimeTmp),width/2+240,height/2-110);
+  
+  
+  fill(0);
+  textSize(titlesize);
+  text("FlexVolt Settings Menu",width/2,height/2-plotheight/2);
 
+  textSize(labelsizes);
+  text("Saving Data & Images",width/2,height/2-115);
+  textSize(labelsizexs);
+  text("Directory",width/2-340,height/2-175);
   
-  fill(0);text("Data Sampling Settings",width/2,height/2-60);
-  fill(0);text("Frequency, Hz",width/2-300,height/2-20);
-  text(str(UserFrequencyTmp),width/2-300,height/2+10);
+  text("Data Recording Time (s)",width/2+170,height/2-95);
+  text(str(DataRecordTimeTmp),width/2+170,height/2-70);
+
+  textSize(labelsizes);
+  text("Data Sampling Settings",width/2,height/2-40);
+  textSize(labelsizexs);
+  text("Frequency, Hz",width/2-195,height/2-15);
+  text(str(UserFrequencyTmp),width/2-195,height/2+10);
   
-  text("Number of Channels",width/2-70,height/2-20); // reserved for future use
+  text("Number of Channels",width/2-50,height/2-15); // reserved for future use
   
-  fill(0);text("Smooth Filter",width/2+140,height/2-20);
-  text(str(SmoothFilterValTmp),width/2+140,height/2+10);
+  text("Smooth Filter",width/2+90,height/2-15);
+  text(str(SmoothFilterValTmp),width/2+90,height/2+10);
   
-  fill(0);text("Downsample",width/2+305,height/2-20);
-  text(str(DownSampleCountTmp),width/2+305,height/2+10);
+  text("Downsample",width/2+200,height/2-15);
+  text(str(DownSampleCountTmp),width/2+200,height/2+10);
   
-  fill(0);text("Timing Settings (Advanced)",width/2,height/2+70);
-  fill(0);text("Timer Adjust",width/2-300,height/2+100);
-  text(str(Timer0AdjustValTmp),width/2-300,height/2+130);
+  textSize(labelsizes);
+  text("Timing Settings (Advanced)",width/2,height/2+40);
+  textSize(labelsizexs);
+  text("Timer Adjust",width/2-100,height/2+60);
+  text(str(Timer0AdjustValTmp),width/2-100,height/2+80);
   
-  fill(0);text("Prescaler",width/2-100,height/2+100);
-  text(str(PrescalerTmp),width/2-100,height/2+130);
+  text("Prescaler",width/2+30,height/2+60);
+  text(str(PrescalerTmp),width/2+30,height/2+80);
   
  
   for (int i = 0; i < buttonsSP.length; i++) {
@@ -2527,8 +2511,10 @@ void blankplot() {
     rect(xStep+plotwidth/2,yTitle+plotheight/2,plotwidth,plotheight);
   }
   if (CurrentDomain == TrainingDomain) {
-    rect(xStep+plotwidth/2,yTitle+(plotheight/2-10)/2,plotwidth,plotheight/2-10);
-    rect(xStep+plotwidth/2,yTitle+plotheight/2+20+(plotheight/2-20)/2,plotwidth,plotheight/2-20);
+//    rect(xStep+plotwidth/2,yTitle+(plotheight/2-10)/2,plotwidth,plotheight/2-10);
+//    rect(xStep+plotwidth/2,yTitle+plotheight/2+20+(plotheight/2-20)/2,plotwidth,plotheight/2-20);
+    rect(xStep+plotwidth/2,yTitle+(plotheight/2)/2,plotwidth,plotheight/2);
+    rect(xStep+plotwidth/2,yTitle+plotheight/2+5+(plotheight/2)/2,plotwidth,plotheight/2);
   }
   rectMode(CENTER);
 }
@@ -2537,7 +2523,7 @@ void drawConnectionIndicator(){
   fill(150);
   strokeWeight(2);
   stroke(0);
-  ellipse(xStep+plotwidth+10,yTitle-26,24,24);
+  ellipse(xStep+FullPlotWidth+10,yTitle-26,24,24);
   if (dataflag){
     fill(color(0,255,0));
   } 
@@ -2548,7 +2534,7 @@ void drawConnectionIndicator(){
      fill(color(255,0,0));
   }
   stroke(0);
-  ellipse(xStep+plotwidth+10,yTitle-26,14,14);
+  ellipse(xStep+FullPlotWidth+10,yTitle-26,14,14);
 }
 
 void labelaxes() {
@@ -2558,14 +2544,12 @@ void labelaxes() {
     image(img, 5, yTitle/2-(yTitle-30)/2, xStep-10, yTitle-30);
   }
   else if (img == null){
-    textSize(22);
+    textSize(labelsizexs);
     fill(20,150,20);
     textAlign(CENTER,CENTER);
-    text("FlexVolt\nViewer",xStep/2,yTitle/2);
+    text("FlexVolt\nViewer",xStep/2,yTitle/2-2);
   }
   
-  
-  textSize(labelsize);
   fill(labelcolor);
   stroke(labelcolor);
   strokeWeight(2);
@@ -2575,85 +2559,82 @@ void labelaxes() {
     textSize(titlesize);
     text("Muscle Voltage", xStep+FullPlotWidth/2+20, yTitle-45);
 
+    textSize(axisnumbersize);
     // x-axis
     float val = 0;
-    println("TimeMax = "+TimeMax);
-    textSize(axisnumbersize);
     for (int i = 0; i < Nxticks+1; i++) {
-      text(nf(val, 1, 0), xStep+int(map(val, 0, TimeMax, 0, plotwidth-20)), height-yStep+10);
+      text(nf(val, 1, 0), xStep+int(map(val, 0, TimeMax, 0, plotwidth-10)), height-yStep+10);
       val += TimeMax/Nxticks;
     }
-    text("Time, seconds", xStep + plotwidth/2, height-15);
 
     // y-axis
-    
-    textSize(axisnumbersize);
     if (!OffSetFlag) {
       val = VoltageMin;
       for (int i = 0; i < Nyticks+1; i++) {
         if (val > 0){
-          text(("+"+nf(val, 1, 0)), xStep-20, ytmp -10 - int(map(val, VoltageMin, VoltageMax, 0, plotheight-20)));
+          text(("+"+nf(val, 1, 0)), xStep-20, ytmp -5 - int(map(val, VoltageMin, VoltageMax, 0, plotheight-10)));
         }  else{
-          text(nf(val, 1, 0), xStep-20, ytmp -10 - int(map(val, VoltageMin, VoltageMax, 0, plotheight-20)));
+          text(nf(val, 1, 0), xStep-20, ytmp -5 - int(map(val, VoltageMin, VoltageMax, 0, plotheight-10)));
         }
         val += (VoltageMax-VoltageMin)/Nyticks;
       }
     }
     else if (OffSetFlag) {
       val = VoltageMin/2;
+//      val = VoltageMin;
       int xtmp = 0;
       for (int i = 0; i < NyticksHalf+1; i++) {
         xtmp = xStep-20;
         if (val > 0){
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp -plotheight/16+10 - int(map(val, VoltageMin/2, VoltageMax/2, 0, plotheight/8)));
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp -plotheight*5/16+10 - int(map(val, VoltageMin/2, VoltageMax/2, 0, plotheight/8)));
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp -plotheight*9/16+10 - int(map(val, VoltageMin/2, VoltageMax/2, 0, plotheight/8)));
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp -plotheight*13/16+10 - int(map(val, VoltageMin/2, VoltageMax/2, 0, plotheight/8)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, 0, plotheight/4)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/4, plotheight/2)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/2, plotheight*3/4)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight*3/4, plotheight)));
         } else {
-          text(nf(val, 1, 0), xtmp, ytmp -plotheight/16+10 - int(map(val, VoltageMin/2, VoltageMax/2, 0, plotheight/8)));
-          text(nf(val, 1, 0), xtmp, ytmp -plotheight*5/16+10 - int(map(val, VoltageMin/2, VoltageMax/2, 0, plotheight/8)));
-          text(nf(val, 1, 0), xtmp, ytmp -plotheight*9/16+10 - int(map(val, VoltageMin/2, VoltageMax/2, 0, plotheight/8)));
-          text(nf(val, 1, 0), xtmp, ytmp -plotheight*13/16+10 - int(map(val, VoltageMin/2, VoltageMax/2, 0, plotheight/8)));
+          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, 0, plotheight/4)));
+          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/4, plotheight/2)));
+          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/2, plotheight*3/4)));
+          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight*3/4, plotheight)));
         }
         val += ((VoltageMax/2)-(VoltageMin/2))/NyticksHalf;
+//        val += ((VoltageMax)-(VoltageMin))/Nyticks;
       }
     }
-    textAlign(CENTER,CENTER);
-    textSize(labelsize);
-    translate(15, height/2);
+    
+    // axis labels
+    textSize(labelsizes);
+    translate(12, height/2);
     rotate(-PI/2);
     text("Electrical Potential, millivolts", 0, 0);
     rotate(PI/2);
-    translate(-15, -height/2);
+    translate(-12, -height/2);
+    text("Time, seconds", xStep + plotwidth/2, height-15);
 
-//    blankplot();
+
     for (int i = 0; i < buttonsTDP.length; i++) {
       buttonsTDP[i].DrawButton();
     }
-    stroke(labelcolor);
-    textAlign(CENTER, CENTER);
+    
     textSize(labelsize);
-    fill(0);
     text("Channel", xStep+FullPlotWidth+45, yTitle+165);
     text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
-//    text("Data Capture",xStep+120, 15);
-    textSize(smalllabelsize);
-    text("Connection",xStep+plotwidth+45, yTitle-50);
+    textSize(labelsizes);
+    text("Connection",xStep+FullPlotWidth+45, yTitle-50);
     drawConnectionIndicator();
   }
   else if (CurrentDomain == FreqDomain) {
     // title
-    text("Signal Frequency", xStep+FullPlotWidth/2, 45);
+    textSize(titlesize);
+    text("Signal Frequency", xStep+FullPlotWidth/2+20, yTitle-45);
 
+    textSize(axisnumbersize);
     // x-axis
     float val = 0;
-    textSize(axisnumbersize);
     FreqMax = UserFrequency/2/(MaxSignalLength/plotwidth)/FreqFactor;
     for (int i = 0; i < Nxticks+1; i++) {
-      text(nf(val, 1, 0), xStep+int(map(val, 0, FreqMax, 0, plotwidth-20)), height-45);
+      text(nf(val, 1, 0), xStep+int(map(val, 0, FreqMax, 0, plotwidth-20)), height-yStep+10);
       val += FreqMax/Nxticks;
     }
-    text("Frequency, Hz", xStep + plotwidth/2, height-20);
 
     // y-axis
 //    if (OffSetFlag) {
@@ -2672,77 +2653,58 @@ void labelaxes() {
 //        val += (FreqAmpMax-FreqAmpMin)/Nyticks;
 //      }
 //    }
+
+    // axis labels
+    textSize(labelsizes);
     translate(40, height/2);
     rotate(-PI/2);
-    textAlign(CENTER,CENTER);
     text("Intensity, a.u.", 0, 0);
     rotate(PI/2);
     translate(-40, -height/2);
+    text("Frequency, Hz", xStep + plotwidth/2, height-20);
 
 //    blankplot();
     for (int i = 0; i < buttonsFDP.length; i++) {
       buttonsFDP[i].DrawButton();
     }
     
-    stroke(labelcolor);
-    textAlign(CENTER, CENTER);
-    textSize(22);
-    fill(0);
-    text("Channels", xStep+FullPlotWidth+60, 360);
-    text("Plotting", xStep+FullPlotWidth+60, 110);
-    text("Data Capture",xStep+120, 25);
-    text("Connection",xStep+840, 25);
+    textSize(labelsize);
+    text("Channel", xStep+FullPlotWidth+45, yTitle+165);
+    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
+    textSize(labelsizes);
+    text("Connection",xStep+FullPlotWidth+45, yTitle-50);
     drawConnectionIndicator();
     
   }
   else if (CurrentDomain == MouseDomain) {
     // title
-    stroke(0);
-    fill(0);
-    textAlign(CENTER,CENTER);
-    textSize(36);
-    text("Flex Mouse", xStep+FullPlotWidth/2, 45);
+    textSize(titlesize);
+    text("Flex Mouse", xStep+FullPlotWidth/2+20, yTitle-45);
     
-    textSize(26);
-    text("'p' (pause) = toggle mouse control.    'm' = exit mouse control.   'k' = calibrate.",width/2,yTitle+plotheight+30);
-    text("Select which input  channel controls X (left/right) and Y(up/down) axes.",width/2,yTitle+plotheight+60);
+    textSize(labelsizes);
+    text("'p' or pause/play = toggle control of your mouse pointer.",xStep+plotwidth/2,yTitle+plotheight+9);
+    text("'k' = setup threshold levels.  'm' = exit mouse games.",xStep+plotwidth/2,yTitle+plotheight+26);
+    text("x=left/right",xStep+plotwidth+barwidth/2,yTitle+120);
+    text("y=up/down",xStep+plotwidth+barwidth/2,yTitle+140);
+//    text("Select which input  channel controls X (left/right) and Y(up/down) axes.",width/2,yTitle+plotheight+25);
 
     
 //    blankplot();
     for (int i = 0; i < buttonsMP.length; i++) {
       buttonsMP[i].DrawButton();
     }
-    stroke(labelcolor);
-    textAlign(CENTER, CENTER);
-    textSize(22);
-    fill(0);
-//    text("Channels", xStep+FullPlotWidth+60, 360);
-    text("Plotting", xStep+FullPlotWidth+60, 110);
-    text("X-Axis", xStep+FullPlotWidth+60, yTitle+170);
-    text("Y-Axis", xStep+FullPlotWidth+60, yTitle+270);
-    text("Data Capture",xStep+120, 25);
-    text("Connection",xStep+840, 25);
+    textSize(labelsize);
+    text("X-Axis", xStep+FullPlotWidth+50, yTitle+170);
+    text("Y-Axis", xStep+FullPlotWidth+50, yTitle+230);
+    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
+    textSize(labelsizes);
+    text("Connection",xStep+FullPlotWidth+45, yTitle-50);
     drawConnectionIndicator();
   }
-  else if (CurrentDomain == SettingsDomain) {
-    // small box - mostly redundant - done continuously by draw()
-    //blankplot();
-    stroke(0);
-    fill(200);
-    rectMode(CENTER);
-    textAlign(CENTER,CENTER);
-    rect(width/2, height/2, 200,150,12);
-    text(folder,width/2,height/2+30);
-    for (int i = 0; i < buttonsSP.length; i++) {
-      if(buttonsSP[i] != null){
-        buttonsSP[i].DrawButton();
-      }
-    }
-  }
   else if (CurrentDomain == TrainingDomain) {
-    textAlign(CENTER,CENTER);
     // title
-    text("Flex Training", xStep+FullPlotWidth/2, 45);
+    textSize(titlesize);
+    text("Flex Training", xStep+FullPlotWidth/2+20, yTitle-45);
 
     // y-axis
     float val = 0;
@@ -2753,52 +2715,47 @@ void labelaxes() {
       val += (VoltageMax)/NyticksHalf;
     }
 
-    textSize(24);
+    textSize(labelsizes);
     translate(30, height/2);
     rotate(-PI/2);
-    textAlign(CENTER,CENTER);
     text("Muscle Voltage, mV", 0, 0);
     rotate(PI/2);
     translate(-30, -height/2);
 
-    textSize(24);
-    stroke(0);
-    fill(100);
-    rectMode(CENTER);
-    rect(xStep+580, 230, 100, 50,15);
-    rect(xStep+580, yTitle+plotheight-150, 100, 50,15);
-    stroke(0);
-    fill(0);
-    textSize(24);
-    text("Reps", xStep+580, 218);
-    text("Goal", xStep+580, 238);
-    text("Reps", xStep+580, yTitle+plotheight-164);
-    text("Goal", xStep+580, yTitle+plotheight-140);
-    textSize(20);
-    text("Channel",xStep+580,yTitle+40);
-    text("Channel",xStep+580,yTitle+plotheight-235);
-    textSize(18);
-    text("Threshold",xStep+602,yTitle+252);
-    text("Threshold",xStep+602,yTitle+plotheight-32);
+    textSize(labelsizes);
+//    fill(100);
+//    rectMode(CENTER);
+//    rect(xStep+580, 230, 100, 50,15);
+//    rect(xStep+580, yTitle+plotheight-150, 100, 50,15);
+    fill(labelcolor);
+    text("Set Reps", xStep+plotwidth+100, yTitle+70);
+    text("Set Reps", xStep+plotwidth+100, yTitle+plotheight/2+90);
+    text("Threshold",xStep+plotwidth+90,yTitle+plotheight/2-40);
+    text("Threshold",xStep+plotwidth+90,yTitle+plotheight-20);
 
-//    blankplot();
     for (int i = 0; i < buttonsTP.length; i++) {
       if(buttonsTP[i] != null){
         buttonsTP[i].DrawButton();
       }
     }
-    
+
     LabelRepBar(3);
-    stroke(labelcolor);
-    textAlign(CENTER, CENTER);
-    textSize(22);
-    fill(0);
-//    text("Channels", xStep+FullPlotWidth+60, 360);
-    text("Plotting", xStep+FullPlotWidth+60, 110);
-    text("Data Capture",xStep+120, 25);
-    text("Connection",xStep+840, 25);
+    textSize(labelsizes);
+    text("Connection",xStep+FullPlotWidth+45, yTitle-50);
     drawConnectionIndicator();
   }
+//  else if (CurrentDomain == SettingsDomain) {
+//    fill(200);
+//    rectMode(CENTER);
+//    rect(width/2, height/2, 200,150,12);
+//    text(folder,width/2,height/2+30);
+//    for (int i = 0; i < buttonsSP.length; i++) {
+//      if(buttonsSP[i] != null){
+//        buttonsSP[i].DrawButton();
+//      }
+//    }
+//  }
+  
   loadPixels();
 }
 // End of plotting section
@@ -3066,6 +3023,26 @@ void StopData(){
 }
 
 void saveSettings(){
+  // save all tmp vals from the settings menu in the actual variables
+  UserFrequency = UserFreqArray[UserFreqIndexTmp];
+  TimeMax = float(FullPlotWidth)/float(UserFrequency);
+  UserFreqCustom = 0;
+  
+  DataRecordLength = DataRecordTime*UserFrequency;
+  buttonsTDP[BTDPrecordnextdata].label = "Record "+DataRecordTime+"s";
+  buttonsFDP[BFDPrecordnextdata].label = "Record "+DataRecordTime+"s";
+  buttonsTP[BTPrecordnextdata].label = "Record "+DataRecordTime+"s";
+  buttonsMP[BMPrecordnextdata].label = "Record "+DataRecordTime+"s";  
+  for(int i = 0; i<MaxSignalNumber;i++){
+    if (i < SignalNumberTmp){
+      ChannelOn[i]=true;
+    } else if (i >= SignalNumberTmp){
+      ChannelOn[i]=false;
+    }
+  }
+  TimeMax = float(FullPlotWidth)/float(UserFrequency);
+  
+  // build and save a txt file of settings
   String[] SettingString = new String[8];
   SettingString[0] = "FlexVoltViewer User Settings";
   SettingString[1] = folder;
@@ -3268,7 +3245,7 @@ void UpdateSettings(){
     myPort.write('Y');
     delay(serialwritedelay);
     
-//    EstablishDataLink();
+    EstablishDataLink(); // This used to be commented out and handled in individual mousepress and keypress events,  can't remember why
   }
   
 }
@@ -3300,7 +3277,7 @@ void ChangeDomain(int NewDomain){
   OldDomain = CurrentDomain;
   NamesFlag = false;
   // handle changes to the Serial buffer coming out of settings
-  if (OldDomain == SettingsDomain){
+//  if (OldDomain == SettingsDomain){
     if (BitDepth10){
       if (SignalNumber > 4){
         SerialBufferN = SignalNumber+2;
@@ -3313,7 +3290,7 @@ void ChangeDomain(int NewDomain){
       SerialBufferN = SignalNumber;
     }
     EstablishDataLink();
-  }
+//  }
   if (NewDomain == SettingsDomain){
     folderTmp = folder;
     UserFreqIndexTmp = UserFreqIndex;
@@ -3410,7 +3387,7 @@ void ChangeDomain(int NewDomain){
     buttonsMP[BMPsettings].ChangeColorUnpressed();
     buttonsMP[BMPhelp].ChangeColorUnpressed();
     buttonsMP[BMPtimedomain].BOn = false;
-    buttonsMP[BMPfreqdomain].BOn = false;
+//    buttonsMP[BMPfreqdomain].BOn = false;
     buttonsMP[BMPtraindomain].BOn = false;
     buttonsMP[BMPmousedomain].BOn = false;
     buttonsMP[BMPmousedomain].BOn = true;
@@ -3449,7 +3426,7 @@ void GetPageButtons(){
   }
   else if(CurrentDomain == TrainingDomain){
     GuiButton[] obj = buttonsTP;
-    obj[BTPpause].BOn = PauseFlag;
+//    obj[BTPpause].BOn = PauseFlag;
   }
   else if(CurrentDomain == MouseDomain){
     GuiButton[] obj = buttonsMP;
@@ -3491,150 +3468,137 @@ void GetChannelButtons(GuiButton[] obj){
     ChannelOn[TrainChan[1]] = true;;
     obj[BTPchan1].BOn = ChannelOn[TrainChan[0]];
     obj[BTPchan2].BOn = ChannelOn[TrainChan[1]];
-    obj[BTPpause].BOn = PauseFlag;
+//    obj[BTPpause].BOn = PauseFlag;
   }
   else if(CurrentDomain == MouseDomain){
     obj[BMPpause].BOn = PauseFlag;
   }
 }
 
+int Bheight = 25;  // button height
+int Bheights = 20;  // button height
+
 void InitializeButtons(){
   // Time Domain (start page) Buttons
   buttonsTDP = new GuiButton[ButtonNumTDP];
   int buttony = yTitle+195;
   int controlsy = yTitle+30;
-  buttonsTDP[BTDPsettings] = new GuiButton("Settings", xStep+plotwidth+45, yTitle+plotheight+yStep/2, 80, 25, color(BIdleColor), color(0), "Settings", Bmomentary, false);
-  buttonsTDP[BTDPhelp] = new GuiButton("Help", xStep+plotwidth-35, yTitle-30, 50, 40, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
-  buttonsTDP[BTDPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
-  buttonsTDP[BTDPpause]= new GuiButton("Pause", xStep+plotwidth+45, controlsy+10, 60, 25, color(BIdleColor), color(0), "Pause", Bonoff, false);
-  buttonsTDP[BTDPclear] = new GuiButton("Clear", xStep+plotwidth+45, controlsy+40, 60, 25,  color(BIdleColor), color(0), "Clear", Bmomentary, false);
-  buttonsTDP[BTDPoffset] = new GuiButton("OffSet", xStep+plotwidth+45, controlsy+70, 60, 25,  color(BIdleColor), color(0), "OffSet", Bonoff, false);
-  buttonsTDP[BTDPsmooth] = new GuiButton("Smooth", xStep+plotwidth+45, controlsy+100, 60, 25,  color(BIdleColor), color(0), "Filter", Bonoff, false);
-//  buttonsTDP[BTDPrecorddata] = new GuiButton("Record", xStep+60, 65, 120, 60, color(BIdleColor), color(0), "Save Last,"+DataRecordTime+" Seconds", Bmomentary, false);
+  buttonsTDP[BTDPsettings] = new GuiButton("Settings", xStep+plotwidth+45, yTitle+plotheight+yStep/2, 80, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
+  buttonsTDP[BTDPhelp]     = new GuiButton("Help", xStep+plotwidth-35, yTitle-30, 50, 40, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
+  buttonsTDP[BTDPsave]     = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
+  buttonsTDP[BTDPpause]    = new GuiButton("Pause", xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+  buttonsTDP[BTDPclear]    = new GuiButton("Clear", xStep+plotwidth+45, controlsy+40, 60, Bheight,  color(BIdleColor), color(0), "Clear", Bmomentary, false);
+  buttonsTDP[BTDPoffset]   = new GuiButton("OffSet", xStep+plotwidth+45, controlsy+70, 60, Bheight,  color(BIdleColor), color(0), "OffSet", Bonoff, false);
+  buttonsTDP[BTDPsmooth]   = new GuiButton("Smooth", xStep+plotwidth+45, controlsy+100, 60, Bheight,  color(BIdleColor), color(0), "Filter", Bonoff, false);
   buttonsTDP[BTDPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsTDP[BTDPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-70, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
-  buttonsTDP[BTDPfreqdomain] = new GuiButton("FreqDomain", xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), "Switch to Frequency", Bonoff, false);
+  buttonsTDP[BTDPtimedomain]  = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-70, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsTDP[BTDPfreqdomain]  = new GuiButton("FreqDomain", xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), "Switch to Frequency", Bonoff, false);
   buttonsTDP[BTDPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+20, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
-  buttonsTDP[BTDPmousedomain] = new GuiButton("MoseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
-  //buttonsTDP[BTDPdomain] = new GuiButton("PlotDomain", xStep+340, 65, 180, 50, color(BIdleColor), color(0), "Time/Freq/Train", Bonoff, false);
-  buttonsTDP[BTDPserialreset] = new GuiButton("SerialReset", xStep+plotwidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
-  buttonsTDP[BTDPchan1] = new GuiButton("Chan1", xStep+plotwidth+25, buttony, 30, 25,   color(BIdleColor), Sig1Color, "1", Bonoff, true);
-  buttonsTDP[BTDPchan2] = new GuiButton("Chan2", xStep+plotwidth+25, buttony+30, 30, 25,   color(BIdleColor), Sig2Color, "2", Bonoff, true);
-  buttonsTDP[BTDPchan3] = new GuiButton("Chan3", xStep+plotwidth+25, buttony+60, 30, 25,   color(BIdleColor), Sig3Color, "3", Bonoff, true);
-  buttonsTDP[BTDPchan4] = new GuiButton("Chan4", xStep+plotwidth+25, buttony+90, 30, 25,   color(BIdleColor), Sig4Color, "4", Bonoff, true);
-  buttonsTDP[BTDPchan5] = new GuiButton("Chan5", xStep+plotwidth+65, buttony, 30, 25,   color(BIdleColor), Sig5Color, "5", Bonoff, false);
-  buttonsTDP[BTDPchan6] = new GuiButton("Chan6", xStep+plotwidth+65, buttony+30, 30, 25,   color(BIdleColor), Sig6Color, "6", Bonoff, false);
-  buttonsTDP[BTDPchan7] = new GuiButton("Chan7", xStep+plotwidth+65, buttony+60, 30, 25,   color(BIdleColor), Sig7Color, "7", Bonoff, false);
-  buttonsTDP[BTDPchan8] = new GuiButton("Chan8", xStep+plotwidth+65, buttony+90, 30, 25,   color(BIdleColor), Sig8Color, "8", Bonoff, false);
+  buttonsTDP[BTDPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
+  buttonsTDP[BTDPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
+  buttonsTDP[BTDPchan1] = new GuiButton("Chan1", xStep+plotwidth+25, buttony, 30, Bheight,   color(BIdleColor), Sig1Color, "1", Bonoff, true);
+  buttonsTDP[BTDPchan2] = new GuiButton("Chan2", xStep+plotwidth+25, buttony+30, 30, Bheight,   color(BIdleColor), Sig2Color, "2", Bonoff, true);
+  buttonsTDP[BTDPchan3] = new GuiButton("Chan3", xStep+plotwidth+25, buttony+60, 30, Bheight,   color(BIdleColor), Sig3Color, "3", Bonoff, true);
+  buttonsTDP[BTDPchan4] = new GuiButton("Chan4", xStep+plotwidth+25, buttony+90, 30, Bheight,   color(BIdleColor), Sig4Color, "4", Bonoff, true);
+  buttonsTDP[BTDPchan5] = new GuiButton("Chan5", xStep+plotwidth+65, buttony, 30, Bheight,   color(BIdleColor), Sig5Color, "5", Bonoff, false);
+  buttonsTDP[BTDPchan6] = new GuiButton("Chan6", xStep+plotwidth+65, buttony+30, 30, Bheight,   color(BIdleColor), Sig6Color, "6", Bonoff, false);
+  buttonsTDP[BTDPchan7] = new GuiButton("Chan7", xStep+plotwidth+65, buttony+60, 30, Bheight,   color(BIdleColor), Sig7Color, "7", Bonoff, false);
+  buttonsTDP[BTDPchan8] = new GuiButton("Chan8", xStep+plotwidth+65, buttony+90, 30, Bheight,   color(BIdleColor), Sig8Color, "8", Bonoff, false);
   
 
   // Frequency Domain buttons (Same as time Domain!)
   buttonsFDP = new GuiButton[ButtonNumFDP];
-  buttonsFDP[BFDPsettings] = new GuiButton("Settings", xStep+plotwidth+40, 50, 100, 50, color(BIdleColor), color(0), "User,Settings", Bmomentary, false);
-  buttonsFDP[BFDPhelp] = new GuiButton("Help", xStep+960, 50, 70, 50, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
-  buttonsFDP[BFDPpause]= new GuiButton("Pause", xStep+plotwidth+40, 150, 60, 25,  color(BIdleColor), color(0), "Pause", Bonoff, false);
-  buttonsFDP[BFDPsave] = new GuiButton("Store", xStep+190, 65, 80, 46, color(BIdleColor), color(0), "Save,Image", Bmomentary, false);
-//  buttonsFDP[BFDPclear] = new GuiButton("Clear", xStep+plotwidth+40, 200, 60, 25,  color(BIdleColor), color(0), "Clear", Bonoff, false);
-//  buttonsFDP[BFDPrecorddata] = new GuiButton("Record", xStep+60, 65, 120, 60, color(BIdleColor), color(0), "Save Last,"+DataRecordTime+" Seconds", Bonoff, false);
-  buttonsFDP[BFDPrecordnextdata] = new GuiButton("SaveRecord", xStep+70, 65, 140, 46, color(BIdleColor), color(0), "Record Next,"+DataRecordTime+" Seconds", Bmomentary, false);
-//  buttonsFDP[BFDPdomain] = new GuiButton("PlotDomain", xStep+340, 65, 180, 50, color(BIdleColor), color(0), "Time/Freq/Train", Bonoff, false);
-  buttonsFDP[BFDPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-110, 80, 70, 20, color(BIdleColor), color(0), "Time", Bonoff, false);
-  buttonsFDP[BFDPfreqdomain] = new GuiButton("FreqDomain", xStep+FullPlotWidth/2-40, 80, 70, 20, color(BIdleColor), color(0), "FFT", Bonoff, false);
-  buttonsFDP[BFDPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+30, 80, 70, 20, color(BIdleColor), color(0), "Train", Bonoff, false);
-  buttonsFDP[BFDPmousedomain] = new GuiButton("MoseDomain", xStep+FullPlotWidth/2+105, 80, 80, 20, color(BIdleColor), color(0), "Mouse", Bonoff, false);
-  buttonsFDP[BFDPserialreset] = new GuiButton("SerialReset", xStep+860, 60, 100, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
-  buttonsFDP[BFDPoffset] = new GuiButton("OffSet", xStep+plotwidth+40, 250, 60, 25,  color(BIdleColor), color(0), "OffSet", Bonoff, false);
-//  buttonsFDP[BFDPsmooth] = new GuiButton("Smooth", xStep+plotwidth+40, 300, 60, 25,  color(BIdleColor), color(0), "Smooth", Bonoff, false);
-  buttonsFDP[BFDPchan1] = new GuiButton("Chan1", xStep+plotwidth+40, buttony, 60, 25,  color(BIdleColor), Sig1Color, "CH 1", Bonoff, true);
-  buttonsFDP[BFDPchan2] = new GuiButton("Chan2", xStep+plotwidth+40, buttony+40, 60, 25,  color(BIdleColor), Sig2Color, "CH 2", Bonoff, true);
-  buttonsFDP[BFDPchan3] = new GuiButton("Chan3", xStep+plotwidth+40, buttony+80, 60, 25,  color(BIdleColor), Sig3Color, "CH 3", Bonoff, true);
-  buttonsFDP[BFDPchan4] = new GuiButton("Chan4", xStep+plotwidth+40, buttony+120, 60, 25,  color(BIdleColor), Sig4Color, "CH 4", Bonoff, true);
-  buttonsFDP[BFDPchan5] = new GuiButton("Chan5", xStep+plotwidth+40, buttony+160, 60, 25,  color(BIdleColor), Sig5Color, "CH 5", Bonoff, false);
-  buttonsFDP[BFDPchan6] = new GuiButton("Chan6", xStep+plotwidth+40, buttony+200, 60, 25,  color(BIdleColor), Sig6Color, "CH 6", Bonoff, false);
-  buttonsFDP[BFDPchan7] = new GuiButton("Chan7", xStep+plotwidth+40, buttony+240, 60, 25,  color(BIdleColor), Sig7Color, "CH 7", Bonoff, false);
-  buttonsFDP[BFDPchan8] = new GuiButton("Chan8", xStep+plotwidth+40, buttony+280, 60, 25,  color(BIdleColor), Sig8Color, "CH 8", Bonoff, false);
+  buttonsFDP[BFDPsettings] = new GuiButton("Settings", xStep+plotwidth+45, yTitle+plotheight+yStep/2, 80, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
+  buttonsFDP[BFDPhelp] = new GuiButton("Help", xStep+plotwidth-35, yTitle-30, 50, 40, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
+  buttonsFDP[BFDPpause]= new GuiButton("Pause", xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+  buttonsFDP[BFDPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
+  buttonsFDP[BFDPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
+  buttonsFDP[BFDPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-70, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsFDP[BFDPfreqdomain] = new GuiButton("FreqDomain", xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), "Switch to Frequency", Bonoff, false);
+  buttonsFDP[BFDPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+20, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
+  buttonsFDP[BFDPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
+  buttonsFDP[BFDPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
+  buttonsFDP[BFDPoffset] = new GuiButton("OffSet", xStep+plotwidth+45, controlsy+70, 60, Bheight,  color(BIdleColor), color(0), "OffSet", Bonoff, false);
+  buttonsFDP[BFDPchan1] = new GuiButton("Chan1", xStep+plotwidth+25, buttony, 30, Bheight,   color(BIdleColor), Sig1Color, "1", Bonoff, true);
+  buttonsFDP[BFDPchan2] = new GuiButton("Chan2", xStep+plotwidth+25, buttony+30, 30, Bheight,   color(BIdleColor), Sig2Color, "2", Bonoff, true);
+  buttonsFDP[BFDPchan3] = new GuiButton("Chan3", xStep+plotwidth+25, buttony+60, 30, Bheight,   color(BIdleColor), Sig3Color, "3", Bonoff, true);
+  buttonsFDP[BFDPchan4] = new GuiButton("Chan4", xStep+plotwidth+25, buttony+90, 30, Bheight,   color(BIdleColor), Sig4Color, "4", Bonoff, true);
+  buttonsFDP[BFDPchan5] = new GuiButton("Chan5", xStep+plotwidth+65, buttony, 30, Bheight,   color(BIdleColor), Sig5Color, "5", Bonoff, false);
+  buttonsFDP[BFDPchan6] = new GuiButton("Chan6", xStep+plotwidth+65, buttony+30, 30, Bheight,   color(BIdleColor), Sig6Color, "6", Bonoff, false);
+  buttonsFDP[BFDPchan7] = new GuiButton("Chan7", xStep+plotwidth+65, buttony+60, 30, Bheight,   color(BIdleColor), Sig7Color, "7", Bonoff, false);
+  buttonsFDP[BFDPchan8] = new GuiButton("Chan8", xStep+plotwidth+65, buttony+90, 30, Bheight,   color(BIdleColor), Sig8Color, "8", Bonoff, false);
   
   // Mouse Page Buttons
   buttonsMP = new GuiButton[ButtonNumMP];
-  buttonsMP[BMPsettings] = new GuiButton("Settings", xStep+plotwidth+40, 50, 100, 50, color(BIdleColor), color(0), "User,Settings", Bmomentary, false);
-  buttonsMP[BMPhelp] = new GuiButton("Help", xStep+960, 50, 70, 50, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
-  buttonsMP[BMPpause]= new GuiButton("Pause", xStep+plotwidth+40, 150, 60, 25,  color(BIdleColor), color(0), "Pause", Bonoff, false);
-  buttonsMP[BMPsave] = new GuiButton("Store", xStep+190, 65, 80, 46, color(BIdleColor), color(0), "Save,Image", Bmomentary, false);
-  buttonsMP[BMPclear] = new GuiButton("Clear", xStep+plotwidth+40, 200, 60, 25,  color(BIdleColor), color(0), "Clear", Bmomentary, false);
-//  buttonsMP[BMPrecorddata] = new GuiButton("Record", xStep+60, 65, 120, 60, color(BIdleColor), color(0), "Save Last,"+DataRecordTime+" Seconds", Bonoff, false);
-  buttonsMP[BMPrecordnextdata] = new GuiButton("SaveRecord", xStep+70, 65, 140, 46, color(BIdleColor), color(0), "Record Next,"+DataRecordTime+" Seconds", Bmomentary, false);
-//  buttonsMP[BMPdomain] = new GuiButton("PlotDomain", xStep+340, 65, 180, 50, color(BIdleColor), color(0), "Time/Freq/Train", Bonoff, false);
-  buttonsMP[BMPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-110, 80, 70, 20, color(BIdleColor), color(0), "Time", Bonoff, false);
-  buttonsMP[BMPfreqdomain] = new GuiButton("FreqDomain", xStep+FullPlotWidth/2-40, 80, 70, 20, color(BIdleColor), color(0), "FFT", Bonoff, false);
-  buttonsMP[BMPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+30, 80, 70, 20, color(BIdleColor), color(0), "Train", Bonoff, false);
-  buttonsMP[BMPmousedomain] = new GuiButton("MoseDomain", xStep+FullPlotWidth/2+105, 80, 80, 20, color(BIdleColor), color(0), "Mouse", Bonoff, false);
-  buttonsMP[BMPserialreset] = new GuiButton("SerialReset", xStep+860, 60, 100, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
-  buttonsMP[BMPchan1up]  = new GuiButton("MChan1up", xStep+plotwidth+100100, yTitle+200, 30, 28, color(BIdleColor), color(0), ">", Bmomentary, false);
-  buttonsMP[BMPchan1down]  = new GuiButton("MChan1down", xStep+plotwidth+20, yTitle+200, 30, 28, color(BIdleColor), color(0), "<", Bmomentary, false);
-  buttonsMP[BMPchan1]  = new GuiButton("MChan1", xStep+plotwidth+40, yTitle+200, 40, 30, color(BIdleColor), SigColorM[MouseChan[0]], ""+(MouseChan[0]+1),Bonoff,  true);
-  buttonsMP[BMPchan2up]  = new GuiButton("MChan2up", xStep+plotwidth+100, yTitle+300, 30, 28, color(BIdleColor), color(0), ">", Bmomentary, false);
-  buttonsMP[BMPchan2down]  = new GuiButton("MChan2down", xStep+plotwidth+20, yTitle+300, 30, 28, color(BIdleColor), color(0), "<", Bmomentary, false);
-  buttonsMP[BMPchan2]  = new GuiButton("MChan2", xStep+plotwidth+40, yTitle+300, 40, 30, color(BIdleColor), SigColorM[MouseChan[1]], ""+(MouseChan[1]+1),Bonoff,  true);
+  buttonsMP[BMPsettings] = new GuiButton("Settings", xStep+plotwidth+45, yTitle+plotheight+yStep/2, 80, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
+  buttonsMP[BMPhelp] = new GuiButton("Help", xStep+plotwidth-35, yTitle-30, 50, 40, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
+  buttonsMP[BMPpause]= new GuiButton("Pause", xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+  buttonsMP[BMPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
+  buttonsMP[BMPclear] = new GuiButton("Clear", xStep+plotwidth+45, controlsy+40, 60, Bheight,  color(BIdleColor), color(0), "Clear", Bmomentary, false);
+  buttonsMP[BMPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
+  buttonsMP[BMPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-70, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsMP[BMPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+20, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
+  buttonsMP[BMPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
+  buttonsMP[BMPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
+  buttonsMP[BMPchan1up]  = new GuiButton("MChan1up", xStep+plotwidth+80, yTitle+200, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
+  buttonsMP[BMPchan1down]  = new GuiButton("MChan1down", xStep+plotwidth+16, yTitle+200, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
+  buttonsMP[BMPchan1]  = new GuiButton("MChan1", xStep+plotwidth+50, yTitle+200, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[0]], ""+(MouseChan[0]+1),Bonoff,  true);
+  buttonsMP[BMPchan2up]  = new GuiButton("MChan2up", xStep+plotwidth+80, yTitle+260, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
+  buttonsMP[BMPchan2down]  = new GuiButton("MChan2down", xStep+plotwidth+16, yTitle+260, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
+  buttonsMP[BMPchan2]  = new GuiButton("MChan2", xStep+plotwidth+50, yTitle+260, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[1]], ""+(MouseChan[1]+1),Bonoff,  true);
   
   // Training Page Buttons
   buttonsTP = new GuiButton[ButtonNumTP];
-  buttonsTP[BTPsettings] = new GuiButton("Settings", xStep+plotwidth+40, 50, 100, 50, color(BIdleColor), color(0), "User,Settings", Bmomentary, false);
-  buttonsTP[BTPhelp] = new GuiButton("Help", xStep+960, 50, 70, 50, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
-  buttonsTP[BTPpause]= new GuiButton("Pause", xStep+plotwidth+40, yTitle+50, 60, 25,  color(BIdleColor), color(0), "Pause", Bonoff, false);
-  buttonsTP[BTPsave] = new GuiButton("Store", xStep+190, 65, 80, 46, color(BIdleColor), color(0), "Save,Image", Bmomentary, false);
-//  buttonsTP[BTPclear] = new GuiButton("Clear", xStep+plotwidth+40, 200, 60, 25,  color(BIdleColor), color(0), "Clear", Bmomentary, false);
-  buttonsTP[BTPrecordnextdata] = new GuiButton("SaveRecord", xStep+70, 65, 140, 46, color(BIdleColor), color(0), "Record Next,"+DataRecordTime+" Seconds", Bmomentary, false);
-//  buttonsTP[BTPdomain] = new GuiButton("PlotDomain", xStep+340, 65, 180, 50, color(BIdleColor), color(0), "Time/Freq/Train", Bonoff, false);
-  buttonsTP[BTPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-110, 80, 70, 20, color(BIdleColor), color(0), "Time", Bonoff, false);
-  buttonsTP[BTPfreqdomain] = new GuiButton("FreqDomain", xStep+FullPlotWidth/2-40, 80, 70, 20, color(BIdleColor), color(0), "FFT", Bonoff, false);
-  buttonsTP[BTPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+30, 80, 70, 20, color(BIdleColor), color(0), "Train", Bonoff, false);
-  buttonsTP[BTPmousedomain] = new GuiButton("MoseDomain", xStep+FullPlotWidth/2+105, 80, 80, 20, color(BIdleColor), color(0), "Mouse", Bonoff, false);
-  buttonsTP[BTPserialreset] = new GuiButton("SerialReset", xStep+860, 60, 100, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
-  buttonsTP[BTPreset]  = new GuiButton("TReset", xStep+plotwidth+40, yTitle+110, 100, 60, color(BIdleColor), color(0), "Reset,Workout", Bmomentary, false);
+  buttonsTP[BTPsettings] = new GuiButton("Settings", xStep+FullPlotWidth+45, yTitle+plotheight+yStep/2, 80, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
+  buttonsTP[BTPhelp] = new GuiButton("Help", xStep+FullPlotWidth-35, yTitle-30, 50, 40, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
+//  buttonsTP[BTPpause]= new GuiButton("Pause", xStep+FullPlotWidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+  buttonsTP[BTPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
+  buttonsTP[BTPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
+  buttonsTP[BTPtimedomain]  = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-70, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsTP[BTPfreqdomain]  = new GuiButton("FreqDomain", xStep+FullPlotWidth/2-40, 80, 70, 20, color(BIdleColor), color(0), "FFT", Bonoff, false);
+  buttonsTP[BTPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+20, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
+  buttonsTP[BTPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
+  buttonsTP[BTPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
+  buttonsTP[BTPreset]  = new GuiButton("TReset", xStep+HalfPlotWidth+65, yTitle+plotheight/2+5, 120, Bheights, color(BIdleColor), color(0), "Reset Workout", Bmomentary, false);
   //  buttonsTP[BTPWork]   = new GuiButton("TWorkOutpuwt", 1025, 150, 80, 60, color(BIdleColor), color(0), "Work Output", Bonoff, false);
-  buttonsTP[BTPsetReps1]= new GuiButton("TSetReps1", xStep+580, 280, 60, 25,  color(BIdleColor), color(0), ""+RepsTarget[0], Bonoff, false);
+  buttonsTP[BTPsetReps1]     = new GuiButton("TSetReps1", xStep+HalfPlotWidth+30, yTitle+70, 50, Bheights,  color(BIdleColor), color(0), ""+RepsTarget[0], Bonoff, false);
+  buttonsTP[BTPsetReps2]     = new GuiButton("TSetReps2", xStep+HalfPlotWidth+30, yTitle+plotheight/2+90, 50, Bheights,  color(BIdleColor), color(0), ""+RepsTarget[1], Bonoff, false);
   //  buttonsTP[BTPReps]   = new GuiButton("TReps", xStep+FullPlotWidth+60, 150, 80, 60, color(BIdleColor), color(0), "Reps", Bonoff, false);
-  
-  buttonsTP[BTPthresh1up]  = new GuiButton("Trepthresh1up", xStep+530, yTitle+240, 55, 28, color(BIdleColor), color(0), "up", Bmomentary, false);
-  buttonsTP[BTPthresh1down]  = new GuiButton("Trepthresh1down", xStep+530, yTitle+270, 55, 28, color(BIdleColor), color(0), "down", Bmomentary, false);
-  buttonsTP[BTPthresh2up]  = new GuiButton("Trepthresh2up", xStep+530, yTitle+plotheight-45, 55, 28, color(BIdleColor), color(0), "up", Bmomentary, false);
-  buttonsTP[BTPthresh2down]  = new GuiButton("Trepthresh2down", xStep+530, yTitle+plotheight-15, 55, 28, color(BIdleColor), color(0), "down", Bmomentary, false);
-  
-  buttonsTP[BTPsetReps2]= new GuiButton("TSetReps2", xStep+580, yTitle+plotheight-100, 60, 25,  color(BIdleColor), color(0), ""+RepsTarget[1], Bonoff, false); 
-  buttonsTP[BTPchan1]  = new GuiButton("TChan1", xStep+580, yTitle+70, 40, 30, color(BIdleColor), SigColorM[TrainChan[0]], ""+(TrainChan[0]+1), Bonoff, true);
-  buttonsTP[BTPchan1name]  = new GuiButton("TName1", xStep+580, yTitle+15, 120, 30, color(BIdleColor), color(0), "signal1", Bonoff, false);
-  buttonsTP[BTPchan1up]  = new GuiButton("TName1", xStep+620, yTitle+70, 30, 28, color(BIdleColor), color(0), ">", Bmomentary, false);
-  buttonsTP[BTPchan1down]  = new GuiButton("TName1", xStep+540, yTitle+70, 30, 28, color(BIdleColor), color(0), "<", Bmomentary, false);
-  
-  buttonsTP[BTPchan2]  = new GuiButton("TChan2", xStep+580, yTitle+plotheight-205, 40, 30, color(BIdleColor), SigColorM[TrainChan[1]], ""+(TrainChan[1]+1), Bonoff, false);
-  buttonsTP[BTPchan2name]  = new GuiButton("TName2", xStep+580, yTitle+plotheight-265, 120, 30, color(BIdleColor), color(0), "signal2", Bonoff, false);
-  buttonsTP[BTPchan2up]  = new GuiButton("TChan2", xStep+620, yTitle+plotheight-205, 30, 28, color(BIdleColor), color(0), ">", Bmomentary, false);
-  buttonsTP[BTPchan2down]  = new GuiButton("TChan2", xStep+540, yTitle+plotheight-205, 30, 28, color(BIdleColor), color(0), "<", Bmomentary, false);
+  buttonsTP[BTPthresh1up]    = new GuiButton("Trepthresh1up", xStep+HalfPlotWidth+20, yTitle+plotheight/2-50, 30, Bheights, color(BIdleColor), color(0), "up", Bmomentary, false);
+  buttonsTP[BTPthresh1down]  = new GuiButton("Trepthresh1dn", xStep+HalfPlotWidth+20, yTitle+plotheight/2-26, 30, Bheights, color(BIdleColor), color(0), "dn", Bmomentary, false);
+  buttonsTP[BTPthresh2up]    = new GuiButton("Trepthresh2up", xStep+HalfPlotWidth+20, yTitle+plotheight-29, 30, Bheights, color(BIdleColor), color(0), "up", Bmomentary, false);
+  buttonsTP[BTPthresh2down]  = new GuiButton("Trepthresh2dn", xStep+HalfPlotWidth+20, yTitle+plotheight-5, 30, Bheights, color(BIdleColor), color(0), "dn", Bmomentary, false);
+  buttonsTP[BTPchan1]        = new GuiButton("TChan1", xStep+HalfPlotWidth+65, yTitle+40, 30, Bheights, color(BIdleColor), SigColorM[TrainChan[0]], ""+(TrainChan[0]+1), Bonoff, true);
+  buttonsTP[BTPchan1name]    = new GuiButton("TName1", xStep+HalfPlotWidth+65, yTitle+15, 120, Bheights, color(BIdleColor), color(0), "name1", Bonoff, false);
+  buttonsTP[BTPchan1up]      = new GuiButton("TName1", xStep+HalfPlotWidth+105, yTitle+40, Bheights, Bheights, color(BIdleColor), color(0), ">", Bmomentary, false);
+  buttonsTP[BTPchan1down]    = new GuiButton("TName1", xStep+HalfPlotWidth+25, yTitle+40, Bheights, Bheights, color(BIdleColor), color(0), "<", Bmomentary, false);
+  buttonsTP[BTPchan2]        = new GuiButton("TChan2", xStep+HalfPlotWidth+65, yTitle+plotheight/2+60, 30, Bheights, color(BIdleColor), SigColorM[TrainChan[1]], ""+(TrainChan[1]+1), Bonoff, false);
+  buttonsTP[BTPchan2name]    = new GuiButton("TName2", xStep+HalfPlotWidth+65, yTitle+plotheight/2+35, 120, Bheights, color(BIdleColor), color(0), "name2", Bonoff, false);
+  buttonsTP[BTPchan2up]      = new GuiButton("TChan2", xStep+HalfPlotWidth+105, yTitle+plotheight/2+60, Bheights, Bheights, color(BIdleColor), color(0), ">", Bmomentary, false);
+  buttonsTP[BTPchan2down]    = new GuiButton("TChan2", xStep+HalfPlotWidth+25, yTitle+plotheight/2+60, Bheights, Bheights, color(BIdleColor), color(0), "<", Bmomentary, false);
 
   // Settings Page Buttons
   buttonsSP = new GuiButton[ButtonNumSP];
-  buttonsSP[BSPfolder]  = new GuiButton("Folder", width/2-240, height/2-170, 100, 25, color(BIdleColor), color(0), "change", Bmomentary, false);
-  buttonsSP[BSPfiltup]  = new GuiButton("FilterUp", width/2+180, height/2+10, 30, 30, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPfiltdown]  = new GuiButton("FilterDown", width/2+100, height/2+10, 30, 30, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSPfrequp]  = new GuiButton("FreqUp", width/2-250, height/2+10, 30, 30, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPfreqdown]  = new GuiButton("FreqDown", width/2-350, height/2+10, 30, 30, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSPrecordtimeup]  = new GuiButton("RecordTimeUp", width/2+290, height/2-110, 30, 30, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPrecordtimedown]  = new GuiButton("RecordTimeDown", width/2+190, height/2-110, 30, 30, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSP1chan]  = new GuiButton("1chanmodel", width/2-150, height/2+10, 40, 30, color(BIdleColor), color(0), "1", Bonoff, false);
-  buttonsSP[BSP2chan]  = new GuiButton("2chanmodel", width/2-100, height/2+10, 40, 30, color(BIdleColor), color(0), "2", Bonoff, false);
-  buttonsSP[BSP4chan]  = new GuiButton("4chanmodel", width/2-50, height/2+10, 40, 30, color(BIdleColor), color(0), "4", Bonoff, true);
-  buttonsSP[BSP8chan]  = new GuiButton("8chanmodel", width/2-0, height/2+10, 40, 30, color(BIdleColor), color(0), "8", Bonoff, false);
-  buttonsSP[BSPcancel]  = new GuiButton("Exit", width/2+100, height/2+210, 140, 40, color(BIdleColor), color(0), "Cancel (c)", Bonoff, false);
-  
-  buttonsSP[BSPdownsampleup]  = new GuiButton("DownSampleUp", width/2+350, height/2+10, 30, 30, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPdownsampledown]  = new GuiButton("DownSampleDown", width/2+260, height/2+10, 30, 30, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSPtimeradjustup]  = new GuiButton("TimerAdjustUp", width/2-260, height/2+130, 30, 30, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPtimeradjustdown]  = new GuiButton("TimerAdjustDown", width/2-340, height/2+130, 30, 30, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSPprescalerup]  = new GuiButton("PrescalerUp", width/2-60, height/2+130, 30, 30, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPprescalerdown]  = new GuiButton("PrescalerDown", width/2-140, height/2+130, 30, 30, color(BIdleColor), color(0), "-", Bmomentary, false);
-  
-  
-  buttonsSP[BSPsave]  = new GuiButton("Save", width/2-120, height/2+210, 160, 40, color(BIdleColor), color(0), "Save & Exit (s)", Bonoff, false);
+  buttonsSP[BSPfolder]  = new GuiButton("Folder", width/2-200, height/2-110, 80, Bheights, color(BIdleColor), color(0), "change", Bmomentary, false);
+  buttonsSP[BSPfiltup]  = new GuiButton("FilterUp", width/2+115, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+  buttonsSP[BSPfiltdown]  = new GuiButton("FilterDown", width/2+65, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+  buttonsSP[BSPfrequp]  = new GuiButton("FreqUp", width/2-160, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+  buttonsSP[BSPfreqdown]  = new GuiButton("FreqDown", width/2-230, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+  buttonsSP[BSPrecordtimeup]  = new GuiButton("RecordTimeUp", width/2+200, height/2-70, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+  buttonsSP[BSPrecordtimedown]  = new GuiButton("RecordTimeDown", width/2+130, height/2-70, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+  buttonsSP[BSP1chan]  = new GuiButton("1chanmodel", width/2-105, height/2+10, 30, Bheights, color(BIdleColor), color(0), "1", Bonoff, false);
+  buttonsSP[BSP2chan]  = new GuiButton("2chanmodel", width/2-70, height/2+10, 30, Bheights, color(BIdleColor), color(0), "2", Bonoff, false);
+  buttonsSP[BSP4chan]  = new GuiButton("4chanmodel", width/2-35, height/2+10, 30, Bheights, color(BIdleColor), color(0), "4", Bonoff, true);
+  buttonsSP[BSP8chan]  = new GuiButton("8chanmodel", width/2+0, height/2+10, 30, Bheights, color(BIdleColor), color(0), "8", Bonoff, false);
+  buttonsSP[BSPdownsampleup]  = new GuiButton("DownSampleUp", width/2+220, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+  buttonsSP[BSPdownsampledown]  = new GuiButton("DownSampleDown", width/2+170, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+  buttonsSP[BSPtimeradjustup]  = new GuiButton("TimerAdjustUp", width/2-70, height/2+80, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+  buttonsSP[BSPtimeradjustdown]  = new GuiButton("TimerAdjustDown", width/2-130, height/2+80, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+  buttonsSP[BSPprescalerup]  = new GuiButton("PrescalerUp", width/2+60, height/2+80, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+  buttonsSP[BSPprescalerdown]  = new GuiButton("PrescalerDown", width/2+0, height/2+80, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+  buttonsSP[BSPsave]  = new GuiButton("Save", width/2-160, height/2+130, 140, 30, color(BIdleColor), color(0), "Save & Exit (s)", Bonoff, false);
+  buttonsSP[BSPdefaults]  = new GuiButton("Defaults", width/2+160, height/2+130, 140, 30, color(BIdleColor), color(0), "Restore Defaults", Bonoff, false);
+  buttonsSP[BSPcancel]  = new GuiButton("Exit", width/2, height/2+130, 120, 30, color(BIdleColor), color(0), "Cancel (c)", Bonoff, false);
 }
 
 //####################################################################################
