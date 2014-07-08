@@ -38,10 +38,10 @@ Robot robot;
 // Constants
 Serial myPort;
 //String RENDERMODE = "P2D";
-int FullPlotWidth = 1000;
-int HalfPlotWidth;
+int FullPlotWidth = 500;
 int plotwidth = FullPlotWidth;
-int plotheight = 600;
+int HalfPlotWidth = FullPlotWidth/2;
+int plotheight = 300;
 int plot2offset = 5;
 int xx, yy;
 int xStep = 60;
@@ -412,6 +412,7 @@ boolean MedianFilter = false;
 boolean PlugTestFlag = false;
 int PlugTestDelay = 0;
 boolean DataRegWriteFlag = false;
+boolean snakeGameFlag = false;
 int connectionAtimer = 0;
 int connectionAdelay = 500;
 int testcounter = 0;
@@ -441,6 +442,8 @@ String[] BluetoothPORTs = new String[0];
 PImage img;
 
 SerialPortObj FVserial;
+SnakeGame mySnakeGame;
+
 
 void setup () {
   HalfPlotWidth = FullPlotWidth/2;
@@ -500,6 +503,9 @@ void setup () {
   TimeStamp = new long[5000];
 
   FVserial = new SerialPortObj(this);
+//  int foodsize = 20;
+//  int gamespeed = 3;
+//  mySnakeGame = new SnakeGame(this,xStep+plotwidth/2,yTitle+plotheight/2,plotwidth,plotheight,foodsize,gamespeed);
   
   // initialize background
 }
@@ -621,7 +627,11 @@ void draw () {
     }
   }
   if (CurrentDomain == MouseDomain) {
-    DrawMouseGame();
+    if (!snakeGameFlag){
+      DrawMouseGame();
+    } else if(snakeGameFlag){
+       mySnakeGame.drawSnakeGame();
+    }
   }
   if (CurrentDomain == TrainingDomain) {
     DrawTrainingProgram();
@@ -1048,6 +1058,25 @@ void keyPressed() {
           GamenextStep = second()+GamedelayTime;
           println(GamenextStep);
           GameScore = 0;
+        }
+      }
+      if (key == 'G' || key == 'g') {
+        if (!snakeGameFlag){
+          int foodsize = 30;
+          int gamespeed = 5;
+          snakeGameFlag = true;
+          mySnakeGame = new SnakeGame(this,xStep+plotwidth/2,yTitle+plotheight/2,plotwidth,plotheight,foodsize,gamespeed);
+        } else if (snakeGameFlag){
+          snakeGameFlag = false;
+          mySnakeGame = null;
+        }
+      }
+      if(snakeGameFlag){
+        if (key == CODED){
+          mySnakeGame.keyInput(key,keyCode);
+        }
+        else if (key == 'N' || key == 'n'){
+          mySnakeGame.resetSnakeGame();
         }
       }
       if (MouseTuneFlag) {
@@ -2628,7 +2657,7 @@ void labelaxes() {
     
     textSize(labelsizes);
     text("'p' or pause/play = toggle control of your mouse pointer.",xStep+plotwidth/2,yTitle+plotheight+9);
-    text("'k' = setup threshold levels.  'm' = exit mouse games.",xStep+plotwidth/2,yTitle+plotheight+26);
+    text("'k' = set sensitivity.  'm' = exit mouse games. 'g' = snakegame!",xStep+plotwidth/2,yTitle+plotheight+26);
     text("x=left/right",xStep+plotwidth+barwidth/2,yTitle+120);
     text("y=up/down",xStep+plotwidth+barwidth/2,yTitle+140);
 //    text("Select which input  channel controls X (left/right) and Y(up/down) axes.",width/2,yTitle+plotheight+25);
@@ -3248,6 +3277,7 @@ void ChangeDomain(int NewDomain){
     plotwidth = FullPlotWidth;
     PauseFlag = true;
     SmoothFilterFlag = true;
+    BitDepth10 = false;
     DownSampleCount = 10;
     UpdateSettings();
     GetChannelButtons(buttonsMP);
@@ -3455,8 +3485,231 @@ void InitializeButtons(){
   buttonsSP[BSPcancel]  = new GuiButton("Exit", width/2, height/2+130, 120, 30, color(BIdleColor), color(0), "Cancel (c)", Bonoff, false);
 }
 
-
 //####################################################################################
+
+
+//######################Begin SnakeGame Object#######################################
+// snake game class/object.  constructor looks like:
+//SnakeGame mySnakeGame;
+//mySnakeGame = new SnakeGame(this,xStep+plotwidth/2,yTitle+plotheight/2,plotwidth,plotheight,foodsize,gamespeed);
+
+// mySnakeGame.drawSnakeGame()
+public class SnakeGame {
+  PApplet parent;
+  
+  color snakecolor;
+  color foodcolor;
+  color backgroundcolor;
+  
+  int gamex;
+  int gamey;
+  int gamewidth;
+  int gameheight;
+  
+  int foodSize;
+  int foodX;
+  int foodY;
+  int gridX;
+  int gridY;
+  int gridXstart;
+  int gridYstart;
+  
+  int speed;
+  int movewhen;
+  int movecounter;
+  int movestep;
+  int stepX;
+  int stepY;
+  
+  int snakeSize;
+  int snakeX[];
+  int snakeY[];
+  
+  boolean gameOver;
+  boolean freeBoundaries;
+  boolean foodflag;
+  
+  SnakeGame(PApplet parent, int x, int y, int w, int h, int fsize, int gamespeed){
+    this.parent = parent;
+    
+    snakecolor = color(250, 220, 180);
+    foodcolor = color(255,0,0);
+    backgroundcolor = color(0,0,0);
+  
+    gamex = x;
+    gamey = y;
+    gamewidth = w;
+    gameheight = h;
+    
+    foodSize = fsize;
+    drawFood();
+    gridX = gamewidth/(foodSize);
+    gridY = gameheight/(foodSize);
+    gridXstart = x - ((gridX-1)*foodSize)/2;
+    gridYstart = y - ((gridY-1)*foodSize)/2;
+    println("x = "+x+". y = "+y+". w = "+w+". h = "+h);
+    println("gridX = "+gridX+". GridY = "+gridY+". xstart = "+gridXstart+". ystart = "+gridYstart);
+    
+    speed = gamespeed; // moves/second
+    movewhen = (int)frameRate/speed;
+    movecounter = 0;
+    movestep = 1;
+    stepX = 0;
+    stepY = 0;
+    
+    snakeSize = 1;
+    snakeX = new int[200];
+    snakeY = new int[200];
+    snakeX[0] = gridX/2;
+    snakeY[0] = gridY/2;
+    
+    gameOver = false;
+    freeBoundaries = true;
+    foodflag = true;
+    
+  }
+  
+  void clearGameScreen(){
+    fill(backgroundcolor);
+    stroke(backgroundcolor);
+    rectMode(CENTER);
+    rect(gamex,gamey,gamewidth,gameheight); 
+  }
+  
+  void drawSnakeGame(){
+    movecounter++;
+    if (movecounter > movewhen){
+      movecounter = 0;
+      clearGameScreen();
+      runSnakeGame();
+    }
+  }
+  
+  void resetSnakeGame(){
+    gameOver = false;
+    foodflag = true;
+    freeBoundaries = false;
+    snakeSize = 1;
+    stepX = 0;
+    stepY = 0;
+    snakeX = new int[200];
+    snakeY = new int[200];
+    snakeX[0] = gridX/2;
+    snakeY[0] = gridY/2;
+  }
+  
+  void runSnakeGame(){
+    if (!gameOver){
+      drawFood();
+      drawSnake();
+      moveSnake();
+      checkAteFood();
+      checkSelfImpact();
+    } else if (gameOver){
+      textAlign(CENTER,CENTER);
+      textSize(20);
+      text("Game Over!/n'n' for new game",gamex,gamey);
+    }
+  }
+  
+  void checkSelfImpact(){
+    for (int i = 1; i < snakeSize; i++){
+      if (snakeX[0] == snakeX[i] && snakeY[0] == snakeY[i]){
+        gameOver = true;
+      }
+    }
+  }
+  
+  void checkAteFood(){
+    if(foodX == snakeX[0] && foodY == snakeY[0]){
+      foodflag = true;
+      snakeSize ++;
+    }
+  }
+  
+  void drawFood(){
+    fill(foodcolor);
+    while(foodflag){
+      foodX = (int)random(1,gridX);
+      foodY = (int)random(1,gridY);
+      
+      for (int i = 0; i < snakeSize; i ++){
+        if(foodX == snakeX[i] && foodY == snakeY[i]){
+          foodflag = true;
+          break;
+        } else {
+          foodflag = false;
+        }
+      }
+    }
+    int fX = (foodX-1)*foodSize+gridXstart;
+    int fY = (foodY-1)*foodSize+gridYstart;
+    rect(fX,fY,foodSize,foodSize);
+  }
+  
+  void keyInput(char key, int pkeyCode){
+    println("key = "+pkeyCode);
+    if(pkeyCode == UP) { 
+      if(stepY != -movestep){stepY = -movestep; stepX = 0;}
+    }
+    if(pkeyCode == DOWN){
+      if(stepY !=  movestep){stepY = movestep; stepX = 0;}
+    }
+    if(pkeyCode == LEFT){
+      if(stepX != -movestep){stepX = -movestep; stepY = 0;}
+    }
+    if(pkeyCode == RIGHT){
+      if(stepX !=  movestep){stepX =  movestep; stepY = 0;}
+    }
+    if(key == 'N' || key == 'n'){
+      resetSnakeGame();
+    }
+//    if(keyCode == '+'){
+//      increasedifficulty();
+//    }
+//    if(keyCode == '-'){
+//      decreasedifficulty();
+//    }
+      
+  }
+  
+  void drawSnake(){
+    fill(snakecolor);
+    int sX;
+    int sY;
+    // draw blocks
+    for (int i = 0; i < snakeSize; i++){
+      sX = (snakeX[i]-1)*foodSize+gridXstart;
+      sY = (snakeY[i]-1)*foodSize+gridYstart;
+      rect(sX,sY,foodSize,foodSize);
+    }
+    // shift blocks
+    for (int i = snakeSize; i > 0; i--){
+      snakeX[i] = snakeX[i-1];
+      snakeY[i] = snakeY[i-1];
+    }
+  }
+  
+  void moveSnake(){
+    int sX = snakeX[1] + stepX;
+    int sY = snakeY[1] + stepY;
+    if (freeBoundaries){
+      if (sX > gridX){sX = 1;}
+      if (sX < 1) {sX = gridX;}
+      if (sY > gridY){sY=1;}
+      if (sY < 1) {sY = gridY;}
+    } else {
+      if (sX > gridX || sX < 1 || sY > gridY || sY < 1){
+        gameOver = true;
+      }
+    }
+    snakeX[0] = sX;
+    snakeY[0] = sY;
+    
+  }
+}
+
+//#######################End WormGame Object#########################################
 
 
 //######################Begin SerialPort Object#######################################
@@ -3467,6 +3720,10 @@ void InitializeButtons(){
  */
  
 //General Use:
+// Constructor:
+//  SerialPortObj FVserial;
+//  FVserial = new SerialPortObj(this);
+//
 //to start connecting
 //in Draw()
 // Run FVserial.connectserial();
