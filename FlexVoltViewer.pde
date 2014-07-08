@@ -38,17 +38,18 @@ Robot robot;
 // Constants
 Serial myPort;
 //String RENDERMODE = "P2D";
-int FullPlotWidth = 500;
-int HalfPlotWidth = 250;
+int FullPlotWidth = 1000;
+int HalfPlotWidth;
 int plotwidth = FullPlotWidth;
-int plotheight = 300;
+int plotheight = 600;
+int plot2offset = 5;
 int xx, yy;
 int xStep = 60;
 int yStep = 40;
 int yTitle = 60;
 int barwidth = 100;
 int SerialBufferN = 5;
-int SerialBurstN = 30;
+int SerialBurstN = 2;
 int SerialPortSpeed = 230400;
 int serialwritedelay = 50;
 int axisnumbersize = 16;
@@ -57,6 +58,8 @@ int labelsizes = 16;
 int labelsizexs = 14;
 int titlesize = 26;
 int buttontextsize = 16;
+int RepBarWidth = 50;
+
 
 float fps = 30;
 float FreqMax = 500;//Hz for fft display window
@@ -314,8 +317,8 @@ int MaxSignalNumber = 8;
 long[] TimeStamp;
 long ButtonColorTimer = 0;
 long ButtonColorDelay = 100;
-long CheckUSBTimer = 0;
-long CheckUSBDelay = 1000; // millis.  check at 10Hz
+long CheckSerialTimer = 0;
+long CheckSerialDelay = 2000;//UserFrequency/10; // millis.  check at 10Hz
 int TSind = 0;
 int CalibrateN = 50;
 int CalibrateCounter = CalibrateN;
@@ -339,7 +342,7 @@ int DataRecordTimeMin = 1;
 // MouseVariables
 int XLow = 0, XHigh = 1, YLow = 2, YHigh = 3;
 int MouseThresh[] = {
-  plotheight/2, plotheight/2+50, plotheight/2, plotheight/2+50
+  MaxSignalVal/4, MaxSignalVal/4, MaxSignalVal/4, MaxSignalVal/4
 };// xlow, xhigh, ylow, yhigh
 int[] MouseChan = {0, 1};
 int MouseThreshStandOff = 5;
@@ -369,7 +372,7 @@ int Reps = 0, Work = 1;
 int BTWorkoutType = Reps;
 int RepsTargetDefault = 10;
 int RepsTarget[] = {  RepsTargetDefault, RepsTargetDefault };
-int RepThreshDefault = 550;
+int RepThreshDefault = 64;
 int RepThresh[] = {RepThreshDefault, RepThreshDefault};
 int RepThreshStep = 10;
 int RepsCounter[] = {  0, 0  };
@@ -404,26 +407,22 @@ boolean ChannelOn[]= {
 };
 boolean DataRecordFlag = false;
 //boolean FreezeFlag = false;
-boolean ConnectingFlag = false;
-boolean USBreceivedFlag = false;
-boolean USBPORT_connected = false;
-boolean USBPORT_correct = false;
+boolean SerialReceivedFlag = false;
 boolean MedianFilter = false;
-boolean testflag = true;
 boolean PlugTestFlag = false;
 int PlugTestDelay = 0;
-boolean TestingConnectionFlag = false;
 boolean DataRegWriteFlag = false;
-boolean timeaverageFlag = true;
-int testtimer = 0;
-int testdelay = 500;
+int connectionAtimer = 0;
+int connectionAdelay = 500;
 int testcounter = 0;
-long oldtime;
-long newtime;
-int deltatime;
-float timeaverage;
-int timeaverageN = 500;
-int timeaveragecounter = 0;
+
+// Frequency testing
+//long oldtime;
+//long newtime;
+//int deltatime;
+//float timeaverage;
+//int timeaverageN = 500;
+//int timeaveragecounter = 0;
 
 long startTime = System.nanoTime();
 // ... the code being measured ...
@@ -441,7 +440,10 @@ String[] BluetoothPORTs = new String[0];
 
 PImage img;
 
+SerialPortObj FVserial;
+
 void setup () {
+  HalfPlotWidth = FullPlotWidth/2;
   // Setup mouse control robot
   try { 
     robot = new Robot();
@@ -496,8 +498,8 @@ void setup () {
   filter2=new FIRFilter(FIRFilter.HIGH_PASS, 2000f, 20, 10, 60, 3400);
 
   TimeStamp = new long[5000];
-  
-  
+
+  FVserial = new SerialPortObj(this);
   
   // initialize background
 }
@@ -522,10 +524,12 @@ void draw () {
       println("X = "+xx+". Y = "+yy);
       println("Height = "+height+", Width = "+width);
       InitFlag = false;
-      ConnectSerial();
-      testtimer = millis()+testdelay;
+      FVserial.connectserial();// the function will poll devices, set connecting flag, and set current try port index to 0
+//      ConnectSerial();
+      connectionAtimer = millis()+connectionAdelay;
     }
   }
+
   if (ButtonPressedFlag) {
     if (millis() > ButtonColorTimer) {
       ButtonPressedFlag = false;
@@ -553,44 +557,48 @@ void draw () {
     }
   }
   
-//  if(testflag){
-//    if (millis()>testtimer){
-//      testtimer = millis()+testdelay;
-//      myPort.write('4');
-//      println("wrote 9. avail = "+myPort.available());
-//    }
-//  }
+  if(FVserial.connectingflag){
+    FVserial.TryPort(); // handles all connecting attempts.  monitors timeout for each attempt, increments port to try, etc.
+  }
   
-  if(!USBPORT_connected){
-    if (millis()>testtimer){
-      testtimer = millis()+testdelay;
-      if (myPort != null){
-        println("myport = "+myPort);
-        myPort.write('A');
-        println("wrote A. avail = "+myPort.available());
-      } else {
-        println("No Ports to Write To!");
+  
+  if(!FVserial.flexvoltconnected){
+    if (millis()>connectionAtimer){
+      connectionAtimer = millis()+connectionAdelay;
+      if (!FVserial.flexvoltfound){
+        if (myPort != null){
+          println("Wrote 'X' to myport = "+myPort);
+          myPort.write('X');
+        } else {
+          println("No Ports to Write X To!");
+        }
+      } else if (FVserial.flexvoltfound){
+        if (myPort != null){
+          println("Wrote 'A' to myport = "+myPort);
+          myPort.write('A');
+        } else {
+          println("No Ports to Write To!");
+        }
       }
     }
   }
 
-//  println(myPort.available());
+
   if (dataflag){
-    if (millis()>CheckUSBTimer){
-      CheckUSBTimer = millis()+CheckUSBDelay;
-      if (USBreceivedFlag){
-        USBreceivedFlag = false;
-//        println("still connected");
+    if (millis()>CheckSerialTimer){
+      CheckSerialTimer = millis()+CheckSerialDelay;
+      if (SerialReceivedFlag){
+        SerialReceivedFlag = false;
       }
-      else if(!USBreceivedFlag){
-        USBPORT_connected = false;
+      else if(!SerialReceivedFlag){
+        FVserial.flexvoltconnected = false;
         dataflag = false;
-        println("USB Timeout");
-        ConnectingFlag = false;
-        drawConnectionIndicator(); 
+        println("Serial Timeout");
+        FVserial.connectionindicator = FVserial.indicator_noconnection;
+        drawConnectionIndicator();
         display_error("FlexVolt Connection Lost");
       }
-      USBreceivedFlag = false;
+      SerialReceivedFlag = false;
     }
   }
   
@@ -653,33 +661,33 @@ void serialEvent (Serial myPort) {
   if (!dataflag) {
     int inChar = myPort.readChar();  // get ASCII
     if (inChar != -1) {
-      USBreceivedFlag = true;
+      SerialReceivedFlag = true;
       println("handshaking, "+inChar+", count = "+testcounter);
       testcounter++;
-      if (TestingConnectionFlag){
-        if (inChar == 'x'){
-          USBPORT_correct = true;
-          println("Received the X");
-        }
+      if (inChar == 'x'){
+        FVserial.flexvoltfound = true; // this flag tells the SerialPortObj that a flexvolt port has been found.  Searching stops, and that port is now connnected
+        FVserial.connectingflag = false;
+        FVserial.connectionindicator = FVserial.indicator_connecting;
+        println("Received the x");
       }
       if (inChar == 'a') {
-        USBPORT_connected = true;
-        println("USBPORT_connected = "+USBPORT_connected);
+//        FVserial.flexvoltconnected = true;
+//        println("FlexVolt_connected = "+FVserial.flexvoltconnected);
+        FVserial.connectionindicator = FVserial.indicator_connecting;
         myPort.clear();
         myPort.write('1');
         println("1st");
       }
       else if (inChar == 'b') {
-        USBPORT_connected = true;
-        println("USBPORT_connected = "+USBPORT_connected);
+//        FVserial.flexvoltconnected = true;
+//        println("FlexVolt_connected = "+FVserial.flexvoltconnected);
         myPort.clear();
-        ConnectingFlag = true;
+//        ConnectingFlag = true;
+        FVserial.flexvoltconnected = true;
+        FVserial.connectionindicator = FVserial.indicator_connecting;
         drawConnectionIndicator();
-//        if (initializeFlag){
-          UpdateSettings();
-          println("updates settings");
-//          initializeFlag = false;
-//        }
+        UpdateSettings();
+        println("updates settings");
         EstablishDataLink();
       }
       else if (inChar == 'g') {
@@ -687,38 +695,15 @@ void serialEvent (Serial myPort) {
         println("dataflag = true g");
         blankplot();
         dataflag = true;
-        CheckUSBTimer = millis()+CheckUSBDelay;
-        ConnectingFlag = false;
+        CheckSerialTimer = millis()+CheckSerialDelay;
+//        ConnectingFlag = false;
+        FVserial.connectionindicator = FVserial.indicator_connected;
         drawConnectionIndicator();
         myPort.buffer((SerialBufferN+1)*SerialBurstN);
       }
       else if (inChar == 'y') {
         println("Received 'Y'");
       }
-//      else if (inChar == 'C'){
-//        myPort.clear();
-//        println("dataflag = true c");
-//        blankplot();
-//        dataflag = true;
-//        CheckUSBTimer = millis()+CheckUSBDelay;
-//        ConnectingFlag = false;
-//        drawConnectionIndicator();
-//        byte[] inBuffer = new byte[SerialBufferN];
-//        myPort.readBytes(inBuffer);
-//        myPort.buffer(SerialBufferN+1);
-//      }
-//      else if (inChar == 'J'){
-//        myPort.clear();
-//        println("dataflag = true j");
-//        blankplot();
-//        dataflag = true;
-//        CheckUSBTimer = millis()+CheckUSBDelay;
-//        ConnectingFlag = false;
-//        drawConnectionIndicator();
-//        byte[] inBuffer = new byte[SerialBufferN];
-//        myPort.readBytes(inBuffer);
-//        myPort.buffer(SerialBufferN+1);
-//      }
     }
   }  
   else if (dataflag){
@@ -732,7 +717,7 @@ void serialEvent (Serial myPort) {
       int inChar = myPort.readChar();  // get ASCII
 //      print("data, ");println(inChar);
       if (inChar != -1) {
-        USBreceivedFlag = true;
+        SerialReceivedFlag = true;
 //        if (inChar == 'a') {
 //          dataflag = false;
 //          println("got an A in data");
@@ -760,14 +745,15 @@ void serialEvent (Serial myPort) {
               signalIn[i][signalindex]=rawVal;
             }
             if (DataRecordFlag && DataRecordIndex < DataRecordLength) {
-              println("Saving Point: "+DataRecordIndex);
               DataRecord[i][DataRecordIndex]=int(rawVal);
             }
           }
           if (DataRecordFlag) {
             DataRecordIndex++;
             if (DataRecordIndex >= DataRecordLength){
-              println("Saving"+str(DataRecord[1][DataRecordIndex-1]));
+              if ((DataRecordIndex % 10) == 0){
+                println("Saving"+str(DataRecord[1][DataRecordIndex-1]));
+              }
               DataRecordedCounter = SaveRecordedData(DataRecordedCounter);
               DataRecordFlag = false; 
             }
@@ -801,15 +787,17 @@ void serialEvent (Serial myPort) {
             else{
               signalIn[i][signalindex]=rawVal;
             }
-            if (DataRecordFlag && DataRecordIndex < DataRecordLength) {
-              println("Saving Point: "+DataRecordIndex);
+            if (DataRecordFlag && (DataRecordIndex < DataRecordLength)) {
+//              println("Saving Point: "+DataRecordIndex);
               DataRecord[i][DataRecordIndex]=int(rawVal);
             }
           }
           if (DataRecordFlag) {
             DataRecordIndex++;
+            if ((DataRecordIndex % 10) == 0){
+                println("Saving"+DataRecordIndex);
+              }
             if (DataRecordIndex >= DataRecordLength){
-              println("Saving"+str(DataRecord[1][DataRecordIndex-1]));
               DataRecordedCounter = SaveRecordedData(DataRecordedCounter);
               DataRecordFlag = false; 
             }
@@ -976,7 +964,6 @@ void keyPressed() {
       BitDepth10 = !BitDepth10;
       println("BitDepth10 = "+BitDepth10);
       UpdateSettings();
-      EstablishDataLink();
     }
     if (key == 'R' || key == 'r') {
       ResetSerialConnection();
@@ -1018,7 +1005,6 @@ void keyPressed() {
       }
       GetPageButtons();
       UpdateSettings();
-      EstablishDataLink();
     }
 //    if (CurrentDomain == TrainingDomain) {
 //      if (key == 'Q' || key == 'q') {
@@ -1270,6 +1256,7 @@ void mousePressed() {
       }
       if (currentbutton == BTDPrecordnextdata){
         DataRecordFlag = true;
+        println("UserFreq = "+UserFrequency+", DataRecordTime = "+DataRecordTime);
         DataRecordLength = DataRecordTime*UserFrequency;
         DataRecord = new int[DataRecordCols][DataRecordLength];
         DataRecordIndex = 0;
@@ -1292,7 +1279,6 @@ void mousePressed() {
         }
         UpdateSettings();
         labelaxes();
-        EstablishDataLink();
         println("Smoothing Toggled");
       }
       if (currentbutton == BTDPclear) {
@@ -1617,7 +1603,7 @@ void mousePressed() {
       }
       if (currentbutton == BTPthresh1down){
         RepThresh[0]-=RepThreshStep;
-        if (RepThresh[0]<MaxSignalVal/2){RepThresh[0]=MaxSignalVal/2;}
+        if (RepThresh[0]<0){RepThresh[0]=0;}
       }
       if (currentbutton == BTPthresh2up){
         RepThresh[1]+=RepThreshStep;
@@ -1625,7 +1611,7 @@ void mousePressed() {
       }
       if (currentbutton == BTPthresh2down){
         RepThresh[1]-=RepThreshStep;
-        if (RepThresh[1]<MaxSignalVal/2){RepThresh[1]=MaxSignalVal/2;}
+        if (RepThresh[1]<0){RepThresh[1]=0;}
       }
     }
     // Mouse Domain
@@ -1834,36 +1820,21 @@ void DrawTrace() {
     
     for (int j = 0; j < SignalNumber;j++) {
       if (ChannelOn[j]) {
-        
-        stroke(SigColorM[j]);
         // Training Domain!!
         if (CurrentDomain == TrainingDomain && (j == TrainChan[0] || j == TrainChan[1])) {
-          int tmpind = 0;
-          tmpind = signalindex-datacounter;//*DownSampleCount;
+          int tmpind = signalindex-datacounter;//*DownSampleCount;
           while(tmpind < 0){tmpind+=MaxSignalLength;}
           if (j == TrainChan[0]) {
-            sigtmp = int(map(signalIn[j][tmpind]+Calibration[j], MaxSignalVal/2, MaxSignalVal, plotheight/2, plotheight));//*VoltScale)-1.5*plotheight);
-//            sigtmp = int(map(signalIn[j][tmpind]+Calibration[j], MaxSignalVal/2, MaxSignalVal, 0, plotheight/2));//*VoltScale)-1.5*plotheight);
-            sigtmp = min(sigtmp,plotheight-pointThickness);
-            sigtmp = max(sigtmp,plotheight/2 + pointThickness);
-            oldPlotSignal[j] = min(oldPlotSignal[j],plotheight-pointThickness);
-            oldPlotSignal[j] = max(oldPlotSignal[j],plotheight/2 + pointThickness);
+            sigtmp = int(map((signalIn[j][tmpind]+Calibration[j] - HalfSignalVal)*VoltScale, 0, MaxSignalVal, plotheight/2, plotheight));
+            sigtmp = constrain(sigtmp,plotheight/2+pointThickness+1,plotheight-pointThickness-1);
+//            oldPlotSignal[j] = constrain(oldPlotSignal[j],plotheight/2 + pointThickness, plotheight-pointThickness);
           }
           if (j==TrainChan[1]) {
-            sigtmp = int(map(signalIn[j][tmpind]+Calibration[j], MaxSignalVal/2, MaxSignalVal, 0, plotheight/2));//2*plotheight);
-            sigtmp = min(sigtmp,plotheight/2-pointThickness-5);
-            sigtmp = max(sigtmp,pointThickness);
-            oldPlotSignal[j] = min(oldPlotSignal[j],plotheight/2-pointThickness-5);
-            oldPlotSignal[j] = max(oldPlotSignal[j],pointThickness); 
+            sigtmp = int(map((signalIn[j][tmpind]+Calibration[j] - HalfSignalVal)*VoltScale, 0, MaxSignalVal, 0, plotheight/2));
+            sigtmp = constrain(sigtmp,pointThickness+1,plotheight/2 - pointThickness-1)-plot2offset;
+//            oldPlotSignal[j] = constrain(oldPlotSignal[j],pointThickness,plotheight/2-pointThickness);
           }
-
-          
-          if (xPos > 1) {
-            line(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp);
-          }
-          else {
-            line(xPos+xStep, ytmp - sigtmp + pointThickness, xPos+xStep, ytmp - sigtmp - pointThickness);
-          }
+          drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, SigColorM[j], pointThickness);
           oldPlotSignal[j] = sigtmp;
         }
         else if(CurrentDomain==TimeDomain){
@@ -1875,13 +1846,9 @@ void DrawTrace() {
           else {
             sigtmp = OffSet[j]+int(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, -plotheight/(2*SignalNumber), plotheight/(2*SignalNumber)));//*VoltScale)-plotheight*3/2);
           }
-          sigtmp = max(min(sigtmp,plotheight-pointThickness),0+pointThickness);
-          
-
-          
+          sigtmp = constrain( sigtmp, pointThickness, plotheight - pointThickness); 
+//          sigtmp = max(min(sigtmp,plotheight-pointThickness),0+pointThickness);
           drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, SigColorM[j], pointThickness);
-//          line(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp);
-          
           oldPlotSignal[j] = sigtmp;
         }
       }
@@ -1912,8 +1879,8 @@ void drawMyLine(int x1, int y1, int x2, int y2, color c, int w){
 }
 
 void setPixel(int x, int y, color c) {
-  x = constrain(x,XMIN,XMAX);
-  y = constrain(y,YMIN,YMAX);
+//  x = constrain(x,XMIN,XMAX);
+//  y = constrain(y,YMIN,YMAX);
 //  if (x < XMIN || x >= XMAX) return;
 //  if (y < YMIN || y >= YMAX) return;
 //  int N = 4;
@@ -2079,61 +2046,59 @@ void DrawMouseGame() {
   if (MouseTuneFlag) {
 //    println("MousetuneFlag!");
     blankplot();
-    textSize(36);
+    textSize(labelsizes);
     strokeWeight(4);
     textAlign(CENTER,CENTER);
     fill(backgroundcolor);
     rectMode(CENTER);
-    rect(xStep+plotwidth/4,yTitle+plotheight/2,plotwidth/2-20,plotheight-20);
+    rect(xStep+plotwidth*5/16,yTitle+plotheight/2,plotwidth*5/8-2,plotheight-2);
     fill(0);
-    text("Mouse Calibration",xStep+plotwidth/4,yTitle+30);
-    textSize(30);
-    text("Xaxis",xStep+plotwidth/4-140,yTitle+80);
-    text("Yaxis",xStep+plotwidth/4+100,yTitle+80);
+    text("Mouse Calibration",xStep+plotwidth*1/4,yTitle+12);
+    textSize(labelsizes);
     
-    // arrows indicating axis directions
-    // x-axis
-    int addtmp = -140;
-    line(xStep+plotwidth/4+50+addtmp,yTitle+80,xStep+plotwidth/4+100+addtmp,yTitle+80);
-    line(xStep+plotwidth/4+90+addtmp,yTitle+70,xStep+plotwidth/4+100+addtmp,yTitle+80);
-    line(xStep+plotwidth/4+90+addtmp,yTitle+90,xStep+plotwidth/4+100+addtmp,yTitle+80);
-    line(xStep+plotwidth/4+60+addtmp,yTitle+70,xStep+plotwidth/4+50+addtmp,yTitle+80);
-    line(xStep+plotwidth/4+60+addtmp,yTitle+90,xStep+plotwidth/4+50+addtmp,yTitle+80);
-    // y-axis    
-    addtmp = 100;
-    line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+75+addtmp,yTitle+110);
-    line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+65+addtmp,yTitle+70);
-    line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+85+addtmp,yTitle+70);
-    line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+65+addtmp,yTitle+100);
-    line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+85+addtmp,yTitle+100);
+//    // arrows indicating axis directions
+//    // x-axis
+//    int addtmp = -140;
+//    line(xStep+plotwidth/4+50+addtmp,yTitle+80,xStep+plotwidth/4+100+addtmp,yTitle+80);
+//    line(xStep+plotwidth/4+90+addtmp,yTitle+70,xStep+plotwidth/4+100+addtmp,yTitle+80);
+//    line(xStep+plotwidth/4+90+addtmp,yTitle+90,xStep+plotwidth/4+100+addtmp,yTitle+80);
+//    line(xStep+plotwidth/4+60+addtmp,yTitle+70,xStep+plotwidth/4+50+addtmp,yTitle+80);
+//    line(xStep+plotwidth/4+60+addtmp,yTitle+90,xStep+plotwidth/4+50+addtmp,yTitle+80);
+//    // y-axis    
+//    addtmp = 100;
+//    line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+75+addtmp,yTitle+110);
+//    line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+65+addtmp,yTitle+70);
+//    line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+85+addtmp,yTitle+70);
+//    line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+65+addtmp,yTitle+100);
+//    line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+85+addtmp,yTitle+100);
     
     
     // x-low
-    tmp = max(min(MouseThresh[XLow]-plotheight/4,plotheight),0);
+    tmp = constrain(int(map(MouseThresh[XLow],0,MaxSignalVal,0,plotheight/2)),0,plotheight/2);
     stroke(255, 255, 0);
     fill(0);
-    line(xStep+plotwidth/2, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+    line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
     if (MouseThreshInd == XLow){fill(255, 255, 0);}
-    text("X Low", xStep+plotwidth/2+60, ytmp-tmp+20);
+    text("X Low", xStep+plotwidth*11/16, ytmp-tmp+20);
     // y-low
-    tmp = max(min(MouseThresh[YLow]+plotheight/4,plotheight),0);
-    line(xStep+plotwidth/2, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+    tmp = constrain(int(map(MouseThresh[YLow],0,MaxSignalVal,plotheight/2,plotheight)),plotheight/2,plotheight);
+    line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
     fill(0);
     if (MouseThreshInd == YLow){fill(255, 255, 0);}
-    text("Y Low", xStep+plotwidth/2+60, ytmp-tmp+20);
+    text("Y Low", xStep+plotwidth*11/16, ytmp-tmp+20);
     // x-high
     stroke(255, 0, 0);
-    tmp = max(min(MouseThresh[XHigh]-plotheight/4,plotheight),0);
-    line(xStep+plotwidth/2, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+    tmp = constrain(int(map(MouseThresh[XHigh],0,MaxSignalVal,0,plotheight/2)),0,plotheight/2);
+    line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
     fill(0);
     if (MouseThreshInd == XHigh){fill(255, 255, 0);}
-    text("X High", xStep+plotwidth-80, ytmp-tmp+20);
+    text("X High", xStep+plotwidth*15/16, ytmp-tmp+20);
     // y-high
-    tmp = max(min(MouseThresh[YHigh]+plotheight/4,plotheight),0);
-    line(xStep+plotwidth/2, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+    tmp = constrain(int(map(MouseThresh[YHigh],0,MaxSignalVal,plotheight/2,plotheight)),plotheight/2,plotheight);
+    line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
     fill(0);
     if (MouseThreshInd == YHigh){fill(255, 255, 0);}
-    text("Y High", xStep+plotwidth-80, ytmp-tmp+20);
+    text("Y High", xStep+plotwidth*15/16, ytmp-tmp+20);
 
     // actual signals
     stroke(0, 255, 0);
@@ -2142,39 +2107,38 @@ void DrawMouseGame() {
     tmpind = signalindex-datacounter;
     datacounter = 0;
     while(tmpind < 0){tmpind+=MaxSignalLength;}
-    tmp = int(map(signalIn[MouseChan[0]][tmpind]+Calibration[MouseChan[0]], 0, MaxSignalVal, 0, plotheight))-plotheight/4;
-    tmp = max(min(tmp,plotheight),0);
-    line(xStep+plotwidth/2, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+    tmp = constrain(int(map(signalIn[MouseChan[0]][tmpind]+Calibration[MouseChan[0]]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)),0,plotheight/2);
+    line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
     if (tmp < 50) {
-      text("X-axis", xStep+plotwidth*3/4, ytmp-tmp-20);
+      text("X-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
     }
     else {
-      text("X-axis", xStep+plotwidth*3/4, ytmp-tmp+20);
+      text("X-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
     }
-    tmp = int(map(signalIn[MouseChan[1]][tmpind]+Calibration[MouseChan[1]], 0, MaxSignalVal, 0, plotheight))+plotheight/4;
-    tmp = max(min(tmp,plotheight),0);
-    line(xStep+plotwidth/2, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
-    if (tmp<50) {
-      text("Y-axis", xStep+plotwidth*3/4, ytmp-tmp-20);
+    
+    tmp = constrain(int(map(signalIn[MouseChan[1]][tmpind]+Calibration[MouseChan[1]]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)),plotheight/2,plotheight);
+    line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+    if (tmp<plotheight/2+30) {
+      text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
     }
     else {
-      text("Y-axis", xStep+plotwidth*3/4, ytmp-tmp+20);
+      text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
     }
     
     String mouse_msg = "";
-    mouse_msg += "Input > high => mouse moves up(y)/right(x).\nInput < low => mouse moves down(y)/left(x).\nlow<Input<high => mouse does not move.\n";
+    mouse_msg += "Input > high => mouse moves up/right\nInput < low => mouse moves down/left\nlow<Input<high => mouse does not move\n";
     mouse_msg += "\n";
     mouse_msg += "To Set Thresholds:\n";
-    mouse_msg += "    Left/Right arrows select threshold\n";
-    mouse_msg += "      (Selected threshold turns yellow)\n";
-    mouse_msg += "    Up/Down arrows adjust threshold\n";
-    mouse_msg += "      (Threshold will move\n";
+    mouse_msg += "  Left/Right arrows select threshold (yellow)\n";
+//    mouse_msg += "      (Selected threshold turns yellow)\n";
+    mouse_msg += "  Up/Down arrows move selected threshold\n";
+//    mouse_msg += "      (Threshold will move\n";
     mouse_msg += "\n";
-    mouse_msg += "For each axis, adjust thresholds so the green bar is below low when muscle is completely relaxed, between low and high when slightly flexed, and above high when fully flexed.";
-    textSize(20);
+    mouse_msg += "Adjust thresholds so the green bar is below low when completely relaxed, between low and high when slightly flexed, and above high when fully flexed.";
+    textSize(labelsizexs);
     fill(0);
     textAlign(LEFT,CENTER);
-    text(mouse_msg,xStep+plotwidth/4,yTitle+plotheight/2+40,plotwidth/2-30,plotheight);
+    text(mouse_msg,xStep+plotwidth*5/16+3,yTitle+plotheight/2,plotwidth*5/8-12,plotheight);
     textAlign(CENTER,CENTER);
     
     
@@ -2294,15 +2258,14 @@ void DrawThresh(){
   stroke(255,255,0);
   strokeWeight(1);
   
-  sigtmp = int(map(RepThresh[0], MaxSignalVal/2, MaxSignalVal, plotheight/2, plotheight));
-  sigtmp = min(sigtmp,plotheight-pointThickness);
-  sigtmp = max(sigtmp,plotheight/2 + pointThickness + 10);
+  // channel 1
+  sigtmp = int(map(RepThresh[0], 0, MaxSignalVal, plotheight/2, plotheight));
+  sigtmp = constrain(sigtmp,plotheight/2 + pointThickness,plotheight-pointThickness);
   line(xStep,ytmp-sigtmp,xStep+plotwidth,ytmp-sigtmp);
 
-  
-  sigtmp = int(map(RepThresh[1], MaxSignalVal/2, MaxSignalVal, 0, plotheight/2)-20);
-  sigtmp = min(sigtmp,plotheight/2-pointThickness-20);
-  sigtmp = max(sigtmp,pointThickness);
+  // channel 2
+  sigtmp = int(map(RepThresh[1], 0, MaxSignalVal, 0-plot2offset, plotheight/2-plot2offset));
+  sigtmp = constrain(sigtmp,pointThickness-plot2offset,plotheight/2-pointThickness-plot2offset);
   line(xStep,ytmp-sigtmp,xStep+plotwidth,ytmp-sigtmp);
   
 }
@@ -2395,17 +2358,19 @@ void CountReps() {
   while(tmpind < 0){tmpind+=MaxSignalLength;}
   for (int i = 0; i < 2; i++){
     if (ChannelOn[TrainChan[i]]) {
-      if (signalIn[TrainChan[i]][tmpind]>RepThresh[i]) {
+      if ((signalIn[TrainChan[i]][tmpind]-HalfSignalVal)>RepThresh[i]) {
         if (!ChanFlexed[i]) {
           FlexOnCounter[i]++;
-          if (FlexOnCounter[i] > 10) {
+          if (FlexOnCounter[i] > 2) {
             ChanFlexed[i] = true;
-            RepsCounter[i]++;
+            if (RepsCounter[i] < RepsTarget[i]){
+              RepsCounter[i]++;
+            }
             FlexOnCounter[i]=0;
           }
         }
       }
-      else if (signalIn[TrainChan[i]][tmpind]<RepThresh[i]) {
+      else if ((signalIn[TrainChan[i]][tmpind]-HalfSignalVal)<RepThresh[i]) {
         ChanFlexed[i] = false;
         FlexOnCounter[i] = 0;
       }
@@ -2440,19 +2405,19 @@ void ClearRepBar(int barN) {
 
 void DrawRepBar() {
   if (ChannelOn[TrainChan[0]]) {
-    int top = min(plotheight, int(map(RepsCounter[0], 0, RepsTarget[0], 0, plotheight)));
+    int top = min(plotheight, int(map(RepsCounter[0], 0, RepsTarget[0], 0, plotheight-100)));
     rectMode(CENTER);
     stroke(0);
     strokeWeight(2);
     fill(SigColorM[TrainChan[0]]);
-    rect(xStep+740, ytmp-top/2, 80, top);
+    rect(xStep+plotwidth+240, ytmp-top/2, RepBarWidth, top);
   }
   if (ChannelOn[TrainChan[1]]) {
-    int top = min(plotheight, int(map(RepsCounter[1], 0, RepsTarget[1], 0, plotheight)));
+    int top = min(plotheight, int(map(RepsCounter[1], 0, RepsTarget[1], 0, plotheight-100)));
     rectMode(CENTER);
     stroke(0);
     fill(SigColorM[TrainChan[1]]);
-    rect(xStep+920, ytmp-top/2, 80, top);
+    rect(xStep+plotwidth+420, ytmp-top/2, RepBarWidth, top);
   }
   rectMode(CENTER);
 }
@@ -2462,39 +2427,21 @@ void LabelRepBar(int ChanN) {
   textAlign(CENTER,CENTER);
   stroke(labelcolor);
   fill(labelcolor);
-  if (ChanN == 1){
+  if (ChanN == 1 || ChanN == 3){
     if (ChannelOn[TrainChan[0]]) {
       val = 0;
       for (int i = 0; i <= RepsTarget[0]; i++) {
-        text(nf(val, 1, 0), 780, ytmp - int(map(val, 0, RepsTarget[0], 0, plotheight)));
+        text(nf(val, 1, 0), plotwidth+240, ytmp - int(map(val, 0, RepsTarget[0], 0, plotheight-100)));
         val ++;
       }
       text(buttonsTP[BTPchan1].label, 840, 740);
     }
   }
-  else if(ChanN == 2){
+  if(ChanN == 2 || ChanN == 3){
     if (ChannelOn[TrainChan[1]]) {
       val = 0;
       for (int i = 0; i <= RepsTarget[1]; i++) {
-        text(nf(val, 1, 0), 960, ytmp - int(map(val, 0, RepsTarget[1], 0, plotheight)));
-        val ++;
-      }
-      text(buttonsTP[BTPchan2].label, 1020, 740);
-    }
-  }
-  else if(ChanN == 3){
-    if (ChannelOn[TrainChan[0]]) {
-      val = 0;
-      for (int i = 0; i <= RepsTarget[0]; i++) {
-        text(nf(val, 1, 0), 780, ytmp - int(map(val, 0, RepsTarget[0], 0, plotheight)));
-        val ++;
-      }
-      text(buttonsTP[BTPchan1].label, 840, 740);
-    }
-    if (ChannelOn[TrainChan[1]]) {
-      val = 0;
-      for (int i = 0; i <= RepsTarget[1]; i++) {
-        text(nf(val, 1, 0), 960, ytmp - int(map(val, 0, RepsTarget[1], 0, plotheight)));
+        text(nf(val, 1, 0), plotwidth+400, ytmp - int(map(val, 0, RepsTarget[1], 0, plotheight-100)));
         val ++;
       }
       text(buttonsTP[BTPchan2].label, 1020, 740);
@@ -2511,8 +2458,6 @@ void blankplot() {
     rect(xStep+plotwidth/2,yTitle+plotheight/2,plotwidth,plotheight);
   }
   if (CurrentDomain == TrainingDomain) {
-//    rect(xStep+plotwidth/2,yTitle+(plotheight/2-10)/2,plotwidth,plotheight/2-10);
-//    rect(xStep+plotwidth/2,yTitle+plotheight/2+20+(plotheight/2-20)/2,plotwidth,plotheight/2-20);
     rect(xStep+plotwidth/2,yTitle+(plotheight/2)/2,plotwidth,plotheight/2);
     rect(xStep+plotwidth/2,yTitle+plotheight/2+5+(plotheight/2)/2,plotwidth,plotheight/2);
   }
@@ -2524,13 +2469,13 @@ void drawConnectionIndicator(){
   strokeWeight(2);
   stroke(0);
   ellipse(xStep+FullPlotWidth+10,yTitle-26,24,24);
-  if (dataflag){
+  if (FVserial.connectionindicator == FVserial.indicator_connected){
     fill(color(0,255,0));
   } 
-  else if (ConnectingFlag == true){
+  else if (FVserial.connectionindicator == FVserial.indicator_connecting){
     fill(color(255,200,0)); 
   }
-  else {
+  else if (FVserial.connectionindicator == FVserial.indicator_noconnection) {
      fill(color(255,0,0));
   }
   stroke(0);
@@ -2716,11 +2661,11 @@ void labelaxes() {
     }
 
     textSize(labelsizes);
-    translate(30, height/2);
+    translate(15, height/2);
     rotate(-PI/2);
     text("Muscle Voltage, mV", 0, 0);
     rotate(PI/2);
-    translate(-30, -height/2);
+    translate(-15, -height/2);
 
     textSize(labelsizes);
 //    fill(100);
@@ -2833,7 +2778,6 @@ void folderSelected(File selection) {
 
 void ResetSerialConnection(){
   StopData();println("stopped data in resetserial");
-  drawConnectionIndicator();
   display_error("Disconnecting USB Device!");
   if (myPort!=null){
     myPort.clear();
@@ -2842,151 +2786,54 @@ void ResetSerialConnection(){
     myPort = null;
   }
   initializeFlag = true;
-  ConnectSerial();
-  USBPORT_connected = false;
-  println("USBPORT_connected = "+USBPORT_connected);
+  FVserial.connectserial();
+  drawConnectionIndicator();
 }
 
-//boolean checkUSBconnection(boolean USBsentdataFlag){
-//  if (USBsentdataFlag){
-//    USBreceivedFlag = false;
+//void ConnectSerial(){
+//  PollSerialDevices();
+//  USBPORT_correct = false;
+//  TestingConnectionFlag = true;
+//    // Connect - if only one USB device was found, try that one  
+//  if (USBPORTs.length > 0){
+//    println("USB Devices Found");
+//    display_error("USB Devices Found!  Looking for FlexVolt...");
+//    for (int i = 0; i < USBPORTs.length; i++) {
+//      println("Testing USB ports"+i);
+//      if (!USBPORT_correct){
+//        println("Trying USB Device #" + (i+1) + "/" + USBPORTs.length + ", at port "+USBPORTs[i]);
+//        TrySerialConnect(USBPORTs[i],500);
+//      } else {println("Already found our port");}
+//    }
 //  }
-//  else {
-//    dataflag = false;
-//    ConnectingFlag = false;
-//    drawConnectionIndicator(); 
-//    display_error("USB Connection Lost");
+//  if (BluetoothPORTs.length > 0 && !USBPORT_correct){
+//    println("Bluetooth Ports Found");
+//    display_error("No USB FlexVolts Found!  Checking Bluetooth Ports...");
+//    for (int i = 0; i < BluetoothPORTs.length; i++) {
+//      println("Testing BT ports"+i);
+//      if (!USBPORT_correct){
+//        println("Trying Bluetooth Device #" + (i+1) + "/" + BluetoothPORTs.length + ", at port "+BluetoothPORTs[i]);
+//        TrySerialConnect(BluetoothPORTs[i],4000);
+//      } else {println("Already found our port");}
+//    }
 //  }
-//  return USBsentdataFlag;
+//
+//  if(USBPORT_correct){
+//    TestingConnectionFlag = false;
+//    println(myPort+" connected!");
+//    delay(100);
+//    myPort.clear();
+//    display_error("FlexVolt Device Connected!");
+//    myPort.buffer(1);
+//    // kill some time!
+//    delay(200); // custom function - not standard
+//  }
+//  else if(!USBPORT_correct){
+//    display_error("No FlexVolts Found!");
+//    myPort = null;
+//  }
 //}
 
-void PollSerialDevices(){
-  int[] USBPORT = new int[0];
-  USBPORTs = new String[0];
-  BluetoothPORTs = new String[0];
-  // find serial port
-  println(Serial.list());
-  
-  String USBname = "";
-  String Bluetoothname = "";
-  if (platform == MACOSX){
-    println("Found a MAC!");
-    USBname = "tty.usbmodem";
-    Bluetoothname = "tty.FlexVolt";
-  }
-  else if (platform == WINDOWS){
-    println("Found a PC!");
-    USBname = "COM";
-    Bluetoothname = "tty.FlexVolt";
-  }
-  else if (platform == LINUX){
-    println("Found a Penguin!");
-    display_error("Found a Penguin!\n  FlexVoltViewer v1.0 has not been tested with the Linux OS!");
-    USBname = "COM";
-    Bluetoothname = "tty.FlexVolt";
-    delay(5000);
-  }
-  else if (platform == OTHER){
-    println("Found an Unknown Operating System!");
-    USBname = "COM";
-    Bluetoothname = "tty.FlexVolt";
-    display_error("Found an Unknown Operating System!");
-    delay(5000);
-  }
-  String[] m1;
-  USBPORTs = new String[0];
-  for (int i = 0; i<Serial.list().length; i++) {
-    m1 = match(Serial.list()[i], USBname);
-    if (m1 != null) {
-      USBPORT = append(USBPORT,i);
-      USBPORTs = append(USBPORTs,Serial.list()[i]);
-      println(USBPORT);
-      println("USB Device Found is " + Serial.list()[i]);
-    }
-  }
-  BluetoothPORTs = new String[0];
-  for (int i = 0; i<Serial.list().length; i++) {
-    m1 = match(Serial.list()[i], Bluetoothname);
-    if (m1 != null) {
-      USBPORT = append(USBPORT,i);
-      BluetoothPORTs = append(BluetoothPORTs,Serial.list()[i]);
-      println(USBPORT);
-      println("Bluetooth Device Found is " + Serial.list()[i]);
-    }
-  }
-  println("USB ports = ");println(USBPORTs);
-  println("BT ports = ");println(BluetoothPORTs);
-  if (USBPORTs.length == 0){
-    println("USB ports = null");
-  }
-  if (BluetoothPORTs.length == 0){
-    println("BT ports = null");
-  }
-}
-
-void TrySerialConnect(String portname, int waittime){
-  try {
-    myPort = new Serial(this, portname, SerialPortSpeed);//38400
-    myPort.clear();
-    println("WroteX");
-    myPort.write('X');
-    delay(waittime);
-    println("USBPORT_connected = "+USBPORT_correct);
-  } catch (RuntimeException e){
-    println("couldn't connect to that one");
-    if (e.getMessage().contains("Port busy")){
-      println("Error = "+e.getMessage()); 
-    }
-  }
-}
-
-void ConnectSerial(){
-  PollSerialDevices();
-  USBPORT_correct = false;
-  TestingConnectionFlag = true;
-    // Connect - if only one USB device was found, try that one  
-  if (USBPORTs.length > 0){
-    println("USB Devices Found");
-    display_error("USB Devices Found!  Looking for FlexVolt...");
-    for (int i = 0; i < USBPORTs.length; i++) {
-      println("Testing USB ports"+i);
-      if (!USBPORT_correct){
-        println("Trying USB Device #" + (i+1) + "/" + USBPORTs.length + ", at port "+USBPORTs[i]);
-        TrySerialConnect(USBPORTs[i],200);
-      } else {println("Already found our port");}
-    }
-  }
-  if (BluetoothPORTs.length > 0 && !USBPORT_correct){
-    println("Bluetooth Ports Found");
-    display_error("No USB FlexVolts Found!  Checking Bluetooth Ports...");
-    for (int i = 0; i < BluetoothPORTs.length; i++) {
-      println("Testing BT ports"+i);
-      if (!USBPORT_correct){
-        println("Trying Bluetooth Device #" + (i+1) + "/" + BluetoothPORTs.length + ", at port "+BluetoothPORTs[i]);
-        TrySerialConnect(BluetoothPORTs[i],4000);
-      } else {println("Already found our port");}
-    }
-  }
-
-  if(USBPORT_correct){
-    TestingConnectionFlag = false;
-    println(myPort+" connected!");
-    delay(100);
-    myPort.clear();
-    display_error("FlexVolt Device Connected!");
-    myPort.buffer(1);
-    // kill some time!
-    delay(200); // custom function - not standard
-  }
-  else if(!USBPORT_correct){
-    display_error("No FlexVolts Found!");
-    myPort = null;
-  }
-}
-
-void display_OS_LINUX_error_msg(){
- 
-}
 
 void display_error(String msg){
   strokeWeight(4);
@@ -3010,6 +2857,27 @@ void delay(int delay)
 void EstablishDataLink(){
   myPort.write('G'); // tells Arduino to start sending data
   println("sent G");
+  
+  SerialBufferN = SignalNumber;
+  println("Signum = "+SignalNumber);
+  if (BitDepth10){
+    SerialBufferN += 1;
+    if(SignalNumber > 4){SerialBufferN += 1;}
+  }
+  println("SignalBuffer = "+SerialBufferN);
+  
+//  if (BitDepth10){
+//    if (SignalNumber > 4){
+//      SerialBufferN = SignalNumber+2;
+//    }
+//    else if(SignalNumber <= 4){
+//      SerialBufferN = SignalNumber+1;
+//    }
+//  }
+//  else if(!BitDepth10){
+//    SerialBufferN = SignalNumber;
+//  }
+  
   myPort.buffer((SerialBufferN+1)*SerialBurstN);
 }
 
@@ -3019,7 +2887,8 @@ void StopData(){
   } 
   dataflag = false;
   println("Stopped Data");
-  ConnectingFlag = false;
+  FVserial.connectionindicator = FVserial.indicator_noconnection;
+//  ConnectingFlag = false;
 }
 
 void saveSettings(){
@@ -3165,16 +3034,10 @@ void UpdateSettings(){
   DataRecordTime = DataRecordTimeTmp;
   SignalNumber = SignalNumberTmp;
  
-  if(USBPORT_connected){
+  if(FVserial.flexvoltconnected){
     StopData();  // turn data off
     // handle changes to the Serial buffer coming out of settings
-    SerialBufferN = SignalNumber;
-//    println("Signum = "+SignalNumber);
-    if (BitDepth10){
-      SerialBufferN += 1;
-      if(SignalNumber > 4){SerialBufferN += 1;}
-    }
-//    println("SignalBuffer = "+SerialBufferN);
+
     
     DataRegWriteFlag = true;
     delay(serialwritedelay);
@@ -3277,20 +3140,9 @@ void ChangeDomain(int NewDomain){
   OldDomain = CurrentDomain;
   NamesFlag = false;
   // handle changes to the Serial buffer coming out of settings
-//  if (OldDomain == SettingsDomain){
-    if (BitDepth10){
-      if (SignalNumber > 4){
-        SerialBufferN = SignalNumber+2;
-      }
-      else if(SignalNumber <= 4){
-        SerialBufferN = SignalNumber+1;
-      }
-    }
-    else if(!BitDepth10){
-      SerialBufferN = SignalNumber;
-    }
+  if (OldDomain == SettingsDomain){
     EstablishDataLink();
-//  }
+  }
   if (NewDomain == SettingsDomain){
     folderTmp = folder;
     UserFreqIndexTmp = UserFreqIndex;
@@ -3367,11 +3219,13 @@ void ChangeDomain(int NewDomain){
     buttonsTP[BTPtraindomain].BOn = false;
     buttonsTP[BTPmousedomain].BOn = false;
     buttonsTP[BTPtraindomain].BOn = true;
-    SmoothFilterFlag = true;
+    
     DownSampleCount = DownSampleCountTraining; //!!!!!!!!!!!!!!!
     UserFreqIndex = UserFreqIndexTraining;
     UserFrequency = UserFreqArray[UserFreqIndexTraining];
     
+    SmoothFilterFlag = true;
+    BitDepth10 = false;
     OffSetFlag = true;
     PauseFlag = false;
     plotwidth = HalfPlotWidth;
@@ -3491,9 +3345,9 @@ void InitializeButtons(){
   buttonsTDP[BTDPoffset]   = new GuiButton("OffSet", xStep+plotwidth+45, controlsy+70, 60, Bheight,  color(BIdleColor), color(0), "OffSet", Bonoff, false);
   buttonsTDP[BTDPsmooth]   = new GuiButton("Smooth", xStep+plotwidth+45, controlsy+100, 60, Bheight,  color(BIdleColor), color(0), "Filter", Bonoff, false);
   buttonsTDP[BTDPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsTDP[BTDPtimedomain]  = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-70, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsTDP[BTDPtimedomain]  = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
   buttonsTDP[BTDPfreqdomain]  = new GuiButton("FreqDomain", xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), "Switch to Frequency", Bonoff, false);
-  buttonsTDP[BTDPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+20, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
+  buttonsTDP[BTDPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
   buttonsTDP[BTDPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
   buttonsTDP[BTDPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
   buttonsTDP[BTDPchan1] = new GuiButton("Chan1", xStep+plotwidth+25, buttony, 30, Bheight,   color(BIdleColor), Sig1Color, "1", Bonoff, true);
@@ -3513,9 +3367,9 @@ void InitializeButtons(){
   buttonsFDP[BFDPpause]= new GuiButton("Pause", xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
   buttonsFDP[BFDPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
   buttonsFDP[BFDPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsFDP[BFDPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-70, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsFDP[BFDPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
   buttonsFDP[BFDPfreqdomain] = new GuiButton("FreqDomain", xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), "Switch to Frequency", Bonoff, false);
-  buttonsFDP[BFDPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+20, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
+  buttonsFDP[BFDPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
   buttonsFDP[BFDPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
   buttonsFDP[BFDPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
   buttonsFDP[BFDPoffset] = new GuiButton("OffSet", xStep+plotwidth+45, controlsy+70, 60, Bheight,  color(BIdleColor), color(0), "OffSet", Bonoff, false);
@@ -3536,8 +3390,8 @@ void InitializeButtons(){
   buttonsMP[BMPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
   buttonsMP[BMPclear] = new GuiButton("Clear", xStep+plotwidth+45, controlsy+40, 60, Bheight,  color(BIdleColor), color(0), "Clear", Bmomentary, false);
   buttonsMP[BMPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsMP[BMPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-70, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
-  buttonsMP[BMPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+20, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
+  buttonsMP[BMPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsMP[BMPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
   buttonsMP[BMPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
   buttonsMP[BMPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
   buttonsMP[BMPchan1up]  = new GuiButton("MChan1up", xStep+plotwidth+80, yTitle+200, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
@@ -3554,9 +3408,9 @@ void InitializeButtons(){
 //  buttonsTP[BTPpause]= new GuiButton("Pause", xStep+FullPlotWidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
   buttonsTP[BTPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
   buttonsTP[BTPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsTP[BTPtimedomain]  = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-70, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsTP[BTPtimedomain]  = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
   buttonsTP[BTPfreqdomain]  = new GuiButton("FreqDomain", xStep+FullPlotWidth/2-40, 80, 70, 20, color(BIdleColor), color(0), "FFT", Bonoff, false);
-  buttonsTP[BTPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+20, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
+  buttonsTP[BTPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
   buttonsTP[BTPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
   buttonsTP[BTPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
   buttonsTP[BTPreset]  = new GuiButton("TReset", xStep+HalfPlotWidth+65, yTitle+plotheight/2+5, 120, Bheights, color(BIdleColor), color(0), "Reset Workout", Bmomentary, false);
@@ -3601,7 +3455,254 @@ void InitializeButtons(){
   buttonsSP[BSPcancel]  = new GuiButton("Exit", width/2, height/2+130, 120, 30, color(BIdleColor), color(0), "Cancel (c)", Bonoff, false);
 }
 
+
 //####################################################################################
+
+
+//######################Begin SerialPort Object#######################################
+// Class SerialPortObj
+/* object to hold  all Serial related functions inclduing:
+ * PollSerialDevices() - build list of available ports that could be flexvolt
+ * TrySerialConnect() - try/catch of opening a serial port
+ */
+ 
+//General Use:
+//to start connecting
+//in Draw()
+// Run FVserial.connectserial();
+// the function will poll devices, set connecting flag, and set current try port index to 0
+//
+//in Draw(), 
+//  if(FVserial.connectingflag){
+//    FVserial.TryPort(); - handles all connecting attempts.  monitors timeout for each attempt, increments port to try, etc.
+//  }
+//
+// in serialEvent()
+//  if (inChar == 'x'){
+//    FVserial.flexvoltconnected = true; - this flag tells the SerialPortObj that a flexvolt port has been found.  Searching stops, and that port is now connnected
+//  }
+
+// in resetserial()
+// call FVserial.connectserial(); // runs FVserial.reset(); then PollSerialDevices(), then FVserial.connectingflag = true;
+
+public class SerialPortObj {
+  PApplet parent;
+  String USBPORTs[];
+  String BlueToothPORTs;
+  boolean foundPorts;
+  boolean connectingflag;
+  boolean portopenflag;
+  boolean flexvoltconnected;
+  boolean flexvoltfound;
+  boolean testingUSBcom;
+  boolean connectinglongertime;
+  long timer;
+  int portindex;
+  int USBportsN;
+  int BTportsN;
+  int shortwaittimeUSB;
+  int longwaittimeUSB;
+  int shortwaittimeBT;
+  int longwaittimeBT;
+  int connectionindicator;
+  int indicator_noconnection;
+  int indicator_connecting;
+  int indicator_connected;
+  
+  public SerialPortObj(PApplet parent){
+    this.parent = parent;
+    USBPORTs = new String[0];
+    BluetoothPORTs = new String[0];
+    foundPorts = false;
+    connectingflag = false;
+    portopenflag = false;
+    flexvoltconnected = false;
+    flexvoltfound = false;
+    testingUSBcom = true;
+    timer = 0;
+    portindex = 0;
+    USBportsN = 0;
+    BTportsN = 0;
+    shortwaittimeUSB = 500;
+    longwaittimeUSB = 2000;
+    shortwaittimeBT = 500;
+    longwaittimeBT = 2000;
+    connectionindicator = 0;
+    indicator_noconnection = 0;
+    indicator_connecting = 1;
+    indicator_connected = 2;
+  }
+  
+  void connectserial(){
+    reset();
+    FVserial.PollSerialDevices();
+    if (foundPorts){
+      connectionindicator = indicator_connecting;
+      connectingflag = true;
+    }
+  }
+  
+  void TryPort(){
+    if (!foundPorts){
+      PollSerialDevices();
+      testingUSBcom = true;
+      portindex = 0;
+    }
+    if (foundPorts){
+      if (millis() > timer){
+        if (flexvoltfound){
+          connectingflag = false;
+          return;
+        } else if (!flexvoltfound) {
+          if (testingUSBcom){ // try USB connections first. On MAC these are different than the BT ports.  WINDOWS - doesn't differentiate com ports....
+            if (portindex >= USBportsN){
+              portindex = 0;
+              if (connectinglongertime){
+                testingUSBcom = false;
+                connectinglongertime = false;
+                println("found no USB at long times");
+              } else if (!connectinglongertime) {
+//                testingUSBcom = false;
+                connectinglongertime = true;
+                println("found no USB at short times");
+              }
+            } else {
+              if (connectinglongertime) {
+                TrySerialConnect(USBPORTs[portindex],longwaittimeUSB);
+              } else if(!connectinglongertime){
+                TrySerialConnect(USBPORTs[portindex],shortwaittimeUSB);
+              }
+              portindex++;
+            }
+          }
+          else {
+            if (portindex >= BTportsN){
+              portindex = 0;
+              if (connectinglongertime){
+                connectingflag = false;
+                println("found no BT at long times");
+                println("found no FlexVolts!");
+              } else if (!connectinglongertime){
+                connectinglongertime = true;
+//                testingUSBcom = true;
+                println("found no BT at short times");
+              }
+            } else {
+              if (connectinglongertime) {
+                TrySerialConnect(BluetoothPORTs[portindex],longwaittimeBT);
+              } else if(!connectinglongertime){
+                TrySerialConnect(BluetoothPORTs[portindex],shortwaittimeBT);
+              }
+              portindex++;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  void reset(){
+    USBPORTs = new String[0];
+    BluetoothPORTs = new String[0];
+    foundPorts = false;
+    connectingflag = false;
+    portopenflag = false;
+    flexvoltconnected = false;
+    flexvoltfound = false;
+    testingUSBcom = true;
+    timer = 0;
+    portindex = 0;
+    USBportsN = 0;
+    BTportsN = 0;
+    connectionindicator = indicator_noconnection;
+  }
+  
+  void TrySerialConnect(String portname, int waittime){
+    try {
+      if (myPort != null){
+        myPort.clear();
+        myPort.stop();
+      }
+      myPort = new Serial(parent, portname, SerialPortSpeed);//38400
+      myPort.clear();
+      portopenflag = true;
+      println("WroteX");
+      myPort.write('X');
+      timer = millis() + waittime;
+      println(timer);
+    } catch (RuntimeException e){
+      println("couldn't connect to that one");
+      portopenflag = false;
+      if (e.getMessage().contains("Port busy")){
+        println("Error = "+e.getMessage()); 
+      }
+    }
+  }
+  
+  void PollSerialDevices(){
+    // find serial port
+    String[] m1;
+    USBPORTs = new String[0];
+    BluetoothPORTs = new String[0];
+    
+    println(Serial.list());
+    
+    String USBname = "";
+    String Bluetoothname = "";
+    if (platform == MACOSX){
+      println("Found a MAC!");
+      USBname = "tty.usbmodem";
+      Bluetoothname = "tty.FlexVolt";
+    }
+    else if (platform == WINDOWS){
+      println("Found a PC!");
+      USBname = "COM";
+      Bluetoothname = "tty.FlexVolt";
+    }
+    else if (platform == LINUX){
+      println("Found a Penguin!");
+      display_error("Found a Penguin!\n  FlexVoltViewer v1.0 has not been tested with the Linux OS!");
+      USBname = "COM";
+      Bluetoothname = "tty.FlexVolt";
+    }
+    else if (platform == OTHER){
+      println("Found an Unknown Operating System!");
+      USBname = "COM";
+      Bluetoothname = "tty.FlexVolt";
+      display_error("Found an Unknown Operating System!");
+    }
+    for (int i = 0; i<Serial.list().length; i++) {
+      m1 = match(Serial.list()[i], USBname);
+      if (m1 != null) {
+        USBPORTs = append(USBPORTs,Serial.list()[i]);
+        println("USB Device Found is " + Serial.list()[i]);
+      }
+    }
+    for (int i = 0; i<Serial.list().length; i++) {
+      m1 = match(Serial.list()[i], Bluetoothname);
+      if (m1 != null) {
+        BluetoothPORTs = append(BluetoothPORTs,Serial.list()[i]);
+        println("Bluetooth Device Found is " + Serial.list()[i]);
+      }
+    }
+    
+    USBportsN = USBPORTs.length;
+    if (USBportsN == 0){
+      println("USB ports = null");
+    } else { 
+      println("USB ports = ");println(USBPORTs); 
+      foundPorts = true;
+    }
+    BTportsN = BluetoothPORTs.length; 
+    if (BTportsN == 0){
+      println("BT ports = null");
+    } else { 
+      println("BT ports = ");println(BluetoothPORTs); 
+      foundPorts = true;
+    }
+  }
+}
+//######################End SerialPort Object#########################################
 
 
 //####################################################################################
