@@ -297,9 +297,12 @@ int[] oldPlotSignal;
 
 int ScrollMode = SMtrace;
 int[] UserFreqArray = {1, 10, 50, 100, 200, 300, 400, 500, 1000, 1500, 2000};
-int UserFreqIndex = 3;
-int UserFreqIndexTraining = 8;
-int UserFreqIndexDefault = 3;
+int UserFreqIndexTraining = 4;
+int UserFreqIndexMouse = 4;
+int UserFreqIndexFFT = 8;
+int UserFreqIndexDefault = 7;
+
+int UserFreqIndex = UserFreqIndexDefault;
 int UserFrequency = UserFreqArray[UserFreqIndex];//40;//1000;
 int UserFreqCustom = 0;
 int UserFreqCustomMax = 4000;
@@ -308,7 +311,7 @@ int SmoothFilterVal = 8;
 int SmoothFilterValDefault = 8;
 int SmoothFilterValMin = 0, SmoothFilterValMax = 50;  
 float TimeMax = float(FullPlotWidth)/float(UserFrequency);
-int FreqFactor = 4;//UserFrequency/500;
+int FreqFactor = 2;//UserFrequency/500;
 int datacounter = 0;
 int signalindex = 0;
 int ringcounter = 0;
@@ -318,7 +321,9 @@ long[] TimeStamp;
 long ButtonColorTimer = 0;
 long ButtonColorDelay = 100;
 long CheckSerialTimer = 0;
-long CheckSerialDelay = 2000;//UserFrequency/10; // millis.  check at 10Hz
+int CheckSerialNSamples = 2;
+int CheckSerialMinTime = 100;
+long CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0/((float)UserFrequency/CheckSerialNSamples) );//2000;//UserFrequency/10; // millis.  check at 10Hz
 int TSind = 0;
 int CalibrateN = 50;
 int CalibrateCounter = CalibrateN;
@@ -326,6 +331,7 @@ int Calibration[] = {0, 0, 0, 0, 0, 0, 0, 0};
 int OffSet[] = {
   +plotheight*7/8, +plotheight*5/8, +plotheight*3/8, +plotheight*1/8, -100, -150, 40, 60
 };
+int OffSetFFT2[] = {0, plotheight/2};
 int OffSetFFT4[] = {0, plotheight/4, plotheight/2, plotheight*3/4};
 int OffSetFFT8[] =  {0, plotheight/8, plotheight/4, plotheight*3/8, plotheight/2, plotheight*5/8, plotheight*3/4, plotheight*7/8};
 int currentbutton = -1;
@@ -447,6 +453,8 @@ SnakeGame mySnakeGame;
 
 void setup () {
   HalfPlotWidth = FullPlotWidth/2;
+  FreqFactor = FullPlotWidth/125;
+  println("FreqFactor  "+FreqFactor);
   // Setup mouse control robot
   try { 
     robot = new Robot();
@@ -1072,12 +1080,13 @@ void keyPressed() {
         }
       }
       if(snakeGameFlag){
-        if (key == CODED){
-          mySnakeGame.keyInput(key,keyCode);
-        }
-        else if (key == 'N' || key == 'n'){
-          mySnakeGame.resetSnakeGame();
-        }
+        mySnakeGame.keyInput(key,keyCode);
+//        if (key == CODED){
+//          mySnakeGame.keyInput(key,keyCode);
+//        }
+//        else if (key == 'N' || key == 'n'){
+//          mySnakeGame.resetSnakeGame();
+//        }
       }
       if (MouseTuneFlag) {
         if (key == CODED) {
@@ -1387,8 +1396,8 @@ void mousePressed() {
       if(currentbutton == BFDPhelp) {
         ChangeDomain(HelpDomain);
       }
-      if (currentbutton == BFDPtimedomain){ChangeDomain(TimeDomain);}
-      if (currentbutton == BFDPfreqdomain){ChangeDomain(FreqDomain);}
+//      if (currentbutton == BFDPtimedomain){ChangeDomain(TimeDomain);}
+      if (currentbutton == BFDPfreqdomain){ChangeDomain(TimeDomain);}
       if (currentbutton == BFDPtraindomain){ChangeDomain(TrainingDomain);}
       if (currentbutton == BFDPmousedomain){ChangeDomain(MouseDomain);}
       if (currentbutton == BFDPserialreset) {
@@ -1919,7 +1928,7 @@ void setPixel(int x, int y, color c) {
   pixels[x + y * width] = c;
 }
 
-
+int FFTstep = 2;
 void DrawFFT() {
   blankplot();
   stroke(FFTcolor);
@@ -1928,35 +1937,32 @@ void DrawFFT() {
   for (int j = 0; j < SignalNumber; j++) {
     System.arraycopy(fft.computeFFT(FFTsignalIn[j]), 0, fft_result[j], 0, FFTSignalLength/2);
   }
-  for (int i = 2; i<min(fft.WS2/FreqFactor,plotwidth/2/FreqFactor); i++) {
-    int xtmp = xStep+2*FreqFactor*i;
+  for (int i = 2; i<min(fft.WS2/FreqFactor,plotwidth/FreqFactor); i++) {
+//  for (int i = 2; i<min(fft.WS2/FreqFactor,plotwidth/2); i++) {
+    int xtmp = xStep+FreqFactor*(i-1);
+//    int xtmp = xStep+2*i-2;
     for (int j = 0; j < SignalNumber;j++) {
       if (ChannelOn[j]) {
         stroke(SigColorM[j]);
         if (OffSetFlag) {
           if (ChannelOn[4] || ChannelOn[5] || ChannelOn[6] || ChannelOn[7]){
-            line(xtmp, ytmp - 4 - OffSetFFT8[j], xtmp, min(ytmp-4-OffSetFFT8[j],max(yTitle+2+OffSetFFT8[3-j], ytmp - OffSetFFT8[j] - int(FFTscale*fft_result[j][i])/8)) );
-            line(xtmp+1, ytmp - 4 - OffSetFFT8[j], xtmp+1, min(ytmp-4-OffSetFFT8[j],max(yTitle+2+OffSetFFT8[3-j], ytmp - OffSetFFT8[j] - int(FFTscale*fft_result[j][i])/8)) );
+            for (int k = 0; k < FreqFactor; k++){
+              line(xtmp+k, ytmp - FFTstep - OffSetFFT8[j], xtmp+k, min(ytmp-FFTstep-OffSetFFT8[j],max(yTitle+2+OffSetFFT8[7-j], ytmp - OffSetFFT8[j] - int(FFTscale*fft_result[j][i])/8)) );
+            }
+          }
+          else if (ChannelOn[3] || ChannelOn[2]) {
+            for (int k = 0; k < FreqFactor; k++){
+              line(xtmp+k, ytmp - FFTstep - OffSetFFT4[j], xtmp+k, min(ytmp-FFTstep-OffSetFFT4[j],max(yTitle+2+OffSetFFT4[3-j], ytmp - OffSetFFT4[j] - int(FFTscale*fft_result[j][i])/4)) );
+            }
           }
           else {
-            line(xtmp, ytmp - 4 - OffSetFFT4[j], xtmp, min(ytmp-4-OffSetFFT4[j],max(yTitle+2+OffSetFFT4[3-j], ytmp - OffSetFFT4[j] - int(FFTscale*fft_result[j][i])/4)) );
-            line(xtmp+1, ytmp - 4 - OffSetFFT4[j], xtmp+1, min(ytmp-4-OffSetFFT4[j],max(yTitle+2+OffSetFFT4[3-j], ytmp - OffSetFFT4[j] - int(FFTscale*fft_result[j][i])/4)) );
+            for (int k = 0; k < FreqFactor; k++){
+              line(xtmp+k, ytmp - FFTstep - OffSetFFT2[j], xtmp+k, min(ytmp-FFTstep-OffSetFFT2[j],max(yTitle+2+OffSetFFT2[1-j], ytmp - OffSetFFT4[j] - int(FFTscale*fft_result[j][i])/2)) );
+            }  
           }
-//          CheckNumberChannelsOn();
-//          if (NumberChannelsOn <=1){
-//            line(xtmp, ytmp - 4, xtmp, min(ytmp-4,max(yTitle+2, ytmp - int(FFTscale*fft_result[j][i]))) );
-//          if (NumberChannelsOn <=2){
-//              line(xtmp, ytmp - 4 - OffSetFFT[j], xtmp, max(ytmp-OffSetFFT[j]-plotheight/2+20, ytmp - OffSetFFT[j] - int(FFTscale*fft_result[j][i])) );
-//              line(xtmp+1, ytmp - 4 - OffSetFFT[j], xtmp+1, max(ytmp-OffSetFFT[j]-plotheight/2+20, ytmp - OffSetFFT[j] - int(FFTscale*fft_result[j][i])) );
-//            else if (j == 2) {
-//              line(xtmp, ytmp - 4 - OffSetFFT[j], xtmp, max(ytmp-OffSetFFT[j]-plotheight/2+20, ytmp - OffSetFFT[j] - int(FFTscale*fft_result[j][i])) );
-//              line(xtmp+1, ytmp - 4 - OffSetFFT[j], xtmp+1, max(ytmp-OffSetFFT[j]-plotheight/2+20, ytmp - OffSetFFT[j] - int(FFTscale*fft_result[j][i])) );
-//            }
-//          }
-//          OffSetFFT[] = {0, plotheight/4, plotheight/2, plotheight*3/4};
         }
         else {
-          line(xtmp, ytmp - 4, xtmp, min(ytmp-4,max(yTitle+2, ytmp - int(FFTscale*fft_result[j][i]))) );
+          line(xtmp, ytmp - FFTstep, xtmp, min(ytmp-FFTstep,max(yTitle+2, ytmp - int(FFTscale*fft_result[j][i]))) );
         }
       }
     }
@@ -2604,7 +2610,7 @@ void labelaxes() {
     textSize(axisnumbersize);
     // x-axis
     float val = 0;
-    FreqMax = UserFrequency/2/(MaxSignalLength/plotwidth)/FreqFactor;
+    FreqMax = UserFrequency/(MaxSignalLength/plotwidth)/FreqFactor;
     for (int i = 0; i < Nxticks+1; i++) {
       text(nf(val, 1, 0), xStep+int(map(val, 0, FreqMax, 0, plotwidth-20)), height-yStep+10);
       val += FreqMax/Nxticks;
@@ -2925,7 +2931,7 @@ void saveSettings(){
   UserFrequency = UserFreqArray[UserFreqIndexTmp];
   TimeMax = float(FullPlotWidth)/float(UserFrequency);
   UserFreqCustom = 0;
-  
+  CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0/((float)UserFrequency/CheckSerialNSamples) );
   DataRecordLength = DataRecordTime*UserFrequency;
   buttonsTDP[BTDPrecordnextdata].label = "Record "+DataRecordTime+"s";
   buttonsFDP[BFDPrecordnextdata].label = "Record "+DataRecordTime+"s";
@@ -2986,6 +2992,7 @@ void importSettings(){
       UserFreqIndex = UserFreqIndexDefault;
       UserFrequency = UserFreqArray[UserFreqIndex];
     }
+    CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0/((float)UserFrequency/CheckSerialNSamples) );
     TimeMax = float(FullPlotWidth)/float(UserFrequency);
     println("UserFrequencyIndex = " + UserFreqIndex);
     println("UserFrequency = " + UserFrequency);
@@ -3226,11 +3233,13 @@ void ChangeDomain(int NewDomain){
     CurrentDomain = FreqDomain;
     buttonsFDP[BFDPsettings].ChangeColorUnpressed();
     buttonsFDP[BFDPhelp].ChangeColorUnpressed();
+    buttonsFDP[BFDPfreqdomain].label = "Switch to Time";
     buttonsFDP[BFDPtimedomain].BOn = false;
     buttonsFDP[BFDPfreqdomain].BOn = false;
     buttonsFDP[BFDPtraindomain].BOn = false;
     buttonsFDP[BFDPmousedomain].BOn = false;
-    buttonsFDP[BFDPfreqdomain].BOn = true;
+//    buttonsFDP[BFDPfreqdomain].BOn = true;
+    buttonsFDP[BFDPtimedomain].BOn = true;
     PauseFlag = false;
     plotwidth = FullPlotWidth;
     GetChannelButtons(buttonsFDP);
@@ -3252,6 +3261,7 @@ void ChangeDomain(int NewDomain){
     DownSampleCount = DownSampleCountTraining; //!!!!!!!!!!!!!!!
     UserFreqIndex = UserFreqIndexTraining;
     UserFrequency = UserFreqArray[UserFreqIndexTraining];
+    CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0/((float)UserFrequency/CheckSerialNSamples) );
     
     SmoothFilterFlag = true;
     BitDepth10 = false;
@@ -3500,6 +3510,7 @@ public class SnakeGame {
   color snakecolor;
   color foodcolor;
   color backgroundcolor;
+  color textcolor;
   
   int gamex;
   int gamey;
@@ -3522,6 +3533,7 @@ public class SnakeGame {
   int stepY;
   
   int snakeSize;
+  int maxSnakeSize;
   int snakeX[];
   int snakeY[];
   
@@ -3535,6 +3547,7 @@ public class SnakeGame {
     snakecolor = color(250, 220, 180);
     foodcolor = color(255,0,0);
     backgroundcolor = color(0,0,0);
+    textcolor = color(240,240,240);
   
     gamex = x;
     gamey = y;
@@ -3558,8 +3571,9 @@ public class SnakeGame {
     stepY = 0;
     
     snakeSize = 1;
-    snakeX = new int[200];
-    snakeY = new int[200];
+    maxSnakeSize = gridX*gridY;
+    snakeX = new int[maxSnakeSize];
+    snakeY = new int[maxSnakeSize];
     snakeX[0] = gridX/2;
     snakeY[0] = gridY/2;
     
@@ -3592,8 +3606,8 @@ public class SnakeGame {
     snakeSize = 1;
     stepX = 0;
     stepY = 0;
-    snakeX = new int[200];
-    snakeY = new int[200];
+    snakeX = new int[maxSnakeSize];
+    snakeY = new int[maxSnakeSize];
     snakeX[0] = gridX/2;
     snakeY[0] = gridY/2;
   }
@@ -3608,7 +3622,8 @@ public class SnakeGame {
     } else if (gameOver){
       textAlign(CENTER,CENTER);
       textSize(20);
-      text("Game Over!/n'n' for new game",gamex,gamey);
+      fill(textcolor);
+      text("Game Over!\n'n' for new game",gamex,gamey);
     }
   }
   
@@ -3647,8 +3662,8 @@ public class SnakeGame {
     rect(fX,fY,foodSize,foodSize);
   }
   
-  void keyInput(char key, int pkeyCode){
-    println("key = "+pkeyCode);
+  void keyInput(char pkey, int pkeyCode){
+    println("key = "+pkey+", keyCode = "+pkeyCode);
     if(pkeyCode == UP) { 
       if(stepY != -movestep){stepY = -movestep; stepX = 0;}
     }
@@ -3661,7 +3676,7 @@ public class SnakeGame {
     if(pkeyCode == RIGHT){
       if(stepX !=  movestep){stepX =  movestep; stepY = 0;}
     }
-    if(key == 'N' || key == 'n'){
+    if(pkey == 'N' || pkey == 'n'){
       resetSnakeGame();
     }
 //    if(keyCode == '+'){
@@ -3700,6 +3715,7 @@ public class SnakeGame {
       if (sY < 1) {sY = gridY;}
     } else {
       if (sX > gridX || sX < 1 || sY > gridY || sY < 1){
+        println("out of bounds!");
         gameOver = true;
       }
     }
