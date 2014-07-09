@@ -447,6 +447,13 @@ String[] BluetoothPORTs = new String[0];
 
 PImage img;
 
+int VersionBufferN = 4;
+int VERSION;
+int SERIALNUMBER;
+int MODELNUMBER;
+
+boolean commentflag = false;
+
 SerialPortObj FVserial;
 SnakeGame mySnakeGame;
 
@@ -671,9 +678,9 @@ void serialEvent (Serial myPort) {
 //  println("Serial Event.  T = "+startTime);
   // Store current fill and stroke settings
 //  println("Fill = "+red(g.fillColor)+","+green(g.fillColor)+","+blue(g.fillColor));
-//  int tmpfillColor = g.fillColor;
-//  int tmpstrokeColor = g.strokeColor;
-//  float tmpstrokeWeight = g.strokeWeight;
+  int tmpfillColor = g.fillColor;
+  int tmpstrokeColor = g.strokeColor;
+  float tmpstrokeWeight = g.strokeWeight;
   
 //println(myPort.available());
   if (!dataflag) {
@@ -721,6 +728,14 @@ void serialEvent (Serial myPort) {
       }
       else if (inChar == 'y') {
         println("Received 'Y'");
+      }
+      else if (inChar == 'v') {
+        byte[] inBuffer = new byte[VersionBufferN];
+        myPort.readBytes(inBuffer);
+        VERSION = inBuffer[0];
+        SERIALNUMBER = ((int)inBuffer[1]<<8)+(int)inBuffer[2];
+        MODELNUMBER = inBuffer[3];
+        println("Version = "+VERSION+". SerailNumber = "+SERIALNUMBER+". MODEL = "+MODELNUMBER);
       }
     }
   }  
@@ -847,9 +862,9 @@ void serialEvent (Serial myPort) {
 //  long tmp = System.nanoTime() -startTime;
 //  println("elapsed = "+tmp);
   // Restore fill and stroke settings
-//  fill(tmpfillColor);
-//  stroke(tmpstrokeColor);
-//  strokeWeight(tmpstrokeWeight);
+  fill(tmpfillColor);
+  stroke(tmpstrokeColor);
+  strokeWeight(tmpstrokeWeight);
 }
 
 // keyboard button handling section
@@ -932,6 +947,9 @@ void keyPressed() {
           ChangeDomain(TimeDomain);
         }
       }
+    }
+    if (key == 'V' || key == 'v') {
+      PollVersion();
     }
     if (key == 'T' || key == 't') {
       ChangeDomain(TimeDomain);
@@ -1077,6 +1095,10 @@ void keyPressed() {
         } else if (snakeGameFlag){
           snakeGameFlag = false;
           mySnakeGame = null;
+          drawTarget();
+          GamenextStep = second()+GamedelayTime;
+          println(GamenextStep);
+          GameScore = 0;
         }
       }
       if(snakeGameFlag){
@@ -2891,15 +2913,15 @@ void delay(int delay)
 
 void EstablishDataLink(){
   myPort.write('G'); // tells Arduino to start sending data
-  println("sent G");
+  if(commentflag)println("sent G");
   
   SerialBufferN = SignalNumber;
-  println("Signum = "+SignalNumber);
+  if(commentflag)println("Signum = "+SignalNumber);
   if (BitDepth10){
     SerialBufferN += 1;
     if(SignalNumber > 4){SerialBufferN += 1;}
   }
-  println("SignalBuffer = "+SerialBufferN);
+  if(commentflag)println("SignalBuffer = "+SerialBufferN);
   
 //  if (BitDepth10){
 //    if (SignalNumber > 4){
@@ -3026,6 +3048,21 @@ void importSettings(){
   }
 }
 
+void PollVersion(){
+  StopData();  // turn data off
+  // handle changes to the Serial buffer coming out of settings
+  delay(serialwritedelay);
+  myPort.clear();
+  println("sent Q");
+  myPort.buffer(VersionBufferN+1);
+  myPort.clear();
+  
+  myPort.write('V'); // Poll version and SN
+  delay(serialwritedelay);
+  
+  EstablishDataLink();
+}
+
 void UpdateSettings(){
   /*
  * Control Words
@@ -3144,7 +3181,7 @@ void UpdateSettings(){
     myPort.write('Y');
     delay(serialwritedelay);
     
-    EstablishDataLink(); // This used to be commented out and handled in individual mousepress and keypress events,  can't remember why
+    EstablishDataLink();
   }
   
 }
