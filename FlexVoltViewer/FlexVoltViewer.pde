@@ -36,6 +36,7 @@ import java.awt.Robot;
 Robot robot;
 
 // Constants
+String ViewerVersion = "v1.1";
 Serial myPort;
 //String RENDERMODE = "P2D";
 int FullPlotWidth = 500;
@@ -2675,7 +2676,7 @@ void labelaxes() {
     textSize(labelsizexs);
     fill(20, 150, 20);
     textAlign(CENTER, CENTER);
-    text("FlexVolt\nViewer", xStep/2, yTitle/2-2);
+    text("FlexVolt\nViewer\n"+ViewerVersion, xStep/2, yTitle/2-2);
   }
 
   fill(labelcolor);
