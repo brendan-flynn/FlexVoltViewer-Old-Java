@@ -690,8 +690,10 @@ void draw () {
 }
 
 void stop() {
-  myPort.write('X');
-  myPort.clear();
+  if (myPort != null){
+    myPort.write('X');
+    myPort.clear();
+  }
 }
 
 void serialEvent (Serial myPort) {
@@ -3043,6 +3045,10 @@ void delay(int delay)
 }
 
 void EstablishDataLink() {
+  if (myPort == null){
+    println("no port to connect to");
+    return;
+  }
   myPort.write('G'); // tells Arduino to start sending data
   if (commentflag)println("sent G");
 
@@ -3072,9 +3078,11 @@ void EstablishDataLink() {
 }
 
 void StopData() {
-  if (myPort!=null) {
-    myPort.write('Q');
+  if (myPort == null) {
+    println("no port to stop");
+    return;
   }
+  myPort.write('Q');
   dataflag = false;
   println("Stopped Data");
   FVserial.connectionindicator = FVserial.indicator_noconnection;
@@ -3200,6 +3208,10 @@ void importSettings() {
 }
 
 void PollVersion() {
+  if (myPort == null){
+    println("no port to poll");
+    return;
+  }
   StopData(); // turn data off
   // handle changes to the Serial buffer coming out of settings
   delay(serialwritedelay);
@@ -3258,6 +3270,10 @@ void UpdateSettings() {
   //  DataRecordTime = DataRecordTimeTmp;
   //  SignalNumber = SignalNumberTmp;
 
+  if (myPort == null){
+    println("no port to updatesettings on");
+    return;
+  }
   if (FVserial.flexvoltconnected) {
     StopData(); // turn data off
     // handle changes to the Serial buffer coming out of settings
@@ -3382,7 +3398,9 @@ void ChangeDomain(int NewDomain) {
     SignalNumberTmp = SignalNumber;
     StopData(); // turn data off
     delay(serialwritedelay);
-    myPort.clear();
+    if (myPort != null){
+      myPort.clear();
+    }
     buttonsTDP[BTDPsettings].ChangeColorPressed();
     buttonsFDP[BFDPsettings].ChangeColorPressed();
     buttonsTP[BTPsettings].ChangeColorPressed();
