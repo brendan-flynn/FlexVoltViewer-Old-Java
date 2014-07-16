@@ -1,0 +1,267 @@
+How to communicate with FlexVolt Sensors
+
+****** Connect ******
+  Description
+    First step - connect to FlexVolt using a serial port (emulated over USB or Bluetooth)
+    
+  Requirements
+    FlexVolt plugged in (USB/Bluetooth models) or turned on (Bluetooth model)
+
+  USB
+  
+    MACOSX - portname will contain "tty.usbmodem"
+    WINDOWS - portname will contain "COM"
+
+  Bluetooth
+  
+    Must first be paired in your computer/phone bluetooth settings
+    Bluetooth pairing code = 0000
+    Bluetooth device name = "FlexVoltBTvX" (x is version)
+    
+    MACOSX - portname will contain "FlexVoltBT"
+    WINDOWS - portname will contain "COM"  (very helpfull....)
+    
+****** Establish Connection ******
+
+  Description
+    Upon power-on, FlexVolt waits for input
+    The software must initiate a handshake, to verify a FlexVolt sensor is at the other end
+  
+  Requirements
+    Found and opened a serial port to FlexVolt device
+  
+  Send to FlexVolt:
+  
+  'A' - poll for FlexVolt device
+    returns 'a'
+  
+  '1' - acknowledge received 'a', open communications
+    sets communication flag
+    returns 'b'
+    
+  'X' - reset/clear
+    clears communication flag
+    stops data measurement
+    clears settings flag
+    returns 'x'
+    Note - sending 'X' is useful if communication was cutoff unexpectedly and FlexVolt did not sending data.
+    
+  unknown error
+    any other input returns an error
+    returns
+      'e'
+      's'
+      unknown input echo
+    
+****** Modify Settings ******
+  Description
+    FlexVolt has several Firmware settings that can be modified by updating the control registers
+    
+    REGX<n1:n2> addresses individual bits in each 8-bit register.  
+      REGX<0> is the LSB (least significant bit) or right-most bit
+      REGX<7> is the MSB (most significant bit) or left-most bit
+    
+    REG0 = main/basic user settings
+    * REG0<7:6> = Channels, 11=8, 10=4, 01=2, 00=1
+        FlexVolt can be set to read and transmit data from just some of the channels
+        This setting can be used to reduce bandwidth requirements or push sampling rate limits
+    * REG0<5:2> = FreqIndex
+        The simple way of changing sampling frequency is to select one from the built in list
+        FreqList = {1, 10, 50, 100, 200, 300, 400, 500, 1000, 1500, 2000, 4000}
+        Frequency of 1Hz  requires FreqIndex = 0
+        Frequency of 1kHz requires FreqIndex = 8
+        
+        If outside range, returns error
+          'e'
+          'I'
+          value echo
+        
+    * REG0<1> = DataMode (1 = filtered, 0 = raw)
+        FlexVolt can send raw measured data, or can implement a recursive smoothing filter
+        When filtering, data can be measured at a high data rate, but filtered data can be sent at a lower data rate          (see downsampling value below).  This option can reduce bandwidth overhead and potentially increase battery           life for wireless models
+    * REG0<0> = Data bit depth. 1=10bits, 0 = 8bits
+        FlexVolt analog inputs have 10-bit resolution.  Each measurement is therefore 10 bits.  Data is sent in bytes         (8 bits) so for 4 channels at 10 bits, 4 bytes containing the most significant 8-bits of each measurement are         sent, then the 2 least significant bits from each measurement are packed into an extra byte.  If you are              running into transmit speed issues, and those last two bits (usually noise for most analog-to-digital                 converters anyway) are not very important, you can cut your bandwidth requirements down by switching to 8-bit         mode.
+    
+    REG1 = Filter Shift Val + Prescalar Settings
+    * REG1<4:0> = filter shift val, 0:31, 5-bits
+        This value adjusts the amount of smoothing for filtered data
+        
+        If outside range, returns error
+          'e'
+          'f'
+          value echo
+          
+        //reference: http://www.edn.com/design/systems-design/4320010/A-simple-software-lowpass-filter-suits-embedded                      -system-applications
+        //author:  Barry Dorr
+        //date:    May 25, 2006
+    * REG1<7:5> = PS setting.
+        The prescaler controls how the FlexVolt on-board microprocessor counts time.  You should NOT adjust this              unless you know what you are doing!
+          000 = 2
+          001 = 4
+          010 = 8
+          011 = 16 // not likely to be used
+          100 = 32 // not likely to be used
+          101 = 64 // not likely to be used
+          111 = off (just use 48MHz/4)
+    
+    * REG2<7:0> = Manual Frequency, low byte (16 bits total)
+    * REG3<7:0> = Manual Frequency, high byte (16 bits total)
+        If you want a frequency that is not an option in the pre-set frequency list, here is where you pick your own!
+        Set this value to '0' to use the frequency selected by FreqIndex.
+
+    * REG4<7:0> = Time adjust val (8bits, 0:255)
+        To retain the most flexibility, the FlexVolt on-board timing can be adjusted using this value.
+        The on-board 8-bit timer controls data measurement timing.  By default, the timer is set to 
+        255-250+Timeadjustval, and sets a flag everytime it rolls over at 255.
+        
+        NOTE! - This Value is shifed by -6!  So if you send 0, -6 is used!  
+        
+        Default is 6.
+        
+        If sampling is too slow, increase time adjust val!
+        If sampling is too fast, decrease time adjust val
+        
+    
+    * REG5<7:0> = partial counter val, low byte, 16 bits total
+    * REG6<7:0> = partial counter val, high byte, 16 bits total
+        Timer Adjustment - add Time Adjust to x out of N total counts to 250)
+        
+        This adjustment is slightly more advanced and provides for more precise timing control
+        For example, at prescaler = 8, the on-board Timer rolls over at 6kHz.  For a 1kHz measurement, The on-board           Timer must roll-over 6 times.  If sampling was too slow, you might increase Time adjust val (see REG4).  But          if increasing Time adjust val by 1 leads to sampling too fast, and you need somethign in-between, you could           implement time adjust val (shorten the Timer roll over period) for only a 4 those 6 roll-overs.  To do that,          set partial counter val to 4.
+    
+    * REG7<7:0> = down sampling value (mainly for smoothed data)
+        downsample - transmit at a data rate lower than the measuring data rate.
+        For filtered data, you can sample at 1kHz, but transmit smoothed data (which will not be changing as rapidly          as 1kHz) at 100Hz.
+        Downsampling does not make sense for raw data - just lower your sampling frequency!
+      
+    * REG8<7:0> = Plug Test Period
+        FlexVolt can test regularly to see if leads have been plugged in or unplugged.  Currently channels 1-5 are            tested.  Channels 6-8 for 8-channel units are NOT tested.
+        
+        Setting to '0' turns plugtesting off
+        
+        Setting plugtest to '1' tests plugs every 100ms, at 10Hz.
+        Setting plugtest to '10' tests plugs every 1s, at 1Hz
+        
+        Plug test frequency = 10 / PlugTestPeriod
+  
+  Requirements
+    Handshake established
+    FlexVolt communication flag set
+  
+  Procedure
+    Send 'Q' to clear data measure/send flag
+      returns 'q'
+    
+    Send 'S' to access settings menu
+      returns 's'
+    
+    Send, in order, all 9 Register bytes (REG0 - REG8)
+      returns
+        register index (increments - '0' for REG0, '1' for REG1, etc.
+        register byte sent (echoing the actual value)
+        
+        'y' when last register byte has been received
+        
+        all received bytes are stored in a tmpREG, and not saved to REG unless 'Y' is received after last byte.
+    
+    Send 'Y' to save sent REG values to the REG
+      returns 'z'
+      updates control register
+      clears settings flag
+      
+    Send anything else to exit without updating settings
+      returns 'q'
+      clears settings flag
+
+****** Other Options ******
+
+  If settings flag is clear (false) and communication flag is set (true) the following options are available
+  
+  *** Take one measurement ***
+  Send 'M'
+    returns data measurement
+    
+    useful for computer controlled measurement timing - instead of turning data on, just send 'M' at desired sampling     frequency
+    
+  *** Turn on FlexVolt-controlled Data Measurement ***
+  Send 'G' ("Go!")
+    returns 'g'
+    sets dataflag (true)
+    begins measuring and sending data using the settings in the control registers
+    
+  *** Turn off FlexVolt-contrnolled Data Measurement ***
+  Send 'Q' ("Quit!")
+    Stops measuring and sending data
+    returns 'q'
+    clears dataflag (false)
+  
+  *** reset/clear ***
+  Send 'X' ("Exit")
+    Stops measuring and sending data
+    returns 'x'
+    clears dataflag (false)
+    clears communicationflag (false)
+    
+  *** Enter Settings Menu ***
+  Send 'S' ("Settings")
+    Stops measuring and sending data
+    returns 's'
+    sets settingsflag (true)
+    initializes Register index to '0'
+    
+  *** Poll version ***
+  Send 'V'
+    Stops measuring and sending data
+    returns 'v'
+    returns version info
+      byte version
+      byte highbyte(Serialnumber)
+      byte lowbyte(serialnumber)
+      byte modelnumber
+      
+      modelnumber
+      0 = USB 2-Ch
+      1 = USB 4-Ch
+      2 = USB 8-Ch
+      
+      3 = Bluetooth 2-Ch
+      4 = Bluetooth 4-Ch
+      5 = Bluetooth 8-Ch
+      
+      10 = Arduino Shield
+      
+    
+  *** Actually Still Trying To Connect ***
+  Send 'A'
+    Stops measuring and sending data
+    clears communications flag (false)
+    
+    It is likely you did not send 'A', but for some reason communcations flag is set but the software is still trying     to find/connect to a FlexVolt.  Goes back to the handshake handling to try and establish a proper connection.
+    
+  *** Unknown Input ***
+    Stops measuring and sending data
+    returns
+      'e'
+      'd'
+      unkown input echo
+
+
+********* Data Sampling
+
+What the FlexVolt sends:
+
+NEVER 'AT'!  The Bluetooth module used accepts AT commands, so a filter is setup to ensure 'AT' is never sent from the FlexVolt.
+
+Each data sample is preceeded by a code telling the software how to handle it.  How many bytes, 8 vs 10 bits.
+
+8-bit
+'C' - 1 channel
+'D' - 2 channels
+'E' - 4 channels
+'F' - 8 channels
+
+10-bit
+'H' - 1 channel
+'I' - 2 channels
+'J' - 4 channels
+'K' - 8 channels
