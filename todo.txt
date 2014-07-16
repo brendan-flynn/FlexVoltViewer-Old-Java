@@ -1,0 +1,13 @@
+The list of things to do.  
+
+Plotting
+- add number hotkeys to turn channels on/off
+
+
+Snake game
+- add left/right control using 2 muscle signals
+
+Target game
+- add left/right/up/down control using 4 muscle signals
+- add toggle between 2 and 4 muscle control
+
