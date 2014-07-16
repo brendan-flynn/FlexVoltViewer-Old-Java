@@ -1,0 +1,1 @@
+Once items have been completed, they are moved from todo.txt to done.txt!
