@@ -1,29 +1,33 @@
 //  Author:  Brendan Flynn - FlexVolt
-//  Date Modified:    4 June 2014
-/*  FlexVolt Viewer v1.1
-
-    Recent Changes:
-    app size - all GUI features now scale with plot window size
-    
-    
-    Description:
-    Processing sketch for visualization of data measured using a FlexVolt sensor
-
-    Uses the USB-serial (or Bluetooth-serial) port emulator to receive data and adjust settings on the FlexVolt
-
-    Exportable to stand-alone executable program file for Windows and Mac using Processing 2.1.2
-    
-    To Run this Sketch:
-
-       1.  Download Processing - www.processing.org
-           Processing is free (donations optional)
-       2.  Expand the compressed folder when finished downloading.
-       3.  Place the folder where you like
-       4.  Download FlexVoltViewer_release_v1_x.pde (this file) from www.flexvoltbiosensor.com
-       5.  Open the sketch in Processing.  Click play (ctrl-r).
-       6.  Connect your FlexVolt, click Reset (under "Connection")
-       
-    For FAQ and troubleshooting, go to www.flexvoltbiosensor.com/software
+//  Date Modified:    31 July 2014
+/*  FlexVolt Viewer v1.2
+ 
+ Recent Changes:
+ page objects
+   huge change, now each page/sub-app is it's own object
+   this makes it easier to add pages/mini apps
+ 
+ app resize - app can now be resized!
+ 
+ 
+ Description:
+ Processing sketch for visualization of data measured using a FlexVolt sensor
+ 
+ Uses the USB-serial (or Bluetooth-serial) port emulator to receive data and adjust settings on the FlexVolt
+ 
+ Exportable to stand-alone executable program file for Windows and Mac using Processing 2.1.2
+ 
+ To Run this Sketch:
+ 
+ 1.  Download Processing - www.processing.org
+ Processing is free (donations optional)
+ 2.  Expand the compressed folder when finished downloading.
+ 3.  Place the folder where you like
+ 4.  Download FlexVoltViewer_release_v1_x.pde (this file) from www.flexvoltbiosensor.com
+ 5.  Open the sketch in Processing.  Click play (ctrl-r).
+ 6.  Connect your FlexVolt, click Reset (under "Connection")
+ 
+ For FAQ and troubleshooting, go to www.flexvoltbiosensor.com/software
  
  */
 
@@ -32,58 +36,198 @@ import processing.serial.*;
 import java.awt.AWTException;
 import java.awt.Robot;
 
-// Robot is used to move the computer mouse pointer
-Robot robot;
+// interface to wrap all page objects
+public interface pagesClass {
+  public void switchToPage(); // anything that should be done during switch to this page
+  public void drawPage(); // 
+  public boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev);
+  //  public boolean useKeyPressed(); // don't need to pass key, keyCode
+  public void useSerialEvent(); // may not need this one
+  //  public void useMousePressed(); // don't need to pass mouseButton, etc.
+  public void drawHelp(); //
+  public String getPageName(); // return title
+  public void initializeButtons();
+}
+
+// To add a page:
+//
+///************************* BEGIN Example Page ***********************/
+//public class ExamplePage implements pagesClass{
+//  // variables
+//  
+//  // constructor
+//  ExamplePage(){
+//    // set input variables
+//    
+//  }
+//  
+//  void switchToPage(){
+//    
+//  }
+//
+//  void drawPage(){
+//    // draw subfunctions
+//  }
+//
+//  String getPageName(){
+//    return pageName;
+//  }
+//  
+//  boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev){
+//  if (inputDev == mouseInput){
+//    handle mouse inputs using x,y
+//  } else if (inputDev == keyInput){
+//    handle key inputs using key and keyCode
+//  }
+//  }
+//
+//  no longer used
+//  boolean useKeyPressed(){
+//    boolean outflag = false;
+//    if (key == 'a' ) {
+//      //do stuff
+//      outflag = true;
+//    }
+//    if (key == CODED){
+//      if (keyCode == LEFT){
+//        // do stuff
+//        outflag = true;
+//      }
+//    }
+//    return outflag;
+//  }
+//  
+//  no longer used
+//  void useMousePressed(){
+//    for (int i = 0; i < buttons.length; i++) {
+//        if (buttons[i] != null) {
+//          if (buttons[i].IsMouseOver(x, y)) {
+//            buttons[i].BOn = !buttons[i].BOn;
+//            buttons[i].ChangeColorPressed();
+//            currentbutton = i;
+//            ButtonColorTimer = millis()+ButtonColorDelay;
+//            ButtonPressedFlag = true;
+//          }
+//        }
+//      }
+//      if (currentbutton == Bsettings) {
+//        ChangeDomain(SettingsDomain);
+//        println("Settings Menu");
+//      }
+//      else if (currentbutton == Bhelp) {
+//        ChangeDomain(HelpDomain);
+//      }
+//  }
+//  
+//  void useSerialEvent(){
+//    if (dataflag) {
+//    byte[] inBuffer = new byte[SerialBufferN];
+//    while (myPort.available () > SerialBufferN) {
+//      int inChar = myPort.readChar(); // get ASCII
+//      if (inChar != -1) {
+//        SerialReceivedFlag = true;
+//        if (inChar == 'C' || inChar == 'D' || inChar == 'E' || inChar == 'F') {
+//          myPort.readBytes(inBuffer);
+//          // do stuff
+//        }
+//      }
+//    }
+//  }
+//  
+//  void drawHelp(){
+//    // help text
+//  }
+//}
+///************************* END EXALE PAGE ***********************/
+
 
 // Constants
 String ViewerVersion = "v1.1";
+String HomePath = System.getProperty("user.home"); // default path to save settings files
+String folder = "";
 Serial myPort;
 //String RENDERMODE = "P2D";
 int FullPlotWidth = 500;
 int plotwidth = FullPlotWidth;
 int HalfPlotWidth = FullPlotWidth/2;
-int plotheight = 300;
+int plotheight = 400;
 int plot2offset = 5;
 int xx, yy;
 int xStep = 60;
 int yStep = 40;
-int yTitle = 60;
+int yTitle = 70;
 int barwidth = 100;
+
 int SerialBufferN = 5;
 int SerialBurstN = 2;
 int SerialPortSpeed = 230400;
 int serialwritedelay = 50;
+
+// font sizes
 int axisnumbersize = 16;
 int labelsize = 20;
 int labelsizes = 16;
 int labelsizexs = 14;
 int titlesize = 26;
 int buttontextsize = 16;
-int RepBarWidth = 30;
 
+// Robot is used to move the computer mouse pointer
+Robot robot;
+
+// GUi Class Objects //
+// Buttons
+GuiButton[] buttonsCommon;
+int ButtonNumCommon = 0;
+int
+BCsettings = ButtonNumCommon++, 
+BChelp = ButtonNumCommon++, 
+BCrecordnextdata = ButtonNumCommon++, 
+BCtimedomain = ButtonNumCommon++, 
+BCfreqdomain = ButtonNumCommon++, 
+BCtraindomain = ButtonNumCommon++, 
+BCmousedomain = ButtonNumCommon++, 
+BCsnakedomain = ButtonNumCommon++, 
+BCserialreset = ButtonNumCommon++, 
+BCsave = ButtonNumCommon++;
+
+
+int Bheight = 25; // button height
+int Bheights = 20; // button height
 
 float fps = 30;
-float FreqMax = 500;//Hz for fft display window
-float FreqAmpMin = 0;
-float FreqAmpMax = 1;
-int FFTscale = 80; // multiplying fft amplitude
 int VoltScale = 1;
 float VoltageMax = 10/VoltScale;
 float VoltageMin = -10/VoltScale;
 float AmpGain = 1845; // 495 from Instrumentation Amp, 3.73 from second stage.  1845 total.
 float DynamicRange = 1.355;//mV.  5V max, split around 2.5.  2.5V/1845 = 1.355mV.
-int MaxSignalVal = 512;//4095;
-int HalfSignalVal = 512;
+float Resolution = DynamicRange/1024;// mV, 1.355mV/1024 = 1.3uV.  NOTE - resolution is likely worse than this - most ADCs' botton 2-3 bits are just noise.  10uV is a more reasonable estimate
+int MaxSignalVal = 512;//1024 / 2 (-512 : +512);
+int HalfSignalVal = 512; // same
 int Nxticks = 5;
 int Nyticks = 4;
 int NyticksHalf = 2;
-int TimeDomain = 0, FreqDomain = 1, MouseDomain = 2, TrainingDomain = 3, SettingsDomain = 4, HelpDomain = 5, OldDomain = 0;
 int MaxSignalLength = 1000;
 int FFTSignalLength = 1024;
-int SMscroll = 1, SMtrace = 0;
 int pointThickness = 3;
 int ytmp;
 int MedianFiltN = 3;
+
+// Register variables and constants
+int[] UserFreqArray = {  
+  1, 10, 50, 100, 200, 300, 400, 500, 1000, 1500, 2000
+};
+int UserFreqIndexTraining = 7;
+int UserFreqIndexMouse = 7;
+int UserFreqIndexFFT = 8;
+int UserFreqIndexDefault = 7;
+int UserFreqIndex = UserFreqIndexDefault;
+int UserFrequency = UserFreqArray[UserFreqIndex];//40;//1000;
+int UserFreqCustom = 0;
+int UserFreqCustomMax = 4000;
+int UserFreqCustomMin = 0;
+int SmoothFilterVal = 8;
+int SmoothFilterValDefault = 8;
+int SmoothFilterValMin = 0, SmoothFilterValMax = 50;
 int Timer0PartialCount = 0;
 Boolean BitDepth10 = true;
 int Timer0AdjustVal = 2;
@@ -98,15 +242,6 @@ int DownSampleCountMin = 0;
 int DownSampleCountTraining = 5;
 int DownSampleCountMouse = 5;
 
-int UserFrequencyTmp;
-int UserFreqIndexTmp;
-int SmoothFilterValTmp;
-int DownSampleCountTmp;
-int Timer0AdjustValTmp;
-int PrescalerTmp;
-int DataRecordTimeTmp;
-int SignalNumberTmp;
-
 // Colors
 color BoutlineColor = color(0);
 color BIdleColor = color(160);
@@ -120,234 +255,57 @@ color Sig5Color = color(0, 255, 255);//cyan
 color Sig6Color = color(255, 255, 0);//yellow
 color Sig7Color = color(255, 0, 255);//fushcia
 color Sig8Color = color(255, 255, 255);//white
-color SigColorM[] = {
+color SigColorM[] = {  
   Sig1Color, Sig2Color, Sig3Color, Sig4Color, Sig5Color, Sig6Color, Sig7Color, Sig8Color
 };
 color Signalcolor = color(255);
 color FFTcolor = color(255, 255, 0);
 color labelcolor = color(0);
-color plotbackground = 100;
-color plotoutline = 0;
-color backgroundcolor = 200;
-color plotlinecolor = 255;
+color plotbackground = color(100);
+color plotoutline = color(0);
+color backgroundcolor = color(200);
 
-
-// GUi Class Objects //
-// Buttons
-GuiButton[] buttonsTDP;
-int ButtonNumTDP = 0;
-int
-//     Bplay = ButtonNumTDP++,
-BTDPsettings = ButtonNumTDP++,
-BTDPhelp = ButtonNumTDP++,
-//BTDPrecorddata = ButtonNumTDP++,
-BTDPrecordnextdata = ButtonNumTDP++,
-//BTDPdomain = ButtonNumTDP++,
-BTDPtimedomain = ButtonNumTDP++, 
-BTDPfreqdomain = ButtonNumTDP++,
-BTDPtraindomain = ButtonNumTDP++,
-BTDPmousedomain = ButtonNumTDP++,
-BTDPserialreset = ButtonNumTDP++,
-BTDPoffset = ButtonNumTDP++,
-BTDPsmooth = ButtonNumTDP++,
-BTDPclear = ButtonNumTDP++,
-BTDPpause = ButtonNumTDP++,
-BTDPsave = ButtonNumTDP++,
-BTDPchan1 = ButtonNumTDP++,
-BTDPchan2 = ButtonNumTDP++,
-BTDPchan3 = ButtonNumTDP++,
-BTDPchan4 = ButtonNumTDP++,
-BTDPchan5 = ButtonNumTDP++,
-BTDPchan6 = ButtonNumTDP++,
-BTDPchan7 = ButtonNumTDP++,
-BTDPchan8 = ButtonNumTDP++;
-
-GuiButton[] buttonsFDP;
-int ButtonNumFDP = 0;
-int
-// Bplay = ButtonNumFDP++,
-BFDPsettings = ButtonNumFDP++,
-BFDPhelp = ButtonNumFDP++,
-//BFDPrecorddata = ButtonNumFDP++,
-BFDPrecordnextdata = ButtonNumFDP++,
-//BFDPdomain = ButtonNumFDP++,
-BFDPtimedomain = ButtonNumFDP++,
-BFDPfreqdomain = ButtonNumFDP++,
-BFDPtraindomain = ButtonNumFDP++,
-BFDPmousedomain = ButtonNumFDP++,
-BFDPserialreset = ButtonNumFDP++,
-BFDPoffset = ButtonNumFDP++,
-//BFDPsmooth = ButtonNumFDP++,
-//BFDPclear = ButtonNumFDP++,
-BFDPpause = ButtonNumFDP++,
-BFDPsave = ButtonNumFDP++,
-BFDPchan1 = ButtonNumFDP++,
-BFDPchan2 = ButtonNumFDP++,
-BFDPchan3 = ButtonNumFDP++,
-BFDPchan4 = ButtonNumFDP++,
-BFDPchan5 = ButtonNumFDP++,
-BFDPchan6 = ButtonNumFDP++,
-BFDPchan7 = ButtonNumFDP++,
-BFDPchan8 = ButtonNumFDP++;
-
-GuiButton[] buttonsTP;
-int ButtonNumTP = 0;
-int
-BTPsettings = ButtonNumTP++,
-BTPhelp = ButtonNumTP++,
-//BTPrecorddata = ButtonNumTP++,
-BTPrecordnextdata = ButtonNumTP++,
-//BTPdomain = ButtonNumTP++,
-BTPtimedomain = ButtonNumTP++,
-BTPfreqdomain = ButtonNumTP++,
-BTPtraindomain = ButtonNumTP++,
-BTPmousedomain = ButtonNumTP++,
-BTPserialreset = ButtonNumTP++,
-BTPoffset = ButtonNumTP++,
-BTPsmooth = ButtonNumTP++,
-//BTPclear = ButtonNumTP++,
-//BTPpause = ButtonNumTP++,
-BTPsave = ButtonNumTP++,
-BTPreset = ButtonNumTP++,
-BTPsetReps1 = ButtonNumTP++,
-BTPsetReps2 = ButtonNumTP++,
-BTPthresh1up = ButtonNumTP++,
-BTPthresh1down = ButtonNumTP++,
-BTPthresh2up = ButtonNumTP++,
-BTPthresh2down = ButtonNumTP++,
-BTPchan1 = ButtonNumTP++,
-BTPchan2 = ButtonNumTP++,
-BTPchan1up = ButtonNumTP++,
-BTPchan2up = ButtonNumTP++,
-BTPchan1down = ButtonNumTP++,
-BTPchan2down = ButtonNumTP++,
-BTPchan1name = ButtonNumTP++,
-BTPchan2name = ButtonNumTP++;
-
-GuiButton[] buttonsMP;
-int ButtonNumMP = 0;
-int
-BMPsettings = ButtonNumMP++,
-BMPhelp = ButtonNumMP++,
-//BMPrecorddata = ButtonNumMP++,
-BMPrecordnextdata = ButtonNumMP++,
-//BMPdomain = ButtonNumMP++,
-BMPtimedomain = ButtonNumMP++,
-//BMPfreqdomain = ButtonNumMP++,
-BMPtraindomain = ButtonNumMP++,
-BMPmousedomain = ButtonNumMP++,
-BMPserialreset = ButtonNumMP++,
-//BMPoffset = ButtonNumMP++,
-//BMPsmooth = ButtonNumMP++,
-BMPclear = ButtonNumMP++,
-BMPpause = ButtonNumMP++,
-BMPsave = ButtonNumMP++,
-BMPchan1 = ButtonNumMP++,
-BMPchan2 = ButtonNumMP++,
-BMPchan1up = ButtonNumMP++,
-BMPchan2up = ButtonNumMP++,
-BMPchan1down = ButtonNumMP++,
-BMPchan2down = ButtonNumMP++;
-
-GuiButton[] buttonsSP;
-int ButtonNumSP = 0;
-int
-BSPfolder = ButtonNumSP++,
-BSPfiltup = ButtonNumSP++,
-BSPfiltdown = ButtonNumSP++,
-BSPfrequp = ButtonNumSP++,
-BSPfreqdown = ButtonNumSP++,
-BSPrecordtimeup = ButtonNumSP++,
-BSPrecordtimedown = ButtonNumSP++,
-BSP1chan = ButtonNumSP++,
-BSP2chan = ButtonNumSP++,
-BSP4chan = ButtonNumSP++,
-BSP8chan = ButtonNumSP++,
-BSPcancel = ButtonNumSP++,
-BSPsave = ButtonNumSP++,
-BSPdefaults = ButtonNumSP++,
-BSPdownsampleup = ButtonNumSP++,
-BSPdownsampledown = ButtonNumSP++,
-BSPtimeradjustup = ButtonNumSP++,
-BSPtimeradjustdown = ButtonNumSP++,
-//BSPbitdepth8 = ButtonNumSP++,
-//BSPbitdepth10 = ButtonNumSP++,
-BSPprescalerup = ButtonNumSP++,
-BSPprescalerdown = ButtonNumSP++;
-
-String folder = "";
-String folderTmp = "";
-String tmpfolder = "";
-String HomePath = System.getProperty("user.home"); // default path to save settings files
-String typing = "";
-String savedname = "";
-boolean NamesFlag = false;
-int NameNumber = 0;
-
+// FFT variables
 FFTutils fft;
 FIRFilter filter1, filter2;
-
-// Variables
-int xPos = 0;
-int CurrentDomain = TimeDomain;
 float[] filtered;
 float[][] fft_result;//1, fft_result2, fft_result3, fft_result4;
-float[][] signalIn;//1, signalIn2, signalIn3, signalIn4;
 float[][] FFTsignalIn; // longer for FFT calculation
+
+
+//int xPos = 0;
+float[][] signalIn;//1, signalIn2, signalIn3, signalIn4;
 int[] oldPlotSignal;
 
 
-int ScrollMode = SMtrace;
-int[] UserFreqArray = {
-  1, 10, 50, 100, 200, 300, 400, 500, 1000, 1500, 2000
-};
-int UserFreqIndexTraining = 7;
-int UserFreqIndexMouse = 7;
-int UserFreqIndexFFT = 8;
-int UserFreqIndexDefault = 7;
 
-int UserFreqIndex = UserFreqIndexDefault;
-int UserFrequency = UserFreqArray[UserFreqIndex];//40;//1000;
-int UserFreqCustom = 0;
-int UserFreqCustomMax = 4000;
-int UserFreqCustomMin = 0;
-int SmoothFilterVal = 8;
-int SmoothFilterValDefault = 8;
-int SmoothFilterValMin = 0, SmoothFilterValMax = 50;
 float TimeMax = float(FullPlotWidth)/float(UserFrequency);
-int FreqFactor = 2;//UserFrequency/500;
 int datacounter = 0;
 int signalindex = 0;
-int ringcounter = 0;
 int SignalNumber = 4;
 int MaxSignalNumber = 8;
 long[] TimeStamp;
 long ButtonColorTimer = 0;
 long ButtonColorDelay = 100;
-long CheckSerialTimer = 0;
+
 int CheckSerialNSamples = 2;
-int CheckSerialMinTime = 100;
+int CheckSerialMinTime = 250;
 long CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0/((float)UserFrequency/CheckSerialNSamples) );//2000;//UserFrequency/10; // millis. check at 10Hz
-int TSind = 0;
 int CalibrateN = 50;
 int CalibrateCounter = CalibrateN;
-int Calibration[] = {
+int Calibration[] = {  
   0, 0, 0, 0, 0, 0, 0, 0
 };
-int OffSet[] = {
-  +plotheight*7/8, +plotheight*5/8, +plotheight*3/8, +plotheight*1/8, -100, -150, 40, 60
-};
-int OffSetFFT2[] = {
-  0, plotheight/2
-};
-int OffSetFFT4[] = {
-  0, plotheight/4, plotheight/2, plotheight*3/4
-};
-int OffSetFFT8[] = {
-  0, plotheight/8, plotheight/4, plotheight*3/8, plotheight/2, plotheight*5/8, plotheight*3/4, plotheight*7/8
-};
+
+// GUI variables
+int currentbuttonCommon = -1;
 int currentbutton = -1;
+int currentpage;
+int dummypage = -1;
+int oldpage;
 int imagesavecounter = 1;
+
+// data recording
 int[][] DataRecord;
 int DataRecordCols = 9;
 int DataRecordTime = 10; // seconds
@@ -357,77 +315,25 @@ int DataRecordedCounter = 0;
 int DataRecordTimeMax = 50;
 int DataRecordTimeMin = 1;
 
+/*********** Page Variables ************/
+// any page variables that require access for saving and loading should go here
+
 // MouseVariables
 int XLow = 0, XHigh = 1, YLow = 2, YHigh = 3;
-int MouseThresh[] = {
+int MouseThresh[] = {    
   MaxSignalVal*5/4, MaxSignalVal*6/4, MaxSignalVal*5/4, MaxSignalVal*6/4
 };// xlow, xhigh, ylow, yhigh
-int[] MouseChan = {
+int[] MouseChan = {    
   0, 1
 };
-int MouseThreshStandOff = 5;
-int MouseThreshInd = 0;
-int XMouseFactor1 = 2;
-int XMouseFactor2 = 2;
-int XMouseFactor3 = 2;
-int YMouseFactor1 = 2;
-int YMouseFactor2 = 2;
-int YMouseFactor3 = 2;
-int MouseX=0, MouseY=0;
-int MouseSpeed = 3;
-
-// MouseGame
-int GameTargetX;
-int GameTargetY;
-int GamedelayTime = 10;
-int GamedelayTimeMin = 1;
-int GamedelayTimeMax = 10;
-int GamedelayTimeIncrement = 1;
-int GamenextStep;
-int Gametargetsize = 60;
-int GameScore = 0;
-
-// Workout
-int Reps = 0, Work = 1;
-int BTWorkoutType = Reps;
-int RepsTargetDefault = 10;
-int RepsTarget[] = { 
-  RepsTargetDefault, RepsTargetDefault
-};
-int RepThreshDefault = 64;
-int RepThresh[] = {
-  RepThreshDefault, RepThreshDefault
-};
-int RepThreshStep = 10;
-int RepsCounter[] = { 
-  0, 0
-};
-
-int FlexOnCounter[] = { 
-  0, 0
-};
-boolean ChanFlexed[] = { 
-  false, false
-};
-int TRepCounter = 0, TDataLogger = 1;
-int TrainingMode = TRepCounter;
-int DataThresh[] = {
-  545, 545
-};
-int[][] TMax;
-int TrainChan[] = {
-  0, 1
-};
-
+// Frequency variables
+int FrequencyMax = 200;
+/*********** End Page Variables ************/
 
 // Flags
 boolean InitFlag = true;
 boolean dataflag = false;
 boolean initializeFlag = true;
-boolean MouseTuneFlag = false;
-char MouseAxis = 'X';
-boolean MouseXAxisFlip = false;
-boolean MouseYAxisFlip = false;
 boolean MouseReleaseFlag = false;
 boolean PauseFlag = false;
 boolean OffSetFlag = false;
@@ -435,29 +341,19 @@ boolean SmoothFilterFlag = false;
 boolean ButtonPressedFlag = false;
 boolean Bonoff = false;
 boolean Bmomentary = true;
-//boolean ChannelOn[]= {true, false, false, false, false, false};
-boolean ChannelOn[]= {
+boolean ChannelOn[]= {  
   true, true, true, true, false, false, false, false
 };
 boolean DataRecordFlag = false;
-//boolean FreezeFlag = false;
 boolean SerialReceivedFlag = false;
 boolean MedianFilter = false;
 boolean PlugTestFlag = false;
-int PlugTestDelay = 0;
+boolean helpFlag = false;
 boolean DataRegWriteFlag = false;
 boolean snakeGameFlag = false;
-int connectionAtimer = 0;
-int connectionAdelay = 500;
-int testcounter = 0;
 
-// Frequency testing
-//long oldtime;
-//long newtime;
-//int deltatime;
-//float timeaverage;
-//int timeaverageN = 500;
-//int timeaveragecounter = 0;
+int PlugTestDelay = 0;
+int testcounter = 0;
 
 long startTime = System.nanoTime();
 // ... the code being measured ...
@@ -480,16 +376,55 @@ int VERSION;
 int SERIALNUMBER;
 int MODELNUMBER;
 
-boolean commentflag = false;
-
 SerialPortObj FVserial;
-SnakeGame mySnakeGame;
 
+ArrayList<pagesClass> FVpages;
+int settingspage, timedomainpage, frequencydomainpage, workoutpage, targetpracticepage, snakegamepage, musclemusicpage;
+
+boolean commentflag = true;
+boolean communicationsflag = false;
+int currentWidth;
+int currentHeight;
 
 void setup () {
-  HalfPlotWidth = FullPlotWidth/2;
-  FreqFactor = FullPlotWidth/125;
-  println("FreqFactor "+FreqFactor);
+
+  FVpages = new ArrayList<pagesClass>();
+  int tmpindex = 0;
+  FVpages.add(new SettingsPage(this));       
+  settingspage = tmpindex++;
+  FVpages.add(new TimeDomainPlotPage()); 
+  timedomainpage = tmpindex++;
+  FVpages.add(new FreqDomainPlotPage()); 
+  frequencydomainpage = tmpindex++;
+  FVpages.add(new WorkoutPage());        
+  workoutpage = tmpindex++;
+  FVpages.add(new TargetPracticePage()); 
+  targetpracticepage = tmpindex++;
+  FVpages.add(new SnakeGamePage(this));  
+  snakegamepage = tmpindex++;
+  FVpages.add(new MuscleMusicPage());    
+  musclemusicpage = tmpindex++;
+  currentpage = timedomainpage;
+
+  initializeEverything();
+
+  frame.setResizable(true);
+  frame.setTitle("Hello!");
+
+  //  registerMethod("pre", this);
+  //  frame.addComponentListener(new ComponentAdapter() {
+  //    public void componentResized(ComponentEvent e) {
+  //      if(e.getSource()==frame) {
+  //        println("resized");
+  //        updateGUISizes();
+  //      }
+  //    }
+  //  });
+
+  frameRate(fps);
+
+
+
   // Setup mouse control robot
   try {
     robot = new Robot();
@@ -499,31 +434,6 @@ void setup () {
   }
 
   importSettings();
-
-
-  // set the window size TODO get window size, modify
-  // size(FullPlotWidth+barwidth+xStep, plotheight+yStep+yTitle, P2D);
-  size(FullPlotWidth+barwidth+xStep, plotheight+yStep+yTitle);
-  XMIN = xStep+pointThickness;
-  XMAX = xStep+plotwidth-pointThickness;
-  YMIN = yTitle+pointThickness;
-  YMAX = yTitle+plotheight-pointThickness;
-  frameRate(fps);
-  ytmp = height - yStep;
-
-
-  InitializeButtons();
-
-  folderTmp = folder;
-  UserFreqIndexTmp = UserFreqIndex;
-  UserFrequencyTmp = UserFreqArray[UserFreqIndexTmp];
-  SmoothFilterValTmp = SmoothFilterVal;
-  DownSampleCountTmp = DownSampleCount;
-  Timer0AdjustValTmp = Timer0AdjustVal;
-  PrescalerTmp = Prescaler;
-  DataRecordTimeTmp = DataRecordTime;
-  SignalNumberTmp = SignalNumber;
-
 
   img = loadImage("FlexVolt_Image1.png");
 
@@ -535,192 +445,168 @@ void setup () {
   signalIn = new float[MaxSignalNumber][MaxSignalLength];
   FFTsignalIn = new float[MaxSignalNumber][FFTSignalLength];
   oldPlotSignal = new int[MaxSignalNumber];
-  // Calibration = new int[MaxSignalNumber];
-  // signalIn1 = new float[MaxSignalLength];
-  // signalIn2 = new float[MaxSignalLength];
-  // signalIn3 = new float[MaxSignalLength];
-  // signalIn4 = new float[MaxSignalLength];
+
   filter1=new FIRFilter(FIRFilter.LOW_PASS, 2000f, 0, 1000, 60, 3400);
   filter2=new FIRFilter(FIRFilter.HIGH_PASS, 2000f, 20, 10, 60, 3400);
 
   TimeStamp = new long[5000];
 
   FVserial = new SerialPortObj(this);
-  // int foodsize = 20;
-  // int gamespeed = 3;
-  // mySnakeGame = new SnakeGame(this,xStep+plotwidth/2,yTitle+plotheight/2,plotwidth,plotheight,foodsize,gamespeed);
+}
 
-  // initialize background
+void stop() {  // doesn't actually get called on closed, but it should, and hopefully will in future versions!
+  if (myPort != null) {
+    myPort.write('X');
+    myPort.clear();
+  }
+}
+
+void initializeEverything() {
+
+  HalfPlotWidth = FullPlotWidth/2;
+  // set the window size TODO get window size, modify
+  // size(FullPlotWidth+barwidth+xStep, plotheight+yStep+yTitle, P2D);
+  size(FullPlotWidth+barwidth+xStep, plotheight+yStep+yTitle);
+  currentWidth = width;
+  currentHeight = height;
+  ytmp = height - yStep;
+  println("w = "+currentWidth+", h = "+currentHeight+", ytmp = "+ytmp);
+
+  XMIN = xStep+pointThickness;
+  XMAX = xStep+FullPlotWidth-pointThickness;
+  YMIN = yTitle+pointThickness;
+  YMAX = yTitle+plotheight-pointThickness;
+
+  Bheight = 25; // button height
+  Bheights = 20; // button height
+
+  initializeButtons();
+
+  for (int i = 0; i < FVpages.size(); i++) {
+    FVpages.get(i).initializeButtons();
+  }
+}
+
+void checkResize() {
+  if (currentWidth != width || currentHeight != height) {
+    boolean backon = false;
+    if (dataflag) {
+      println("data was on");
+      StopData();
+      backon = true;
+    }
+    currentWidth = width;
+    currentHeight = height;
+    xStep = 60;
+    yStep = 40;
+    yTitle = 70;
+    barwidth = 100;
+    FullPlotWidth = width - xStep - barwidth;
+    plotheight = height - yTitle - yStep;
+    plotwidth = FullPlotWidth;
+    HalfPlotWidth = FullPlotWidth/2;
+    XMIN = xStep+pointThickness;
+    XMAX = xStep+FullPlotWidth-pointThickness;
+    YMIN = yTitle+pointThickness;
+    YMAX = yTitle+plotheight-pointThickness;
+
+    Bheight = 25; // button height
+    Bheights = 20; // button height
+
+    ytmp = height - yStep;
+    println("height now = "+plotheight);
+    initializeButtons();
+
+    for (int i = 0; i < FVpages.size(); i++) {
+      FVpages.get(i).initializeButtons();
+    }
+
+    println("labeling GUI, currentpage ="+currentpage);
+    labelGUI();
+    FVpages.get(currentpage).switchToPage();
+
+    if (backon) {
+      EstablishDataLink();
+    }
+  }
+}
+
+void initializeButtons() {
+  buttonsCommon = new GuiButton[ButtonNumCommon];
+  buttonsCommon[BCsettings]       = new GuiButton("Settings", 's', settingspage, xStep+plotwidth+55, yTitle+plotheight+yStep/2, 70, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
+  buttonsCommon[BChelp]           = new GuiButton("Help", 'h', dummypage, xStep+plotwidth-35, 30, 25, 25, color(BIdleColor), color(0), "?", Bmomentary, false);
+  buttonsCommon[BCsave]           = new GuiButton("Store", 'i', dummypage, xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
+  buttonsCommon[BCrecordnextdata] = new GuiButton("SaveRecord", 'd', dummypage, xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
+  buttonsCommon[BCtimedomain]     = new GuiButton("TimePage", 't', timedomainpage, xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsCommon[BCfreqdomain]     = new GuiButton("FreqPage", 't', frequencydomainpage, xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), "Switch to Frequency", Bonoff, false);
+  buttonsCommon[BCtraindomain]    = new GuiButton("WorkoutPage", 'w', workoutpage, xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
+  buttonsCommon[BCmousedomain]    = new GuiButton("MousePage", 'm', targetpracticepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
+  buttonsCommon[BCsnakedomain]    = new GuiButton("SnakeGame", 'n', snakegamepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
+  buttonsCommon[BCserialreset]    = new GuiButton("SerialReset", 'r', dummypage, xStep+FullPlotWidth+55, yTitle/2, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
 }
 
 void draw () {
   if (InitFlag) {
     InitCount ++;
     if (InitCount == 1) {
-      labelaxes();
-      blankplot();
+      frame.setLocation(0, 0);//1441
+      xx = frame.getX()+2;
+      if (platform == MACOSX) {
+        yy = frame.getY()+42; // add ace for the mac top bar + the app top bar
+      } 
+      else if (platform == WINDOWS) {
+        yy = frame.getY()+22; // add ace for teh app top bar
+      }
+
+      background(backgroundcolor);
+
+      for (int i = 0; i < buttonsCommon.length; i++) {
+        buttonsCommon[i].drawButton();
+      }
+      FVpages.get(currentpage).switchToPage();
+      FVpages.get(currentpage).drawPage();
+
+      labelGUI();
+
       display_error("Searching for FlexVolt Devices");
     }
     if (InitCount >= 2) {
-      background(backgroundcolor);
-      labelaxes();
-      blankplot();
       startTime = System.nanoTime();
       // frame.setLocation(1481, 0);//1441
-      frame.setLocation(0, 0);//1441
-      xx = frame.getX()+2;
-      if (platform == MACOSX){
-        yy = frame.getY()+42; // add space for the mac top bar + the app top bar
-      } else if (platform == WINDOWS){
-        yy = frame.getY()+22; // add space for teh app top bar
-      }
-      println("X = "+xx+". Y = "+yy);
-      println("Height = "+height+", Width = "+width);
+
       InitFlag = false;
       FVserial.connectserial();// the function will poll devices, set connecting flag, and set current try port index to 0
-      // ConnectSerial();
-      connectionAtimer = millis()+connectionAdelay;
     }
   }
+
+  checkResize();
 
   if (ButtonPressedFlag) {
     if (millis() > ButtonColorTimer) {
       ButtonPressedFlag = false;
       println("Current Button = " + currentbutton);
-      if (CurrentDomain == TimeDomain && currentbutton < ButtonNumTDP) {
-        if (buttonsTDP[currentbutton] != null) {
-          buttonsTDP[currentbutton].ChangeColorUnpressed();
-        }
-      }
-      else if (CurrentDomain == FreqDomain && currentbutton < ButtonNumFDP) {
-        if (buttonsFDP[currentbutton] != null) {
-          buttonsFDP[currentbutton].ChangeColorUnpressed();
-        }
-      }
-      else if (CurrentDomain == TrainingDomain && currentbutton < ButtonNumTP) {
-        if (buttonsTP[currentbutton] != null) {
-          buttonsTP[currentbutton].ChangeColorUnpressed();
-        }
-      }
-      else if (CurrentDomain == SettingsDomain && currentbutton < ButtonNumSP) {
-        if (buttonsSP[currentbutton] != null) {
-          buttonsSP[currentbutton].ChangeColorUnpressed();
-        }
+      if (buttonsCommon[currentbuttonCommon] != null && currentbuttonCommon < buttonsCommon.length) {
+        buttonsCommon[currentbuttonCommon].ChangeColorUnpressed();
+        labelGUI();
       }
     }
   }
 
-  if (FVserial.connectingflag) {
-    FVserial.TryPort(); // handles all connecting attempts. monitors timeout for each attempt, increments port to try, etc.
-  }
+  dataflag = FVserial.manageConnection(dataflag, SerialReceivedFlag);
+  SerialReceivedFlag = false;
 
-
-  if (!FVserial.flexvoltconnected) {
-    if (millis()>connectionAtimer) {
-      connectionAtimer = millis()+connectionAdelay;
-      if (!FVserial.flexvoltfound) {
-        if (myPort != null) {
-          println("Wrote 'X' to myport = "+myPort);
-          myPort.write('X');
-        } 
-        else {
-          println("No Ports to Write X To!");
-        }
-      } 
-      else if (FVserial.flexvoltfound) {
-        if (myPort != null) {
-          println("Wrote 'A' to myport = "+myPort);
-          myPort.write('A');
-        } 
-        else {
-          println("No Ports to Write To!");
-        }
-      }
-    }
-  }
-
-
-  if (dataflag) {
-    if (millis()>CheckSerialTimer) {
-      CheckSerialTimer = millis()+CheckSerialDelay;
-      if (SerialReceivedFlag) {
-        SerialReceivedFlag = false;
-      }
-      else if (!SerialReceivedFlag) {
-        FVserial.flexvoltconnected = false;
-        dataflag = false;
-        println("Serial Timeout");
-        FVserial.connectionindicator = FVserial.indicator_noconnection;
-        drawConnectionIndicator();
-        display_error("FlexVolt Connection Lost");
-      }
-      SerialReceivedFlag = false;
-    }
-  }
-
-
-  if (CurrentDomain == TimeDomain) {
-    // long tmp = System.nanoTime()-startTime;
-    // startTime = System.nanoTime();
-    // float tmp2 = ((float)tmp)/1000000000; // convert from ns to s
-    // int pointstep = int(UserFrequency*tmp); // FREQ*timeelapsed = number of points to plot
-    if (!(xPos == plotwidth && PauseFlag)) {
-      // startTime = System.nanoTime()/1000;
-      DrawTrace();
-      // endTime = System.nanoTime()/1000;
-      // println("DrawTrace takes "+(endTime-startTime));
-    }
-  }
-  if (CurrentDomain == FreqDomain) {
-    if (!PauseFlag) {
-      DrawFFT();
-    }
-  }
-  if (CurrentDomain == MouseDomain) {
-    if (!snakeGameFlag) {
-      DrawMouseGame();
-    } 
-    else if (snakeGameFlag) {
-      mySnakeGame.drawSnakeGame();
-    }
-  }
-  if (CurrentDomain == TrainingDomain) {
-    DrawTrainingProgram();
-  }
-}
-
-void stop() {
-  if (myPort != null){
-    myPort.write('X');
-    myPort.clear();
+  if (!helpFlag) {
+    FVpages.get(currentpage).drawPage();
   }
 }
 
 void serialEvent (Serial myPort) {
-  // newtime = System.nanoTime();
-  // deltatime = int(newtime-oldtime)/1000;
-  // timeaveragecounter++;
-  // timeaverage += (float)deltatime;
-  // oldtime = newtime;
-  // timeaveragecounter++;
-  // if(timeaveragecounter >= timeaverageN){
-  // timeaveragecounter = 0;
-  // timeaverage /= timeaverageN;
-  // println("timing = "+timeaverage);
-  // fill(20,255,20);
-  // text(timeaverage,100,70);
-  // }
-  // startTime = System.nanoTime();
-  // println("bt = "+(startTime-endTime));
-  // println("Serial Event. T = "+startTime);
-  // Store current fill and stroke settings
-  // println("Fill = "+red(g.fillColor)+","+green(g.fillColor)+","+blue(g.fillColor));
   int tmpfillColor = g.fillColor;
   int tmpstrokeColor = g.strokeColor;
   float tmpstrokeWeight = g.strokeWeight;
 
-  //println(myPort.available());
-  if (!dataflag) {
+  //  println(myPort.available()+"dataflag = "+dataflag+", communicationflag = "+communicationsflag);
+  if (!communicationsflag && !dataflag) {
     int inChar = myPort.readChar(); // get ASCII
     if (inChar != -1) {
       SerialReceivedFlag = true;
@@ -733,34 +619,35 @@ void serialEvent (Serial myPort) {
         println("Received the x");
       }
       if (inChar == 'a') {
-        // FVserial.flexvoltconnected = true;
-        // println("FlexVolt_connected = "+FVserial.flexvoltconnected);
         FVserial.connectionindicator = FVserial.indicator_connecting;
         myPort.clear();
         myPort.write('1');
         println("1st");
       }
       else if (inChar == 'b') {
-        // FVserial.flexvoltconnected = true;
-        // println("FlexVolt_connected = "+FVserial.flexvoltconnected);
         myPort.clear();
         // ConnectingFlag = true;
         FVserial.flexvoltconnected = true;
         FVserial.connectionindicator = FVserial.indicator_connecting;
-        drawConnectionIndicator();
-        UpdateSettings();
-        println("updates settings");
-        EstablishDataLink();
+        FVserial.drawConnectionIndicator();
+        UpdateSettings(); //EstablishDataLink is rolled in
+        println("updated settings");
+        communicationsflag = true;
       }
-      else if (inChar == 'g') {
+    }
+  } 
+  else if (communicationsflag && !dataflag) {
+    int inChar = myPort.readChar(); // get ASCII
+    if (inChar != -1) {
+      SerialReceivedFlag = true;
+      println("handshaking, "+inChar+", count = "+testcounter);
+      if (inChar == 'g') {
         myPort.clear();
         println("dataflag = true g");
         blankplot();
         dataflag = true;
-        CheckSerialTimer = millis()+CheckSerialDelay;
-        // ConnectingFlag = false;
         FVserial.connectionindicator = FVserial.indicator_connected;
-        drawConnectionIndicator();
+        FVserial.drawConnectionIndicator();
         myPort.buffer((SerialBufferN+1)*SerialBurstN);
       }
       else if (inChar == 'y') {
@@ -779,27 +666,19 @@ void serialEvent (Serial myPort) {
   else if (dataflag) {
     // Actual Data Acquisition
     byte[] inBuffer = new byte[SerialBufferN];
-    // println("avail = "+myPort.available());
+    //    println("avail = "+myPort.available());
     while (myPort.available () > SerialBufferN) {
       // println((System.nanoTime()-startTime)/1000);
 
-      // println(myPort.available());
+      //      println(myPort.available());
       int inChar = myPort.readChar(); // get ASCII
       // print("data, ");println(inChar);
       if (inChar != -1) {
         SerialReceivedFlag = true;
-        // if (inChar == 'a') {
-        // dataflag = false;
-        // println("got an A in data");
-        // ConnectingFlag = false;
-        // }
-        // if (inChar == 'b') {
-        // myPort.clear();
-        // myPort.write('G');
-        // }
+
         if (inChar == 'C' || inChar == 'D' || inChar == 'E' || inChar == 'F') {
           myPort.readBytes(inBuffer);
-          // println("Received8bit - "+inChar+", buffer = "+SerialBufferN);
+          //          println("Received8bit - "+inChar+", buffer = "+SerialBufferN);
           // println(inBuffer);
           for (int i = 0; i < SignalNumber; i++) {
             int tmp = inBuffer[i]; // last 2 bits of each signal discarded
@@ -807,7 +686,7 @@ void serialEvent (Serial myPort) {
             tmp = tmp << 2; // shift to proper position
             float rawVal = float(tmp);
 
-            if (CurrentDomain == FreqDomain) {
+            if (currentpage == frequencydomainpage) {
               arrayCopy(FFTsignalIn[i], 1, FFTsignalIn[i], 0, FFTSignalLength-1);
               FFTsignalIn[i][FFTSignalLength-1]=rawVal;
             }
@@ -832,15 +711,9 @@ void serialEvent (Serial myPort) {
           if (signalindex >= MaxSignalLength)signalindex = 0;
           datacounter++;
           if (datacounter >= MaxSignalLength)datacounter = MaxSignalLength;
-          // println("sigindex = "+signalindex+", datacounter = "+datacounter);
-
-          if (CurrentDomain == TrainingDomain) {
-            CountReps();
-          }
         }
         else if (inChar == 'H' || inChar == 'I' || inChar == 'J' || inChar == 'K') {
           myPort.readBytes(inBuffer);
-          // println(inBuffer);
           for (int i = 0; i < SignalNumber; i++) {
             int tmplow = inBuffer[SerialBufferN-1]; // last 2 bits of each signal stored here
             tmplow = tmplow&0xFF; // account for translation from unsigned to signed
@@ -850,7 +723,7 @@ void serialEvent (Serial myPort) {
             tmphigh = tmphigh & 0xFF; // account for translation from unsigned to signed
             tmphigh = tmphigh << 2; // shift to proper position
             float rawVal = float(tmphigh+tmplow);
-            if (CurrentDomain == FreqDomain) {
+            if (currentpage == frequencydomainpage) {
               arrayCopy(FFTsignalIn[i], 1, FFTsignalIn[i], 0, FFTSignalLength-1);
               FFTsignalIn[i][FFTSignalLength-1]=rawVal;
             }
@@ -876,11 +749,6 @@ void serialEvent (Serial myPort) {
           if (signalindex >= MaxSignalLength)signalindex = 0;
           datacounter++;
           if (datacounter >= MaxSignalLength)datacounter = MaxSignalLength;
-          // println("sigindex = "+signalindex+", datacounter = "+datacounter);
-
-          if (CurrentDomain == TrainingDomain) {
-            CountReps();
-          }
         }
         else if (inChar == 'p') {
           inBuffer = new byte[1];
@@ -904,1126 +772,100 @@ void serialEvent (Serial myPort) {
   stroke(tmpstrokeColor);
   strokeWeight(tmpstrokeWeight);
 }
+int keyInput = 1;
+int mouseInput = 2;
 
-// keyboard button handling section
-void keyPressed() {
+void useKeyPressedOrMousePressed(int inputDev) {
   // Store current fill and stroke settings
   int tmpfillColor = g.fillColor;
   int tmpstrokeColor = g.strokeColor;
   float tmpstrokeWeight = g.strokeWeight;
 
+  boolean mpressed = mousePressed;
+  int x = mouseX, y = mouseY;
+  char tkey = key;
+  int tkeyCode = keyCode;
+
+  // priority 1 - if in the help menu, any click or key exis the help menu
+  if (helpFlag) {
+    helpFlag = false;
+    buttonsCommon[BChelp].BOn = false;
+    labelGUI();
+    // Restore fill and stroke settings
+    fill(tmpfillColor);
+    stroke(tmpstrokeColor);
+    strokeWeight(tmpstrokeWeight);
+    return;
+  }
+
+  // priority 2 - page actions (ex: rename signal, up/down thresh)
+  currentbutton = -1;
+  if (FVpages.get(currentpage).useKeyPressedOrMousePressed(x, y, tkey, tkeyCode, inputDev)) {
+    // Restore fill and stroke settings
+    fill(tmpfillColor);
+    stroke(tmpstrokeColor);
+    strokeWeight(tmpstrokeWeight);
+    return;
+  }
+
+  // priority 3 - GUI controls (click and hotkey tied together and to a page in the button.pageRef and button.hotKey)
+  currentbuttonCommon = -1;
+  for (int i = 0; i < buttonsCommon.length; i++) {
+    if (buttonsCommon[i] != null) {
+      if ( (inputDev == mouseInput && buttonsCommon[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttonsCommon[i].hotKey) ) {
+        println("current button about to be " + i);
+        if (buttonsCommon[i].pageRef >= 0 && buttonsCommon[i].pageRef < FVpages.size()) {
+          buttonsCommon[i].BOn = true;
+          buttonsCommon[i].ChangeColorPressed();
+          changePage(buttonsCommon[i].pageRef); // calls labelGUI
+          println("Going to page"+buttonsCommon[i].pageRef);
+        } 
+        else {
+          buttonsCommon[i].BOn = true;
+          buttonsCommon[i].ChangeColorPressed();
+          ButtonColorTimer = millis()+ButtonColorDelay;
+          ButtonPressedFlag = true;
+          currentbuttonCommon = i;
+
+          if (buttonsCommon[currentbuttonCommon].hotKey == 'h') {
+            FVpages.get(currentpage).drawHelp();
+            helpFlag = true;
+          }
+          if (buttonsCommon[currentbuttonCommon].hotKey == 'r') {
+            ResetSerialConnection();
+          }
+          if (buttonsCommon[currentbuttonCommon].hotKey == 'g') {
+            imagesavecounter = saveImage(imagesavecounter);
+          }
+          if (buttonsCommon[currentbuttonCommon].hotKey == 'd') {
+            saveData();
+          }
+          labelGUI();
+        }
+        // Restore fill and stroke settings
+        fill(tmpfillColor);
+        stroke(tmpstrokeColor);
+        strokeWeight(tmpstrokeWeight);
+        return;
+      }
+    }
+  }
+}
+
+// keyboard button handling section
+void keyPressed() {
   if (keyCode == ESC||key == ESC) {
     key = 0;
     keyCode = 0;
   }
-  if (NamesFlag) {
-    if (CurrentDomain == TrainingDomain) {
-      if (key == '\n' ) {
-        println("here");
-        println(typing);
-        int tmpint = 0;
-        savedname = typing;
-        if (NameNumber == BTPsetReps1 || NameNumber == BTPsetReps2) {
-          tmpint = getIntFromString(typing, RepsTargetDefault);
-          println(tmpint);
-          savedname = str(tmpint);
-        }
-        buttonsTP[NameNumber].label = savedname;
-        if (NameNumber == BTPsetReps1) {
-          RepsTarget[0] = tmpint;
-          println("int saved");
-          println(RepsTarget[0]);
-          ClearRepBar(1);
-          LabelRepBar(1);
-        }
-        else if (NameNumber == BTPsetReps2) {
-          RepsTarget[1] = tmpint;
-          println("int saved");
-          println(RepsTarget[0]);
-          ClearRepBar(2);
-          LabelRepBar(2);
-        }
-        NamesFlag = !NamesFlag;
-        buttonsTP[currentbutton].BOn = !buttonsTP[currentbutton].BOn;
-
-        buttonsTP[NameNumber].DrawButton();
-        typing = "";
-        NameNumber = -1;
-      }
-      else if ((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z') || (key == ' ') || (key >='0' && key <= '9')) {
-        // Otherwise, concatenate the String
-        // Each character typed by the user is added to the end of the String variable.
-        typing = typing + key;
-        buttonsTP[NameNumber].label = typing;
-        buttonsTP[NameNumber].DrawButton();
-        println("adjusting");
-      }
-    }
-  }
-  else if (CurrentDomain == HelpDomain) {
-    ChangeDomain(OldDomain);
-  }
-  else if (CurrentDomain == SettingsDomain) {
-    if (key == 0) {
-      key = 'c';
-    }
-    if (key == 'C' || key == 'c') {
-      ChangeDomain(OldDomain);
-    }
-    else if (key == 'S' || key == 's') {
-      saveSettings();
-      ChangeDomain(OldDomain);
-    }
-  }
-  else {
-    if (key == 'D' || key == 'd') {
-      if (CurrentDomain == TimeDomain || CurrentDomain == FreqDomain) {
-        if (CurrentDomain == TimeDomain) {
-          ChangeDomain(FreqDomain);
-        }
-        else {
-          ChangeDomain(TimeDomain);
-        }
-      }
-    }
-    if (key == 'V' || key == 'v') {
-      PollVersion();
-    }
-    if (key == 'T' || key == 't') {
-      ChangeDomain(TimeDomain);
-    }
-    if (key == 'F' || key == 'f') {
-      ChangeDomain(FreqDomain);
-    }
-    if (key == 'M' || key == 'm') {
-      if (CurrentDomain != MouseDomain) {
-        ChangeDomain(MouseDomain);
-      }
-      else {
-        ChangeDomain(TimeDomain);
-      }
-    }
-    if (key == 'W' || key == 'w') {
-      if (CurrentDomain != TrainingDomain) {
-        ChangeDomain(TrainingDomain);
-      }
-      else {
-        ChangeDomain(TimeDomain);
-        println("Workout Turned OFF");
-      }
-    }
-    if (key == 'S' || key == 's') {
-      if (CurrentDomain != SettingsDomain) {
-        ChangeDomain(SettingsDomain);
-      }
-      else {
-        ChangeDomain(OldDomain);
-      }
-    }
-    if (key == 'U' || key == 'u') {
-      PlugTestFlag = !PlugTestFlag;
-      if (PlugTestFlag) {
-        PlugTestDelay = 10;
-      }
-      else if (!PlugTestFlag) {
-        PlugTestDelay = 0;
-      }
-      UpdateSettings();
-    }
-    if (key == 'z' || key == 'Z') {
-      UserFreqCustom = 750;
-      UpdateSettings();
-    }
-    if (key == 'i' || key == 'I') {
-      BitDepth10 = !BitDepth10;
-      println("BitDepth10 = "+BitDepth10);
-      UpdateSettings();
-    }
-    if (key == 'R' || key == 'r') {
-      ResetSerialConnection();
-    }
-    if (key == 'H' || key == 'h') {
-      if (CurrentDomain != HelpDomain) {
-        ChangeDomain(HelpDomain);
-      }
-      else {
-        ChangeDomain(OldDomain);
-      }
-    }
-    if (key == 'P' || key == 'p') {
-      PauseFlag = !PauseFlag;
-      GetPageButtons();
-    }
-    if (key == 'C' || key == 'c') {
-      datacounter = 0;
-      xPos = 0;
-      blankplot();
-      labelaxes();
-      println("Plot Cleared");
-    }
-    if (key == 'O' || key == 'o') {
-      OffSetFlag = !OffSetFlag;
-      ClearYAxis();
-      labelaxes();
-      GetPageButtons();
-    }
-    if ((key == 'J' || key == 'j')&&CurrentDomain==TimeDomain) {
-      SmoothFilterFlag = !SmoothFilterFlag;
-      if (SmoothFilterFlag) {
-        DownSampleCount = 10;
-        BitDepth10 = false;
-      }
-      else {
-        DownSampleCount = 1;
-        BitDepth10 = true;
-      }
-      GetPageButtons();
-      UpdateSettings();
-    }
-    // if (CurrentDomain == TrainingDomain) {
-    // if (key == 'Q' || key == 'q') {
-    // if (TrainingMode == TRepCounter) {
-    // TrainingMode = TDataLogger;
-    // }
-    // else if (TrainingMode == TDataLogger) {
-    // TrainingMode = TRepCounter;
-    // }
-    // resetWorkout();
-    // }
-    // }
-    if (CurrentDomain == MouseDomain) {
-      if (key == 'F' || key == 'f') {
-        if (MouseAxis == 'X') {
-          MouseXAxisFlip = !MouseXAxisFlip;
-          print("MouseXAxis Flipped. Axis = ");
-          println(MouseXAxisFlip);
-        }
-        else if (MouseAxis == 'Y') {
-          MouseYAxisFlip = !MouseYAxisFlip;
-          print("MouseYAxis Flipped. Axis = ");
-          println(MouseYAxisFlip);
-        }
-      }
-      // Switch axis - which (x or y) is controlled. True = Y
-      // if (key == 'S' || key == 's') {
-      // if (MouseAxis == 'X') {
-      // MouseAxis = 'Y';
-      // println("MouseAxis Flipped. Axis = Y");
-      // }
-      // else if (MouseAxis == 'Y') {
-      // MouseAxis = 'X';
-      // println("MouseAxis Flipped. Axis = X");
-      // }
-      // }
-      if (key == 'K' || key == 'k') {
-        MouseTuneFlag = !MouseTuneFlag;
-        if (!MouseTuneFlag) {
-          drawTarget();
-          GamenextStep = second()+GamedelayTime;
-          println(GamenextStep);
-          GameScore = 0;
-        }
-      }
-      if (key == 'G' || key == 'g') {
-        if (!snakeGameFlag) {
-          int foodsize = 30;
-          int gamespeed = 5;
-          snakeGameFlag = true;
-          mySnakeGame = new SnakeGame(this, xStep+plotwidth/2, yTitle+plotheight/2, plotwidth, plotheight, foodsize, gamespeed);
-        } 
-        else if (snakeGameFlag) {
-          snakeGameFlag = false;
-          mySnakeGame = null;
-          drawTarget();
-          GamenextStep = second()+GamedelayTime;
-          println(GamenextStep);
-          GameScore = 0;
-        }
-      }
-      if (snakeGameFlag) {
-        mySnakeGame.keyInput(key, keyCode);
-        // if (key == CODED){
-        // mySnakeGame.keyInput(key,keyCode);
-        // }
-        // else if (key == 'N' || key == 'n'){
-        // mySnakeGame.resetSnakeGame();
-        // }
-      }
-      if (MouseTuneFlag) {
-        if (key == CODED) {
-          if (keyCode == LEFT) {
-            MouseThreshInd --;
-            if (MouseThreshInd < 0) {
-              MouseThreshInd = 3;
-            }
-          }
-          else if (keyCode == RIGHT) {
-            MouseThreshInd ++;
-            if (MouseThreshInd > 3) {
-              MouseThreshInd = 0;
-            }
-          }
-          else if (keyCode == UP) {
-
-            if (MouseThreshInd == YLow && MouseThresh[YLow] > (MouseThresh[YHigh]-MouseThreshStandOff)) {
-              // do nothing - can't have low >= high!
-            }
-            else if (MouseThreshInd == XLow && MouseThresh[XLow] > (MouseThresh[XHigh]-MouseThreshStandOff)) {
-              // do nothing - can't have low >= high!
-            }
-            else {
-              MouseThresh[MouseThreshInd]+=2;
-              MouseThresh[MouseThreshInd] = constrain(MouseThresh[MouseThreshInd], MaxSignalVal, MaxSignalVal*2);
-            }
-          }
-          else if (keyCode == DOWN) {
-            if (MouseThreshInd == YHigh && MouseThresh[YLow] > (MouseThresh[YHigh]-MouseThreshStandOff)) {
-              // do nothing - can't have low >= high!
-            }
-            else if (MouseThreshInd == XHigh && MouseThresh[XLow] > (MouseThresh[XHigh]-MouseThreshStandOff)) {
-              // do nothing - can't have low >= high!
-            }
-            else {
-              MouseThresh[MouseThreshInd]-=2;
-              MouseThresh[MouseThreshInd] = constrain(MouseThresh[MouseThreshInd], MaxSignalVal, MaxSignalVal*2);
-            }
-          }
-          println("New MouseThresh = "+MouseThresh[MouseThreshInd]);
-        }
-      }
-    }
-  }
-
-  // Restore fill and stroke settings
-  fill(tmpfillColor);
-  stroke(tmpstrokeColor);
-  strokeWeight(tmpstrokeWeight);
+  useKeyPressedOrMousePressed(keyInput);
 }
-
 
 // Mouse Button Handling Section
 void mousePressed() {
-
-  // Store current fill and stroke settings
-  int tmpfillColor = g.fillColor;
-  int tmpstrokeColor = g.strokeColor;
-  float tmpstrokeWeight = g.strokeWeight;
-
-  currentbutton = -1;
-  println("mouse pressed");
-  if (mouseButton == LEFT) {
-    int x = mouseX, y = mouseY;
-    // Help Page Handler - exit on any click or key
-    if (CurrentDomain == HelpDomain) {
-      ChangeDomain(OldDomain);
-    }
-    // Settings Page Handler
-    else if (CurrentDomain == SettingsDomain) {
-      for (int i = 0; i < buttonsSP.length; i++) {
-        if (buttonsSP[i] != null) {
-          if (buttonsSP[i].IsMouseOver(x, y)) {
-            println("current button about to be " + i);
-            buttonsSP[i].BOn = !buttonsSP[i].BOn;
-            buttonsSP[i].ChangeColorPressed();
-            currentbutton = i;
-            ButtonColorTimer = millis()+ButtonColorDelay;
-            ButtonPressedFlag = true;
-          }
-        }
-      }
-      if (currentbutton == BSPfolder) {
-        println("getting folder");
-        waitForFolder();
-        println(folder);
-      }
-      if (currentbutton == BSPfrequp) {
-        UserFreqIndexTmp++;
-        if (UserFreqIndexTmp >= UserFreqArray.length)UserFreqIndexTmp=UserFreqArray.length-1;
-        println(UserFreqIndexTmp);
-        UserFrequencyTmp = UserFreqArray[UserFreqIndexTmp];
-      }
-      if (currentbutton == BSPfreqdown) {
-        UserFreqIndexTmp--;
-        if (UserFreqIndexTmp < 0)UserFreqIndexTmp=0;
-        println(UserFreqIndexTmp);
-        UserFrequencyTmp = UserFreqArray[UserFreqIndexTmp];
-      }
-      if (currentbutton == BSPfiltup) {
-        SmoothFilterValTmp++;
-        if (SmoothFilterValTmp > SmoothFilterValMax) SmoothFilterValTmp = SmoothFilterValMax;
-      }
-      if (currentbutton == BSPfiltdown) {
-        SmoothFilterValTmp--;
-        if (SmoothFilterValTmp < SmoothFilterValMin) SmoothFilterValTmp = SmoothFilterValMin;
-      }
-      if (currentbutton == BSPdownsampleup) {
-        DownSampleCountTmp++;
-        if (DownSampleCountTmp > DownSampleCountMax) DownSampleCountTmp = DownSampleCountMax;
-      }
-      if (currentbutton == BSPdownsampledown) {
-        DownSampleCountTmp--;
-        if (DownSampleCountTmp < DownSampleCountMin) DownSampleCountTmp = DownSampleCountMin;
-      }
-      if (currentbutton == BSPtimeradjustup) {
-        Timer0AdjustValTmp++;
-        if (Timer0AdjustValTmp > Timer0AdjustValMax) Timer0AdjustValTmp = Timer0AdjustValMax;
-      }
-      if (currentbutton == BSPtimeradjustdown) {
-        Timer0AdjustValTmp--;
-        if (Timer0AdjustValTmp < Timer0AdjustValMin) Timer0AdjustValTmp = Timer0AdjustValMin;
-      }
-      if (currentbutton == BSPprescalerup) {
-        PrescalerTmp++;
-        if (PrescalerTmp > PrescalerMax) PrescalerTmp = PrescalerMax;
-      }
-      if (currentbutton == BSPprescalerdown) {
-        PrescalerTmp--;
-        if (PrescalerTmp < PrescalerMin) PrescalerTmp = PrescalerMin;
-      }
-      if (currentbutton == BSPrecordtimeup) {
-        DataRecordTimeTmp++;
-        if (DataRecordTimeTmp > DataRecordTimeMax) DataRecordTimeTmp = DataRecordTimeMax;
-      }
-      if (currentbutton == BSPrecordtimedown) {
-        DataRecordTimeTmp--;
-        if (DataRecordTimeTmp < DataRecordTimeMin) DataRecordTimeTmp = DataRecordTimeMin;
-      }
-      if (currentbutton == BSP1chan) {
-        SignalNumberTmp = 1;
-        buttonsSP[BSP1chan].BOn = false;
-        buttonsSP[BSP2chan].BOn = false;
-        buttonsSP[BSP4chan].BOn = false;
-        buttonsSP[BSP8chan].BOn = false;
-        buttonsSP[currentbutton].BOn = true;
-      }
-      if (currentbutton == BSP2chan) {
-        SignalNumberTmp = 2;
-        buttonsSP[BSP1chan].BOn = false;
-        buttonsSP[BSP2chan].BOn = false;
-        buttonsSP[BSP4chan].BOn = false;
-        buttonsSP[BSP8chan].BOn = false;
-        buttonsSP[currentbutton].BOn = true;
-      }
-      if (currentbutton == BSP4chan) {
-        SignalNumberTmp = 4;
-        buttonsSP[BSP1chan].BOn = false;
-        buttonsSP[BSP2chan].BOn = false;
-        buttonsSP[BSP4chan].BOn = false;
-        buttonsSP[BSP8chan].BOn = false;
-        buttonsSP[currentbutton].BOn = true;
-      }
-      if (currentbutton == BSP8chan) {
-        SignalNumberTmp = 8;
-        buttonsSP[BSP1chan].BOn = false;
-        buttonsSP[BSP2chan].BOn = false;
-        buttonsSP[BSP4chan].BOn = false;
-        buttonsSP[BSP8chan].BOn = false;
-        buttonsSP[currentbutton].BOn = true;
-      }
-      if (currentbutton == BSPsave) {
-        saveSettings();
-        ChangeDomain(OldDomain);
-        buttonsSP[currentbutton].BOn = false;
-        return;
-      }
-      if (currentbutton == BSPcancel) {
-        ChangeDomain(OldDomain);
-        buttonsSP[currentbutton].BOn = false;
-        return;
-      }
-      DrawSettings();
-    }
-    // TimeDomain/FreqDomain handler (basically the same button set)
-    else if (CurrentDomain == TimeDomain) {
-      for (int i = 0; i < buttonsTDP.length; i++) {
-        if (buttonsTDP[i].IsMouseOver(x, y)) {
-          buttonsTDP[i].BOn = !buttonsTDP[i].BOn;
-          buttonsTDP[i].ChangeColorPressed();
-          currentbutton = i;
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
-        }
-      }
-      if (currentbutton == BTDPsettings) {
-        ChangeDomain(SettingsDomain);
-      }
-      if (currentbutton == BTDPhelp) {
-        ChangeDomain(HelpDomain);
-      }
-      if (currentbutton == BTDPtimedomain) {
-        ChangeDomain(TimeDomain);
-      }
-      if (currentbutton == BTDPfreqdomain) {
-        ChangeDomain(FreqDomain);
-      }
-      if (currentbutton == BTDPtraindomain) {
-        ChangeDomain(TrainingDomain);
-      }
-      if (currentbutton == BTDPmousedomain) {
-        ChangeDomain(MouseDomain);
-      }
-
-      if (currentbutton == BTDPserialreset) {
-        ResetSerialConnection();
-      }
-      if (currentbutton == BTDPrecordnextdata) {
-        DataRecordFlag = true;
-        println("UserFreq = "+UserFrequency+", DataRecordTime = "+DataRecordTime);
-        DataRecordLength = DataRecordTime*UserFrequency;
-        DataRecord = new int[DataRecordCols][DataRecordLength];
-        DataRecordIndex = 0;
-      }
-      if (currentbutton == BTDPoffset) {
-        OffSetFlag = !OffSetFlag;
-        ClearYAxis();
-        labelaxes();
-        println("OffSet Changed");
-      }
-      if (currentbutton == BTDPsmooth) {
-        SmoothFilterFlag = !SmoothFilterFlag;
-        if (SmoothFilterFlag) {
-          DownSampleCount = 10;
-          BitDepth10 = false;
-        }
-        else {
-          DownSampleCount = 1;
-          BitDepth10 = true;
-        }
-        UpdateSettings();
-        labelaxes();
-        println("Smoothing Toggled");
-      }
-      if (currentbutton == BTDPclear) {
-        datacounter = 0;
-        xPos = 0;
-        blankplot();
-        labelaxes();
-        println("Plot Cleared");
-      }
-      if (currentbutton == BTDPpause) {
-        PauseFlag = !PauseFlag;
-        if (!PauseFlag) {
-          buttonsTDP[currentbutton].label = "Pause";
-          buttonsTDP[currentbutton].DrawButton();
-          datacounter = 0;
-          xPos = 0;
-          labelaxes();
-        }
-        else if (PauseFlag) {
-          buttonsTDP[currentbutton].label = "Play";
-          buttonsTDP[currentbutton].DrawButton();
-        }
-        println("Pause Toggled");
-      }
-      if (currentbutton == BTDPsave) {
-        imagesavecounter = saveImage(imagesavecounter);
-        println(imagesavecounter);
-      }
-      if (currentbutton == BTDPchan1) {
-        ChannelOn[0] = !ChannelOn[0];
-        println("Chan1 Toggled");
-      }
-      if (currentbutton == BTDPchan2) {
-        ChannelOn[1] = !ChannelOn[1];
-        println("Chan2 Toggled");
-      }
-      if (currentbutton == BTDPchan3) {
-        ChannelOn[2] = !ChannelOn[2];
-        println("Chan3 Toggled");
-      }
-      if (currentbutton == BTDPchan4) {
-        ChannelOn[3] = !ChannelOn[3];
-        println("Chan4 Toggled");
-      }
-      if (currentbutton == BTDPchan5) {
-        ChannelOn[4] = !ChannelOn[4];
-        println("Chan4 Toggled");
-      }
-      if (currentbutton == BTDPchan6) {
-        ChannelOn[5] = !ChannelOn[5];
-        println("Chan4 Toggled");
-      }
-      if (currentbutton == BTDPchan7) {
-        ChannelOn[6] = !ChannelOn[6];
-        println("Chan4 Toggled");
-      }
-      if (currentbutton == BTDPchan8) {
-        ChannelOn[7] = !ChannelOn[7];
-        println("Chan4 Toggled");
-      }
-    }
-    // Frequency Domain
-    else if (CurrentDomain == FreqDomain) {
-      for (int i = 0; i < buttonsFDP.length; i++) {
-        if (buttonsFDP[i].IsMouseOver(x, y)) {
-          buttonsFDP[i].BOn = !buttonsFDP[i].BOn;
-          buttonsFDP[i].ChangeColorPressed();
-          currentbutton = i;
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
-        }
-      }
-      if (currentbutton == BFDPsettings) {
-        ChangeDomain(SettingsDomain);
-        println("Settings Menu");
-      }
-      if (currentbutton == BFDPhelp) {
-        ChangeDomain(HelpDomain);
-      }
-      // if (currentbutton == BFDPtimedomain){ChangeDomain(TimeDomain);}
-      if (currentbutton == BFDPfreqdomain) {
-        ChangeDomain(TimeDomain);
-      }
-      if (currentbutton == BFDPtraindomain) {
-        ChangeDomain(TrainingDomain);
-      }
-      if (currentbutton == BFDPmousedomain) {
-        ChangeDomain(MouseDomain);
-      }
-      if (currentbutton == BFDPserialreset) {
-        ResetSerialConnection();
-      }
-      if (currentbutton == BFDPrecordnextdata) {
-        DataRecordFlag = true;
-        DataRecordLength = DataRecordTime*UserFrequency;
-        DataRecord = new int[DataRecordCols][DataRecordLength];
-        DataRecordIndex = 0;
-      }
-      if (currentbutton == BFDPoffset) {
-        OffSetFlag = !OffSetFlag;
-        ClearYAxis();
-        labelaxes();
-        println("OffSet Changed");
-      }
-      if (currentbutton == BFDPpause) {
-        PauseFlag = !PauseFlag;
-        if (!PauseFlag) {
-          buttonsFDP[currentbutton].label = "Pause";
-          buttonsFDP[currentbutton].DrawButton();
-          if (CurrentDomain == TimeDomain) {
-            if (ScrollMode == SMtrace) {
-              datacounter = 0;
-              xPos = 0;
-              labelaxes();
-            }
-          }
-        }
-        else if (PauseFlag) {
-          buttonsFDP[currentbutton].label = "Play";
-          buttonsFDP[currentbutton].DrawButton();
-        }
-        println("Pause Toggled");
-      }
-      if (currentbutton == BFDPsave) {
-        imagesavecounter = saveImage(imagesavecounter);
-        println(imagesavecounter);
-      }
-      if (currentbutton == BFDPchan1) {
-        ChannelOn[0] = !ChannelOn[0];
-        println("Chan1 Toggled");
-      }
-      if (currentbutton == BFDPchan2) {
-        ChannelOn[1] = !ChannelOn[1];
-        println("Chan2 Toggled");
-      }
-      if (currentbutton == BFDPchan3) {
-        ChannelOn[2] = !ChannelOn[2];
-        println("Chan3 Toggled");
-      }
-      if (currentbutton == BFDPchan4) {
-        ChannelOn[3] = !ChannelOn[3];
-        println("Chan4 Toggled");
-      }
-      if (currentbutton == BFDPchan5) {
-        ChannelOn[4] = !ChannelOn[4];
-        println("Chan4 Toggled");
-      }
-      if (currentbutton == BFDPchan6) {
-        ChannelOn[5] = !ChannelOn[5];
-        println("Chan4 Toggled");
-      }
-      if (currentbutton == BFDPchan7) {
-        ChannelOn[6] = !ChannelOn[6];
-        println("Chan4 Toggled");
-      }
-      if (currentbutton == BFDPchan8) {
-        ChannelOn[7] = !ChannelOn[7];
-        println("Chan4 Toggled");
-      }
-    }
-    // Training Domain Handler
-    else if (CurrentDomain == TrainingDomain) {
-      for (int i = 0; i < buttonsTP.length; i++) {
-        if (buttonsTP[i] != null) {
-          if (buttonsTP[i].IsMouseOver(x, y)) {
-            buttonsTP[i].BOn = !buttonsTP[i].BOn;
-            buttonsTP[i].ChangeColorPressed();
-            currentbutton = i;
-            ButtonColorTimer = millis()+ButtonColorDelay;
-            ButtonPressedFlag = true;
-          }
-        }
-      }
-      if (currentbutton == BTPsettings) {
-        ChangeDomain(SettingsDomain);
-        println("Settings Menu");
-      }
-      else if (currentbutton == BTPhelp) {
-        ChangeDomain(HelpDomain);
-      }
-      // if (currentbutton == BTPclear) {
-      // datacounter = 0;
-      // xPos = 0;
-      // blankplot();
-      // labelaxes();
-      // println("Plot Cleared");
-      // }
-      if (currentbutton == BTPtimedomain) {
-        ChangeDomain(TimeDomain);
-      }
-      if (currentbutton == BTPfreqdomain) {
-        ChangeDomain(FreqDomain);
-      }
-      if (currentbutton == BTPtraindomain) {
-        ChangeDomain(TrainingDomain);
-      }
-      if (currentbutton == BTPmousedomain) {
-        ChangeDomain(MouseDomain);
-      }
-      if (currentbutton == BTPserialreset) {
-        ResetSerialConnection();
-      }
-      if (currentbutton == BTPrecordnextdata) {
-        DataRecordFlag = true;
-        DataRecordLength = DataRecordTime*UserFrequency;
-        DataRecord = new int[DataRecordCols][DataRecordLength];
-        DataRecordIndex = 0;
-      }
-      // if (currentbutton == BTPpause) {
-      // PauseFlag = !PauseFlag;
-      // if (!PauseFlag) {
-      // buttonsTP[currentbutton].label = "Pause";
-      // buttonsTP[currentbutton].DrawButton();
-      // if (CurrentDomain == TimeDomain) {
-      // if (ScrollMode == SMtrace) {
-      // datacounter = 0;
-      // xPos = 0;
-      // labelaxes();
-      // }
-      // }
-      // }
-      // else if (PauseFlag) {
-      // buttonsTP[currentbutton].label = "Play";
-      // buttonsTP[currentbutton].DrawButton();
-      // }
-      // println("Pause Toggled");
-      // }
-      if (currentbutton == BTPsave) {
-        imagesavecounter = saveImage(imagesavecounter);
-        println(imagesavecounter);
-      }
-      if (currentbutton == BTPreset) {
-        resetWorkout();
-      }
-      if (currentbutton == BTPsetReps1 || currentbutton == BTPsetReps2 || currentbutton == BTPchan1name || currentbutton == BTPchan2name) {
-        if (NameNumber == currentbutton) {
-          int tmpint = 0;
-          savedname = typing;
-          if (NameNumber == BTPsetReps1 || NameNumber == BTPsetReps2) {
-            tmpint = getIntFromString(typing, RepsTargetDefault);
-            savedname = str(tmpint);
-          }
-          println(tmpint);
-          buttonsTP[NameNumber].label = savedname;
-          if (NameNumber == BTPsetReps1) {
-            RepsTarget[0] = tmpint;
-            println("int saved");
-            println(RepsTarget[0]);
-            ClearRepBar(1);
-            LabelRepBar(1);
-          }
-          else if (NameNumber == BTPsetReps2) {
-            RepsTarget[1] = tmpint;
-            println("int saved");
-            println(RepsTarget[0]);
-            ClearRepBar(2);
-            LabelRepBar(2);
-          }
-
-          NamesFlag = !NamesFlag;
-          //buttonsTP[currentbutton].BOn = !buttonsTP[currentbutton].BOn;
-
-          buttonsTP[NameNumber].DrawButton();
-          typing = "";
-          NameNumber = -1;
-        }
-        else {
-          NameNumber = currentbutton;
-          NamesFlag = true;
-          buttonsTP[currentbutton].BOn = true;
-          typing = "";
-          buttonsTP[NameNumber].label = typing;
-          buttonsTP[NameNumber].DrawButton();
-        }
-        println("Names Toggled");
-      }
-      if (currentbutton == BTPchan1) {
-        ChannelOn[0] = !ChannelOn[0];
-        println("Chan1 Toggled");
-      }
-      if (currentbutton == BTPchan2) {
-        ChannelOn[1] = !ChannelOn[1];
-        println("Chan2 Toggled");
-      }
-      if (currentbutton == BTPchan1up) {
-        TrainChan[0]++;
-        if (TrainChan[0]>=SignalNumber) {
-          TrainChan[0]=SignalNumber-1;
-        }
-        if (TrainChan[0] == TrainChan[1]) {
-          TrainChan[0]++;
-          if (TrainChan[0]>=SignalNumber) {
-            TrainChan[0]=TrainChan[1]-1;
-          }
-        }
-        buttonsTP[BTPchan1].ctext = SigColorM[TrainChan[0]];
-        buttonsTP[BTPchan1].label = str(TrainChan[0]+1);
-        buttonsTP[BTPchan1].DrawButton();
-        ChannelOn[TrainChan[0]] = buttonsTP[BTPchan1].BOn;
-      }
-      if (currentbutton == BTPchan1down) {
-        TrainChan[0]--;
-        if (TrainChan[0]<0) {
-          TrainChan[0]=0;
-        }
-        if (TrainChan[0] == TrainChan[1]) {
-          TrainChan[0]--;
-          if (TrainChan[0]<0) {
-            TrainChan[0]=TrainChan[1]+1;
-          }
-        }
-        buttonsTP[BTPchan1].ctext = SigColorM[TrainChan[0]];
-        buttonsTP[BTPchan1].label = str(TrainChan[0]+1);
-        buttonsTP[BTPchan1].DrawButton();
-        ChannelOn[TrainChan[0]] = buttonsTP[BTPchan1].BOn;
-      }
-      if (currentbutton == BTPchan2up) {
-        TrainChan[1]++;
-        if (TrainChan[1]>=SignalNumber) {
-          TrainChan[1]=SignalNumber-1;
-        }
-        if (TrainChan[1] == TrainChan[0]) {
-          TrainChan[1]++;
-          if (TrainChan[1]>=SignalNumber) {
-            TrainChan[1]=TrainChan[0]-1;
-          }
-        }
-        buttonsTP[BTPchan2].ctext = SigColorM[TrainChan[1]];
-        buttonsTP[BTPchan2].label = str(TrainChan[1]+1);
-        buttonsTP[BTPchan2].DrawButton();
-        ChannelOn[TrainChan[1]] = buttonsTP[BTPchan2].BOn;
-      }
-      if (currentbutton == BTPchan2down) {
-        TrainChan[1]--;
-        if (TrainChan[1]<0) {
-          TrainChan[1]=0;
-        }
-        if (TrainChan[1] == TrainChan[0]) {
-          TrainChan[1]--;
-          if (TrainChan[1]<0) {
-            TrainChan[1]=TrainChan[0]+1;
-          }
-        }
-        buttonsTP[BTPchan2].ctext = SigColorM[TrainChan[1]];
-        buttonsTP[BTPchan2].label = str(TrainChan[1]+1);
-        buttonsTP[BTPchan2].DrawButton();
-        ChannelOn[TrainChan[1]] = buttonsTP[BTPchan2].BOn;
-      }
-      if (currentbutton == BTPthresh1up) {
-        RepThresh[0]+=RepThreshStep;
-        if (RepThresh[0]>=MaxSignalVal) {
-          RepThresh[0]=MaxSignalVal;
-        }
-      }
-      if (currentbutton == BTPthresh1down) {
-        RepThresh[0]-=RepThreshStep;
-        if (RepThresh[0]<0) {
-          RepThresh[0]=0;
-        }
-      }
-      if (currentbutton == BTPthresh2up) {
-        RepThresh[1]+=RepThreshStep;
-        if (RepThresh[1]>=MaxSignalVal) {
-          RepThresh[1]=MaxSignalVal;
-        }
-      }
-      if (currentbutton == BTPthresh2down) {
-        RepThresh[1]-=RepThreshStep;
-        if (RepThresh[1]<0) {
-          RepThresh[1]=0;
-        }
-      }
-    }
-    // Mouse Domain
-    else if (CurrentDomain == MouseDomain) {
-      for (int i = 0; i < buttonsMP.length; i++) {
-        if (buttonsMP[i] != null) {
-          if (buttonsMP[i].IsMouseOver(x, y)) {
-            buttonsMP[i].BOn = !buttonsMP[i].BOn;
-            buttonsMP[i].ChangeColorPressed();
-            currentbutton = i;
-            ButtonColorTimer = millis()+ButtonColorDelay;
-            ButtonPressedFlag = true;
-          }
-        }
-      }
-      if (currentbutton == BMPsettings) {
-        ChangeDomain(SettingsDomain);
-        println("Settings Menu");
-      }
-      else if (currentbutton == BMPhelp) {
-        ChangeDomain(HelpDomain);
-      }
-      if (currentbutton == BMPtimedomain) {
-        ChangeDomain(TimeDomain);
-      }
-      // if (currentbutton == BMPfreqdomain){ChangeDomain(FreqDomain);}
-      if (currentbutton == BMPtraindomain) {
-        ChangeDomain(TrainingDomain);
-      }
-      if (currentbutton == BMPmousedomain) {
-        ChangeDomain(MouseDomain);
-      }
-      if (currentbutton == BMPserialreset) {
-        ResetSerialConnection();
-      }
-      // // TODO - add record video button?
-      // if (currentbutton == BMPrecordnextdata){
-      // DataRecordFlag = true;
-      // DataRecordLength = DataRecordTime*UserFrequency;
-      // DataRecord = new int[DataRecordCols][DataRecordLength];
-      // DataRecordIndex = 0;
-      // }
-      if (currentbutton == BMPclear) {
-        blankplot();
-        labelaxes();
-        println("Plot Cleared");
-      }
-      if (currentbutton == BMPpause) {
-        PauseFlag = !PauseFlag;
-        if (!PauseFlag) {
-          buttonsMP[currentbutton].label = "Pause";
-          buttonsMP[currentbutton].DrawButton();
-        }
-        else if (PauseFlag) {
-          buttonsMP[currentbutton].label = "Play";
-          buttonsMP[currentbutton].DrawButton();
-        }
-        println("Pause Toggled");
-      }
-      if (currentbutton == BMPsave) {
-        imagesavecounter = saveImage(imagesavecounter);
-        println(imagesavecounter);
-      }
-      if (currentbutton == BMPchan1up) {
-        MouseChan[0]++;
-        if (MouseChan[0]>=SignalNumber) {
-          MouseChan[0]=SignalNumber-1;
-        }
-        if (MouseChan[0] == MouseChan[1]) {
-          MouseChan[0]++;
-          if (MouseChan[0]>=SignalNumber) {
-            MouseChan[0]=MouseChan[1]-1;
-          }
-        }
-        buttonsMP[BMPchan1].ctext = SigColorM[MouseChan[0]];
-        buttonsMP[BMPchan1].label = str(MouseChan[0]+1);
-        buttonsMP[BMPchan1].DrawButton();
-        ChannelOn[MouseChan[0]] = buttonsMP[BMPchan1].BOn;
-      }
-      if (currentbutton == BMPchan1down) {
-        MouseChan[0]--;
-        if (MouseChan[0]<0) {
-          MouseChan[0]=0;
-        }
-        if (MouseChan[0] == MouseChan[1]) {
-          MouseChan[0]--;
-          if (MouseChan[0]<0) {
-            MouseChan[0]=MouseChan[1]+1;
-          }
-        }
-        buttonsMP[BMPchan1].ctext = SigColorM[MouseChan[0]];
-        buttonsMP[BMPchan1].label = str(MouseChan[0]+1);
-        buttonsMP[BMPchan1].DrawButton();
-        ChannelOn[MouseChan[0]] = buttonsMP[BMPchan1].BOn;
-      }
-      if (currentbutton == BMPchan2up) {
-        MouseChan[1]++;
-        if (MouseChan[1]>=SignalNumber) {
-          MouseChan[1]=SignalNumber-1;
-        }
-        if (MouseChan[1] == MouseChan[0]) {
-          MouseChan[1]++;
-          if (MouseChan[1]>=SignalNumber) {
-            MouseChan[1]=MouseChan[0]-1;
-          }
-        }
-        buttonsMP[BMPchan2].ctext = SigColorM[MouseChan[1]];
-        buttonsMP[BMPchan2].label = str(MouseChan[1]+1);
-        buttonsMP[BMPchan2].DrawButton();
-        ChannelOn[MouseChan[1]] = buttonsMP[BMPchan2].BOn;
-      }
-      if (currentbutton == BMPchan2down) {
-        MouseChan[1]--;
-        if (MouseChan[1]<0) {
-          MouseChan[1]=0;
-        }
-        if (MouseChan[1] == MouseChan[0]) {
-          MouseChan[1]--;
-          if (MouseChan[1]<0) {
-            MouseChan[1]=MouseChan[0]+1;
-          }
-        }
-        buttonsMP[BMPchan2].ctext = SigColorM[MouseChan[1]];
-        buttonsMP[BMPchan2].label = str(MouseChan[1]+1);
-        buttonsMP[BMPchan2].DrawButton();
-        ChannelOn[MouseChan[1]] = buttonsMP[BMPchan2].BOn;
-      }
-    }
-    x = 0;
-    y = 0;
-  }
-
-  // Restore fill and stroke settings
-  fill(tmpfillColor);
-  stroke(tmpstrokeColor);
-  strokeWeight(tmpstrokeWeight);
+  useKeyPressedOrMousePressed(mouseInput);
 }
 
-void MoveMouse(int tmpind) {
-  int tmp = 0;
-  int MouseMoveX = 0, MouseMoveY = 0;
-  int MouseOffset = 40;
-  // if (MouseAxis == 'X'){
-  tmp = int(signalIn[MouseChan[0]][tmpind]+Calibration[MouseChan[0]]);
-  //print("tmp = ");print(tmp);print(". Thresh = ");println(MouseThresh[0]);
-  if (tmp < MouseThresh[0]) {
-    MouseMoveX = -1*MouseSpeed;//(MouseThresh[0] - tmp)*XMouseFactor1;
-  }
-  else if (tmp < MouseThresh[1]) {
-    MouseMoveX = 0;
-  }
-  else {
-    MouseMoveX = 1*MouseSpeed;//(tmp - MouseThresh[1])*XMouseFactor3;
-  }
-  if (!MouseXAxisFlip) {
-    MouseX += MouseMoveX;
-  }
-  else {
-    MouseX -= MouseMoveX;
-  }
-
-  tmp = int(signalIn[MouseChan[1]][tmpind]+Calibration[MouseChan[1]]);
-  if (tmp < MouseThresh[2]) {
-    MouseMoveY = 1*MouseSpeed;//(MouseThresh[2] - tmp)*YMouseFactor1;
-  }
-  else if (tmp < MouseThresh[3]) {
-    MouseMoveY = 0;//(MouseThresh[3] - tmp)*YMouseFactor2;
-  }
-  else {
-    MouseMoveY = -1*MouseSpeed;//(tmp - MouseThresh[3])*YMouseFactor3;
-  }
-  if (!MouseYAxisFlip) {
-    MouseY += MouseMoveY;
-  }
-  else {
-    MouseY -= MouseMoveY;
-  }
-  // }
-
-  // println("MouseMoveX = "+MouseMoveX+". MouseMoveY = "+MouseMoveY);
-  MouseX = constrain(MouseX, xStep+MouseOffset, xStep+plotwidth-MouseOffset);
-  MouseY = constrain(MouseY, yTitle+MouseOffset, yTitle+plotheight-MouseOffset);
-  robot.mouseMove(MouseX+xx, MouseY+yy);
-}
-
-// End of mouse handling section
-
-
-
-//void drawdata(int inVal) {
-// //stroke(plotlinecolor);
-// point(xPos+xStep, inVal);
-// fill(0);
-// stroke(255);
-//}
-
-void DrawTrace() {
-  // println("datacounter = "+datacounter);
-  int sigtmp = 0;
-  // strokeWeight(pointThickness*2);
-  loadPixels();
-  while (datacounter > 1) {
-    xPos++;//=DownSampleCount;
-    if (xPos >= plotwidth && !PauseFlag) {
-      xPos = -1;
-      updatePixels();
-      return;
-    }
-    else if (xPos >= plotwidth && PauseFlag) {
-      xPos = plotwidth-1;
-      updatePixels();
-      return;
-    }
-    else if (xPos == 0) {
-      updatePixels();
-      blankplot();
-      return;
-    }
-
-    for (int j = 0; j < SignalNumber;j++) {
-      if (ChannelOn[j]) {
-        // Training Domain!!
-        if (CurrentDomain == TrainingDomain && (j == TrainChan[0] || j == TrainChan[1])) {
-          int tmpind = signalindex-datacounter;//*DownSampleCount;
-          while (tmpind < 0) {
-            tmpind+=MaxSignalLength;
-          }
-          if (j == TrainChan[0]) {
-            sigtmp = int(map((signalIn[j][tmpind]+Calibration[j] - HalfSignalVal)*VoltScale, 0, MaxSignalVal, plotheight/2, plotheight));
-            sigtmp = constrain(sigtmp, plotheight/2+pointThickness+1, plotheight-pointThickness-1);
-            // oldPlotSignal[j] = constrain(oldPlotSignal[j],plotheight/2 + pointThickness, plotheight-pointThickness);
-          }
-          if (j==TrainChan[1]) {
-            sigtmp = int(map((signalIn[j][tmpind]+Calibration[j] - HalfSignalVal)*VoltScale, 0, MaxSignalVal, 0, plotheight/2));
-            sigtmp = constrain(sigtmp, pointThickness+1, plotheight/2 - pointThickness-1)-plot2offset;
-            // oldPlotSignal[j] = constrain(oldPlotSignal[j],pointThickness,plotheight/2-pointThickness);
-          }
-          drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, SigColorM[j], pointThickness);
-          oldPlotSignal[j] = sigtmp;
-        }
-        else if (CurrentDomain==TimeDomain) {
-          int tmpind = signalindex-datacounter;//*DownSampleCount;
-          while (tmpind < 0) {
-            tmpind+=MaxSignalLength;
-          }
-          if (!OffSetFlag) {
-            sigtmp = int(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, 0, plotheight));
-          }
-          else {
-            sigtmp = OffSet[j]+int(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, -plotheight/(2*SignalNumber), plotheight/(2*SignalNumber)));//*VoltScale)-plotheight*3/2);
-          }
-          sigtmp = constrain( sigtmp, pointThickness, plotheight - pointThickness);
-          // sigtmp = max(min(sigtmp,plotheight-pointThickness),0+pointThickness);
-          drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, SigColorM[j], pointThickness);
-          oldPlotSignal[j] = sigtmp;
-        }
-      }
-    }
-    datacounter --;
-  }
-  updatePixels();
-}
 
 void drawMyLine(int x1, int y1, int x2, int y2, color c, int w) {
   int dif = (y2+y1)/2;
@@ -2046,128 +888,20 @@ void drawMyLine(int x1, int y1, int x2, int y2, color c, int w) {
 }
 
 void setPixel(int x, int y, color c) {
-  // x = constrain(x,XMIN,XMAX);
-  // y = constrain(y,YMIN,YMAX);
+  x = constrain(x, XMIN, XMAX);
+  y = constrain(y, YMIN, YMAX);
   // if (x < XMIN || x >= XMAX) return;
   // if (y < YMIN || y >= YMAX) return;
   // int N = 4;
   // for (int j = y-N; j<=y+N;j++){
   // pixels[x + j * width] = c;
   // }
+  //  println("x = "+x+", y = "+y+", width = "+width);
   pixels[x + y * width] = c;
 }
 
-int FFTstep = 2;
-void DrawFFT() {
-  blankplot();
-  stroke(FFTcolor);
-  // filtered=filter1.apply(signalIn);
-  // filtered = signalIn1;
-  for (int j = 0; j < SignalNumber; j++) {
-    System.arraycopy(fft.computeFFT(FFTsignalIn[j]), 0, fft_result[j], 0, FFTSignalLength/2);
-  }
-  for (int i = 2; i<min(fft.WS2/FreqFactor,plotwidth/FreqFactor); i++) {
-    // for (int i = 2; i<min(fft.WS2/FreqFactor,plotwidth/2); i++) {
-    int xtmp = xStep+FreqFactor*(i-1);
-    // int xtmp = xStep+2*i-2;
-    for (int j = 0; j < SignalNumber;j++) {
-      if (ChannelOn[j]) {
-        stroke(SigColorM[j]);
-        if (OffSetFlag) {
-          if (ChannelOn[4] || ChannelOn[5] || ChannelOn[6] || ChannelOn[7]) {
-            for (int k = 0; k < FreqFactor; k++) {
-              line(xtmp+k, ytmp - FFTstep - OffSetFFT8[j], xtmp+k, min(ytmp-FFTstep-OffSetFFT8[j], max(yTitle+2+OffSetFFT8[7-j], ytmp - OffSetFFT8[j] - int(FFTscale*fft_result[j][i])/8)) );
-            }
-          }
-          else if (ChannelOn[3] || ChannelOn[2]) {
-            for (int k = 0; k < FreqFactor; k++) {
-              line(xtmp+k, ytmp - FFTstep - OffSetFFT4[j], xtmp+k, min(ytmp-FFTstep-OffSetFFT4[j], max(yTitle+2+OffSetFFT4[3-j], ytmp - OffSetFFT4[j] - int(FFTscale*fft_result[j][i])/4)) );
-            }
-          }
-          else {
-            for (int k = 0; k < FreqFactor; k++) {
-              line(xtmp+k, ytmp - FFTstep - OffSetFFT2[j], xtmp+k, min(ytmp-FFTstep-OffSetFFT2[j], max(yTitle+2+OffSetFFT2[1-j], ytmp - OffSetFFT4[j] - int(FFTscale*fft_result[j][i])/2)) );
-            }
-          }
-        }
-        else {
-          line(xtmp, ytmp - FFTstep, xtmp, min(ytmp-FFTstep, max(yTitle+2, ytmp - int(FFTscale*fft_result[j][i]))) );
-        }
-      }
-    }
-  }
-}
 
-void DrawSettings() {
-  textAlign(CENTER, CENTER);
-  blankplot();
-  stroke(0);
-  strokeWeight(4);
-  fill(200);
-  rectMode(CENTER);
-  rect(width/2, height/2, FullPlotWidth+20, plotheight+40, 12);
-
-  strokeWeight(2);
-  textSize(labelsizexs);
-  textAlign(CENTER, CENTER);
-  fill(200);
-  rect(width/2-90, height/2-90, 300, Bheights);
-  if (int(textWidth(folderTmp)) < 300) {
-    fill(0);
-    text(folderTmp, width/2-90, height/2-90);
-  }
-  else if (textWidth(folderTmp) >= 450) {
-    fill(200);
-    rect(width/2-90, height/2-70, 300, Bheights);
-    fill(0);
-    text(folderTmp, width/2-90, height/2-80, 300, Bheights*2);
-  }
-
-
-  fill(0);
-  textSize(titlesize);
-  text("FlexVolt Settings Menu", width/2, height/2-plotheight/2);
-
-  textSize(labelsizes);
-  text("Saving Data & Images", width/2, height/2-115);
-  textSize(labelsizexs);
-  text("Directory", width/2-340, height/2-175);
-
-  text("Data Recording Time (s)", width/2+170, height/2-95);
-  text(str(DataRecordTimeTmp), width/2+170, height/2-70);
-
-  textSize(labelsizes);
-  text("Data Sampling Settings", width/2, height/2-40);
-  textSize(labelsizexs);
-  text("Frequency, Hz", width/2-195, height/2-15);
-  text(str(UserFrequencyTmp), width/2-195, height/2+10);
-
-  text("Number of Channels", width/2-50, height/2-15); // reserved for future use
-
-  text("Smooth Filter", width/2+90, height/2-15);
-  text(str(SmoothFilterValTmp), width/2+90, height/2+10);
-
-  text("Downsample", width/2+200, height/2-15);
-  text(str(DownSampleCountTmp), width/2+200, height/2+10);
-
-  textSize(labelsizes);
-  text("Timing Settings (Advanced)", width/2, height/2+40);
-  textSize(labelsizexs);
-  text("Timer Adjust", width/2-100, height/2+60);
-  text(str(Timer0AdjustValTmp), width/2-100, height/2+80);
-
-  text("Prescaler", width/2+30, height/2+60);
-  text(str(PrescalerTmp), width/2+30, height/2+80);
-
-
-  for (int i = 0; i < buttonsSP.length; i++) {
-    if (buttonsSP[i] != null) {
-      buttonsSP[i].DrawButton();
-    }
-  }
-}
-
-void DrawHelp() {
+void drawHelp() {
   blankplot();
   stroke(0);
   strokeWeight(4);
@@ -2208,365 +942,6 @@ void DrawHelp() {
   textAlign(CENTER, CENTER);
 }
 
-void DrawMouseGame() {
-  int tmp = 0;
-  if (MouseTuneFlag) {
-    // println("MousetuneFlag!");
-    blankplot();
-    textSize(labelsizes);
-    strokeWeight(4);
-    textAlign(CENTER, CENTER);
-    fill(backgroundcolor);
-    rectMode(CENTER);
-    rect(xStep+plotwidth*5/16, yTitle+plotheight/2, plotwidth*5/8-2, plotheight-2);
-    fill(0);
-    text("Mouse Calibration", xStep+plotwidth*1/4, yTitle+12);
-    textSize(labelsizes);
-
-    // // arrows indicating axis directions
-    // // x-axis
-    // int addtmp = -140;
-    // line(xStep+plotwidth/4+50+addtmp,yTitle+80,xStep+plotwidth/4+100+addtmp,yTitle+80);
-    // line(xStep+plotwidth/4+90+addtmp,yTitle+70,xStep+plotwidth/4+100+addtmp,yTitle+80);
-    // line(xStep+plotwidth/4+90+addtmp,yTitle+90,xStep+plotwidth/4+100+addtmp,yTitle+80);
-    // line(xStep+plotwidth/4+60+addtmp,yTitle+70,xStep+plotwidth/4+50+addtmp,yTitle+80);
-    // line(xStep+plotwidth/4+60+addtmp,yTitle+90,xStep+plotwidth/4+50+addtmp,yTitle+80);
-    // // y-axis
-    // addtmp = 100;
-    // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+75+addtmp,yTitle+110);
-    // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+65+addtmp,yTitle+70);
-    // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+85+addtmp,yTitle+70);
-    // line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+65+addtmp,yTitle+100);
-    // line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+85+addtmp,yTitle+100);
-
-
-    // x-low
-    tmp = constrain(int(map(MouseThresh[XLow]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)), 0, plotheight/2);
-    stroke(255, 255, 0);
-    fill(0);
-    line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-    if (MouseThreshInd == XLow) {
-      fill(255, 255, 0);
-    }
-    if (ytmp-tmp +20 > yTitle+plotheight-20) {
-      text("X Low", xStep+plotwidth*11/16, ytmp-tmp-20);
-    }
-    else {    
-      text("X Low", xStep+plotwidth*11/16, ytmp-tmp+20);
-    }
-    // y-low
-    tmp = constrain(int(map(MouseThresh[YLow]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
-    line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-    fill(0);
-    if (MouseThreshInd == YLow) {
-      fill(255, 255, 0);
-    }
-    text("Y Low", xStep+plotwidth*11/16, ytmp-tmp+20);
-    // x-high
-    stroke(255, 0, 0);
-    tmp = constrain(int(map(MouseThresh[XHigh]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)), 0, plotheight/2);
-    line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-    fill(0);
-    if (MouseThreshInd == XHigh) {
-      fill(255, 255, 0);
-    }
-    if (ytmp-tmp +20 > yTitle+plotheight-20) {
-      text("X High", xStep+plotwidth*15/16, ytmp-tmp-20);
-    }
-    else {    
-      text("X High", xStep+plotwidth*15/16, ytmp-tmp+20);
-    }
-    // y-high
-    tmp = constrain(int(map(MouseThresh[YHigh]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
-    line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-    fill(0);
-    if (MouseThreshInd == YHigh) {
-      fill(255, 255, 0);
-    }
-    text("Y High", xStep+plotwidth*15/16, ytmp-tmp+20);
-
-    // actual signals
-    stroke(0, 255, 0);
-    fill(0, 255, 0);
-    int tmpind = 0;
-    tmpind = signalindex-datacounter;
-    datacounter = 0;
-    while (tmpind < 0) {
-      tmpind+=MaxSignalLength;
-    }
-    tmp = constrain(int(map(signalIn[MouseChan[0]][tmpind]+Calibration[MouseChan[0]]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)), 0, plotheight/2);
-    line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
-    if (tmp < 50) {
-      text("X-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
-    }
-    else {
-      text("X-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
-    }
-
-    tmp = constrain(int(map(signalIn[MouseChan[1]][tmpind]+Calibration[MouseChan[1]]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
-    line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
-    if (tmp<plotheight/2+30) {
-      text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
-    }
-    else {
-      text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
-    }
-
-    String mouse_msg = "";
-    mouse_msg += "Input > high => mouse moves up/right\nInput < low => mouse moves down/left\nlow<Input<high => mouse does not move\n";
-    mouse_msg += "\n";
-    mouse_msg += "To Set Thresholds:\n";
-    mouse_msg += " Left/Right arrows select threshold (yellow)\n";
-    // mouse_msg += " (Selected threshold turns yellow)\n";
-    mouse_msg += " Up/Down arrows move selected threshold\n";
-    // mouse_msg += " (Threshold will move\n";
-    mouse_msg += "\n";
-    mouse_msg += "Adjust thresholds so the green bar is below low when completely relaxed, between low and high when slightly flexed, and above high when fully flexed.";
-    textSize(labelsizexs);
-    fill(0);
-    textAlign(LEFT, CENTER);
-    text(mouse_msg, xStep+plotwidth*5/16+3, yTitle+plotheight/2, plotwidth*5/8-12, plotheight);
-    textAlign(CENTER, CENTER);
-
-
-    if (!PauseFlag) {
-      MoveMouse(tmpind);
-    }
-  }
-  else if (!MouseTuneFlag) {
-    if (!PauseFlag) {//MouseGame
-      int tmpind = 0;
-      tmpind = signalindex-datacounter;
-      datacounter = 0;
-      while (tmpind < 0) {
-        tmpind+=MaxSignalLength;
-      }
-      MoveMouse(tmpind);
-      drawcrosshair(MouseX, MouseY);
-      if (iswinner()) {
-        print("Winner");
-        GameScore ++;
-        // delayTime -= delayTimeIncrement;
-        // if (delayTime < delayTimeMin){delayTime = delayTimeMin;}
-        GamenextStep = second()+GamedelayTime;
-        println(GamenextStep);
-        drawTarget();
-      }
-      if (second() > GamenextStep) {
-        GamedelayTime += GamedelayTimeIncrement;
-        if (GamedelayTime > GamedelayTimeMax) {
-          GamedelayTime = GamedelayTimeMax;
-        }
-        drawTarget();
-        GamenextStep = second()+GamedelayTime;
-        print("Out Of Time!");
-        println(GamenextStep);
-      }
-    }
-    else {
-      //blankplot();
-      stroke(0);
-      fill(255, 69, 0);
-      ellipse(xStep+GameTargetX, ytmp-GameTargetY, Gametargetsize, Gametargetsize);
-      drawcrosshair(MouseX, MouseY);
-      GamenextStep = second()+GamedelayTime;
-    }
-  }
-}
-
-void drawcrosshair(int hx, int hy) {
-  fill(255);
-  stroke(255, 0, 0);
-  int CHs = 15;
-  if (hx < xStep+CHs) {
-    hx=xStep+CHs;
-  }
-  if (hx > xStep+plotwidth-CHs) {
-    hx=xStep+plotwidth-CHs;
-  }
-  if (hy < yTitle+CHs) {
-    hy=yTitle+CHs;
-  }
-  if (hy > yTitle+plotheight-CHs) {
-    hy=yTitle+plotheight-CHs;
-  }
-  rectMode(CENTER);
-  rect(hx, hy, 2*CHs, 2*CHs);
-}
-
-void drawTarget() {
-  blankplot();
-  stroke(0);
-  fill(255, 69, 0);
-  GameTargetX = int(random(0+Gametargetsize, plotwidth-Gametargetsize));
-  GameTargetY = int(random(0+Gametargetsize, plotheight-Gametargetsize));
-  // ellipseMode(RADIUS);
-  ellipse(xStep+GameTargetX, ytmp-GameTargetY, Gametargetsize, Gametargetsize);
-  drawScore();
-}
-
-void drawScore() {
-  textSize(32);
-  textAlign(CENTER, CENTER);
-  stroke(0, 0, 0);
-  fill(0, 255, 0);
-  text("SCORE = ", 180, 120);
-  text(nf(GameScore, 5, 0), 320, 120);
-}
-
-boolean iswinner() {
-  int rx = ((mouseX-xStep)-GameTargetX);
-  rx = rx*rx;
-  int ry = ((ytmp-mouseY)-GameTargetY);
-  ry = ry*ry;
-  float r = sqrt(float(rx+ry));
-  if (r < Gametargetsize) {
-    return true;
-  }
-  else {
-    return false;
-  }
-}
-
-
-void DrawTrainingProgram() {
-  DrawTrace();
-  DrawThresh();
-  if (TrainingMode == TRepCounter) {
-    CountReps();
-    DrawRepBar();
-  }
-  // else if (TrainingMode == TDataLogger) {
-  // TLogData();
-  // DrawTData();
-  // }
-}
-
-void DrawThresh() {
-  int sigtmp;
-  stroke(255, 255, 0);
-  strokeWeight(1);
-
-  // channel 1
-  sigtmp = int(map(RepThresh[0], 0, MaxSignalVal, plotheight/2, plotheight));
-  sigtmp = constrain(sigtmp, plotheight/2 + pointThickness, plotheight-pointThickness);
-  line(xStep, ytmp-sigtmp, xStep+plotwidth, ytmp-sigtmp);
-
-  // channel 2
-  sigtmp = int(map(RepThresh[1], 0, MaxSignalVal, 0-plot2offset, plotheight/2-plot2offset));
-  sigtmp = constrain(sigtmp, pointThickness-plot2offset, plotheight/2-pointThickness-plot2offset);
-  line(xStep, ytmp-sigtmp, xStep+plotwidth, ytmp-sigtmp);
-}
-
-
-void TLogData() {
-  for (int i = 0; i < 2; i++) {
-    if (ChannelOn[i]) {
-      if (signalIn[TrainChan[i]][signalindex]>DataThresh[i]) {
-        if (!ChanFlexed[i]) {
-          FlexOnCounter[i]++;
-          if (FlexOnCounter[i] > 15) {
-            ChanFlexed[i] = true;
-            RepsCounter[i]++;
-            //FlexOnCounter[i]=0;
-          }
-        }
-        else if (ChanFlexed[i]) {
-          TMax[i][RepsCounter[i]] = max(TMax[i][RepsCounter[i]], int(signalIn[TrainChan[i]][signalindex]));
-        }
-      }
-      else if (signalIn[TrainChan[i]][signalindex]<DataThresh[i]) {
-        if (ChanFlexed[i]) {
-          FlexOnCounter[i]--;
-          if (FlexOnCounter[i] <= 0) {
-            ChanFlexed[i] = false;
-            FlexOnCounter[i] = 0;
-          }
-        }
-      }
-    }
-  }
-}
-
-void resetWorkout() {
-  ChanFlexed[0] = false;
-  ChanFlexed[0] = false;
-  RepsCounter[0] = 0;
-  RepsCounter[1] = 0;
-  FlexOnCounter[0] = 0;
-  FlexOnCounter[1] = 0;
-  if (TrainingMode == TRepCounter) {
-    ClearRepBar(3);
-    LabelRepBar(3);
-  }
-  else if (TrainingMode == TDataLogger) {
-    TMax = new int[2][100];
-    ClearRepBar(3);
-    LabelTData();
-  }
-}
-
-void DrawTData() {
-
-  int xstart = 750;
-  int sigtmp = 0;
-  for (int i = 0; i < 100; i++) {
-    int j = 0;
-    if (ChannelOn[j]) {
-      stroke(0, 255, 0);
-      fill(0, 255, 0);
-      sigtmp = int(map(TMax[j][i], MaxSignalVal/2, MaxSignalVal, 0, plotheight));
-      sigtmp = max(sigtmp, 0);
-      line(xstart, yTitle+plotheight/2, xstart, yTitle+plotheight/2-sigtmp);
-      line(xstart+1, yTitle+plotheight/2, xstart+1, yTitle+plotheight/2-sigtmp);
-    }
-    j = 1;
-    if (ChannelOn[j]) {
-      stroke(0, 0, 255);
-      fill(0, 0, 255);
-      sigtmp = int(map(TMax[j][i], MaxSignalVal/2, MaxSignalVal, 0, plotheight));
-      sigtmp = max(sigtmp, 0);
-      line(xstart, yTitle+plotheight, xstart, yTitle+plotheight-sigtmp);
-      line(xstart+1, yTitle+plotheight, xstart+1, yTitle+plotheight-sigtmp);
-    }
-    xstart+=4;
-  }
-}
-
-void LabelTData() {
-  textAlign(CENTER, CENTER);
-  stroke(0);
-  fill(0);
-  text("Max Voltages", xStep+880, 40);
-}
-
-void CountReps() {
-  int tmpind = 0;
-  tmpind = signalindex-datacounter;
-  while (tmpind < 0) {
-    tmpind+=MaxSignalLength;
-  }
-  for (int i = 0; i < 2; i++) {
-    if (ChannelOn[TrainChan[i]]) {
-      if ((signalIn[TrainChan[i]][tmpind]-HalfSignalVal)>RepThresh[i]) {
-        if (!ChanFlexed[i]) {
-          FlexOnCounter[i]++;
-          if (FlexOnCounter[i] > 2) {
-            ChanFlexed[i] = true;
-            if (RepsCounter[i] < RepsTarget[i]) {
-              RepsCounter[i]++;
-            }
-            FlexOnCounter[i]=0;
-          }
-        }
-      }
-      else if ((signalIn[TrainChan[i]][tmpind]-HalfSignalVal)<RepThresh[i]) {
-        ChanFlexed[i] = false;
-        FlexOnCounter[i] = 0;
-      }
-    }
-  }
-}
 
 void ClearYAxis() {
   fill(backgroundcolor);
@@ -2577,98 +952,22 @@ void ClearYAxis() {
 }
 
 
-void ClearRepBar(int barN) {
-  fill(backgroundcolor);
-  stroke(backgroundcolor);
-  rectMode(CENTER);
-  if (barN == 1 || barN == 3) {
-    rect(xStep+plotwidth+200, yTitle+plotheight/2, 80, plotheight-40);
-  }
-  if (barN == 2 || barN == 3) {
-    rect(xStep+plotwidth+300, yTitle+plotheight/2, 80, plotheight-40);
-  }
-}
-
-void DrawRepBar() {
-  if (ChannelOn[TrainChan[0]]) {
-    int top = min(plotheight, int(map(RepsCounter[0], 0, RepsTarget[0], 0, plotheight-60)));
-    rectMode(CENTER);
-    stroke(0);
-    strokeWeight(2);
-    fill(SigColorM[TrainChan[0]]);
-    rect(xStep+plotwidth+200, ytmp-top/2-20, RepBarWidth, top);
-  }
-  if (ChannelOn[TrainChan[1]]) {
-    int top = min(plotheight, int(map(RepsCounter[1], 0, RepsTarget[1], 0, plotheight-60)));
-    rectMode(CENTER);
-    stroke(0);
-    fill(SigColorM[TrainChan[1]]);
-    rect(xStep+plotwidth+300, ytmp-top/2-20, RepBarWidth, top);
-  }
-  rectMode(CENTER);
-}
-
-void LabelRepBar(int ChanN) {
-  int val;
-  textAlign(CENTER, CENTER);
-  stroke(labelcolor);
-  fill(labelcolor);
-  if (ChanN == 1 || ChanN == 3) {
-    if (ChannelOn[TrainChan[0]]) {
-      val = 0;
-      for (int i = 0; i <= RepsTarget[0]; i++) {
-        text(nf(val, 1, 0), plotwidth+220, ytmp - 20 - int(map(val, 0, RepsTarget[0], 0, plotheight-60)));
-        val ++;
-      }
-      text(buttonsTP[BTPchan1].label, plotwidth+260, yTitle+20);
-    }
-  }
-  if (ChanN == 2 || ChanN == 3) {
-    if (ChannelOn[TrainChan[1]]) {
-      val = 0;
-      for (int i = 0; i <= RepsTarget[1]; i++) {
-        text(nf(val, 1, 0), plotwidth+320, ytmp - 20 - int(map(val, 0, RepsTarget[1], 0, plotheight-60)));
-        val ++;
-      }
-      text(buttonsTP[BTPchan2].label, plotwidth+360, yTitle+20);
-    }
-  }
-}
-
 void blankplot() {
   fill(plotbackground);
   stroke(plotoutline);
   strokeWeight(2);
   rectMode(CENTER);
-  if (CurrentDomain == TimeDomain || CurrentDomain == FreqDomain || CurrentDomain == MouseDomain) {
-    rect(xStep+plotwidth/2, yTitle+plotheight/2, plotwidth, plotheight);
-  }
-  if (CurrentDomain == TrainingDomain) {
+  if (currentpage == workoutpage) {
     rect(xStep+plotwidth/2, yTitle+(plotheight/2)/2, plotwidth, plotheight/2);
     rect(xStep+plotwidth/2, yTitle+plotheight/2+5+(plotheight/2)/2, plotwidth, plotheight/2);
+  } 
+  else {
+    rect(xStep+plotwidth/2, yTitle+plotheight/2, plotwidth, plotheight);
   }
   rectMode(CENTER);
 }
 
-void drawConnectionIndicator() {
-  fill(150);
-  strokeWeight(2);
-  stroke(0);
-  ellipse(xStep+FullPlotWidth+10, yTitle-26, 24, 24);
-  if (FVserial.connectionindicator == FVserial.indicator_connected) {
-    fill(color(0, 255, 0));
-  }
-  else if (FVserial.connectionindicator == FVserial.indicator_connecting) {
-    fill(color(255, 200, 0));
-  }
-  else if (FVserial.connectionindicator == FVserial.indicator_noconnection) {
-    fill(color(255, 0, 0));
-  }
-  stroke(0);
-  ellipse(xStep+FullPlotWidth+10, yTitle-26, 14, 14);
-}
-
-void labelaxes() {
+void labelGUI() {
 
   // Logo
   if (img != null) {
@@ -2682,217 +981,26 @@ void labelaxes() {
   }
 
   fill(labelcolor);
-  stroke(labelcolor);
-  strokeWeight(2);
-  textAlign(CENTER, CENTER);
-  if (CurrentDomain == TimeDomain) {
-    // title
-    textSize(titlesize);
-    text("Muscle Voltage", xStep+FullPlotWidth/2+20, yTitle-45);
+  textSize(labelsizes);
+  text("Connection", xStep+FullPlotWidth+45, yTitle*3/16);
 
-    textSize(axisnumbersize);
-    // x-axis
-    float val = 0;
-    for (int i = 0; i < Nxticks+1; i++) {
-      text(nf(val, 1, 0), xStep+int(map(val, 0, TimeMax, 0, plotwidth-10)), height-yStep+10);
-      val += TimeMax/Nxticks;
-    }
+  FVserial.drawConnectionIndicator();
 
-    // y-axis
-    if (!OffSetFlag) {
-      val = VoltageMin;
-      for (int i = 0; i < Nyticks+1; i++) {
-        if (val > 0) {
-          text(("+"+nf(val, 1, 0)), xStep-20, ytmp -5 - int(map(val, VoltageMin, VoltageMax, 0, plotheight-10)));
-        } 
-        else {
-          text(nf(val, 1, 0), xStep-20, ytmp -5 - int(map(val, VoltageMin, VoltageMax, 0, plotheight-10)));
-        }
-        val += (VoltageMax-VoltageMin)/Nyticks;
-      }
-    }
-    else if (OffSetFlag) {
-      val = VoltageMin/2;
-      // val = VoltageMin;
-      int xtmp = 0;
-      for (int i = 0; i < NyticksHalf+1; i++) {
-        xtmp = xStep-20;
-        if (val > 0) {
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, 0, plotheight/4)));
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/4, plotheight/2)));
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/2, plotheight*3/4)));
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight*3/4, plotheight)));
-        } 
-        else {
-          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, 0, plotheight/4)));
-          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/4, plotheight/2)));
-          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/2, plotheight*3/4)));
-          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight*3/4, plotheight)));
-        }
-        val += ((VoltageMax/2)-(VoltageMin/2))/NyticksHalf;
-        // val += ((VoltageMax)-(VoltageMin))/Nyticks;
-      }
-    }
-
-    // axis labels
-    textSize(labelsizes);
-    translate(12, height/2);
-    rotate(-PI/2);
-    text("Electrical Potential, millivolts", 0, 0);
-    rotate(PI/2);
-    translate(-12, -height/2);
-    text("Time, seconds", xStep + plotwidth/2, height-15);
-
-
-    for (int i = 0; i < buttonsTDP.length; i++) {
-      buttonsTDP[i].DrawButton();
-    }
-
-    textSize(labelsize);
-    text("Channel", xStep+FullPlotWidth+45, yTitle+165);
-    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
-    textSize(labelsizes);
-    text("Connection", xStep+FullPlotWidth+45, yTitle-50);
-    drawConnectionIndicator();
+  for (int i = 0; i < buttonsCommon.length; i++) {
+    buttonsCommon[i].drawButton();
   }
-  else if (CurrentDomain == FreqDomain) {
-    // title
-    textSize(titlesize);
-    text("Signal Frequency", xStep+FullPlotWidth/2+20, yTitle-45);
-
-    textSize(axisnumbersize);
-    // x-axis
-    float val = 0;
-    FreqMax = UserFrequency/(MaxSignalLength/plotwidth)/FreqFactor;
-    for (int i = 0; i < Nxticks+1; i++) {
-      text(nf(val, 1, 0), xStep+int(map(val, 0, FreqMax, 0, plotwidth-20)), height-yStep+10);
-      val += FreqMax/Nxticks;
-    }
-
-    // y-axis
-    // if (OffSetFlag) {
-    // val = FreqAmpMin;
-    // for (int i = 0; i < Nyticks+1; i++) {
-    // text(nf(val, 1, 1), xStep-30, height - yStep +0 - int(map(val, FreqAmpMin, FreqAmpMax, 0, plotheight/2-20)));
-    // text(nf(val, 1, 1), xStep-30, height - yStep -plotheight/2 -20 +10 - int(map(val, FreqAmpMin, FreqAmpMax, 0, plotheight/2-20)));
-    // println("etst");
-    // val += (FreqAmpMax-FreqAmpMin)/Nyticks;
-    // }
-    // }
-    // else {
-    // val = FreqAmpMin;
-    // for (int i = 0; i < Nyticks+1; i++) {
-    // text(nf(val, 1, 1), xStep-30, height - yStep +0 - int(map(val, FreqAmpMin, FreqAmpMax, 0, plotheight-20)));
-    // val += (FreqAmpMax-FreqAmpMin)/Nyticks;
-    // }
-    // }
-
-    // axis labels
-    textSize(labelsizes);
-    translate(40, height/2);
-    rotate(-PI/2);
-    text("Intensity, a.u.", 0, 0);
-    rotate(PI/2);
-    translate(-40, -height/2);
-    text("Frequency, Hz", xStep + plotwidth/2, height-20);
-
-    // blankplot();
-    for (int i = 0; i < buttonsFDP.length; i++) {
-      buttonsFDP[i].DrawButton();
-    }
-
-    textSize(labelsize);
-    text("Channel", xStep+FullPlotWidth+45, yTitle+165);
-    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
-    textSize(labelsizes);
-    text("Connection", xStep+FullPlotWidth+45, yTitle-50);
-    drawConnectionIndicator();
-  }
-  else if (CurrentDomain == MouseDomain) {
-    // title
-    textSize(titlesize);
-    text("Flex Mouse", xStep+FullPlotWidth/2+20, yTitle-45);
-
-    textSize(labelsizes);
-    text("'p' or pause/play = toggle control of your mouse pointer.", xStep+plotwidth/2, yTitle+plotheight+9);
-    text("'k' = set sensitivity. 'm' = exit mouse games. 'g' = snakegame!", xStep+plotwidth/2, yTitle+plotheight+26);
-    text("x=left/right", xStep+plotwidth+barwidth/2, yTitle+120);
-    text("y=up/down", xStep+plotwidth+barwidth/2, yTitle+140);
-    // text("Select which input channel controls X (left/right) and Y(up/down) axes.",width/2,yTitle+plotheight+25);
-
-
-    // blankplot();
-    for (int i = 0; i < buttonsMP.length; i++) {
-      buttonsMP[i].DrawButton();
-    }
-    textSize(labelsize);
-    text("X-Axis", xStep+FullPlotWidth+50, yTitle+170);
-    text("Y-Axis", xStep+FullPlotWidth+50, yTitle+230);
-    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
-    textSize(labelsizes);
-    text("Connection", xStep+FullPlotWidth+45, yTitle-50);
-    drawConnectionIndicator();
-  }
-  else if (CurrentDomain == TrainingDomain) {
-    // title
-    textSize(titlesize);
-    text("Flex Training", xStep+FullPlotWidth/2+20, yTitle-45);
-
-    // y-axis
-    float val = 0;
-    textSize(20);
-    for (int i = 0; i < NyticksHalf+1; i++) {
-      text(nf(val, 1, 0), xStep-25, ytmp - int(map(val, 0, VoltageMax, 0, plotheight/2-20)));
-      text(nf(val, 1, 0), xStep-25, ytmp - int(map(val, 0, VoltageMax, 0, plotheight/2-10)) - plotheight/2 - 10);
-      val += (VoltageMax)/NyticksHalf;
-    }
-
-    textSize(labelsizes);
-    translate(15, height/2);
-    rotate(-PI/2);
-    text("Muscle Voltage, mV", 0, 0);
-    rotate(PI/2);
-    translate(-15, -height/2);
-
-    textSize(labelsizes);
-    // fill(100);
-    // rectMode(CENTER);
-    // rect(xStep+580, 230, 100, 50,15);
-    // rect(xStep+580, yTitle+plotheight-150, 100, 50,15);
-    fill(labelcolor);
-    text("Set Reps", xStep+plotwidth+100, yTitle+70);
-    text("Set Reps", xStep+plotwidth+100, yTitle+plotheight/2+90);
-    text("Threshold", xStep+plotwidth+90, yTitle+plotheight/2-40);
-    text("Threshold", xStep+plotwidth+90, yTitle+plotheight-20);
-
-    for (int i = 0; i < buttonsTP.length; i++) {
-      if (buttonsTP[i] != null) {
-        buttonsTP[i].DrawButton();
-      }
-    }
-
-    LabelRepBar(3);
-    textSize(labelsizes);
-    text("Connection", xStep+FullPlotWidth+45, yTitle-50);
-    drawConnectionIndicator();
-  }
-  // else if (CurrentDomain == SettingsDomain) {
-  // fill(200);
-  // rectMode(CENTER);
-  // rect(width/2, height/2, 200,150,12);
-  // text(folder,width/2,height/2+30);
-  // for (int i = 0; i < buttonsSP.length; i++) {
-  // if(buttonsSP[i] != null){
-  // buttonsSP[i].DrawButton();
-  // }
-  // }
-  // }
-
-  loadPixels();
 }
 // End of plotting section
 
 void UpdatePorts(int ports) {
+}
+
+void saveData() {
+  DataRecordFlag = true;
+  println("UserFreq = "+UserFrequency+", DataRecordTime = "+DataRecordTime);
+  DataRecordLength = DataRecordTime*UserFrequency;
+  DataRecord = new int[DataRecordCols][DataRecordLength];
+  DataRecordIndex = 0;
 }
 
 int SaveRecordedData(int datasavecounter) {
@@ -2916,6 +1024,7 @@ int SaveRecordedData(int datasavecounter) {
   datasavecounter ++;
   return datasavecounter;
 }
+
 int saveImage(int imagesavecounter) {
   String a0 = "";
   if (platform == MACOSX) {
@@ -2925,14 +1034,17 @@ int saveImage(int imagesavecounter) {
     a0=folder+"\\FlexVoltPlot";
   }
   a0 += "_"+year()+"-"+nf(month(), 2)+"-"+nf(day(), 2)+"_"+ nf(hour(), 2) +"h-"+ nf(minute(), 2) +"m-"+ nf(second(), 2)+"s_";
-  if (CurrentDomain == TimeDomain) {
+  if (currentpage == timedomainpage) {
     a0 += "Voltage_";
-  }
-  else if (CurrentDomain == FreqDomain) {
+  }  
+  else if (currentpage == frequencydomainpage) {
     a0 += "Frequency_";
-  }
-  else if (CurrentDomain == TrainingDomain) {
+  }  
+  else if (currentpage == workoutpage) {
     a0 += "Training_";
+  }  
+  else if (currentpage == targetpracticepage) {
+    a0 += "TargetPractice_";
   }
   a0 += nf(imagesavecounter, 3);
 
@@ -2943,87 +1055,6 @@ int saveImage(int imagesavecounter) {
   imagesavecounter++;
   return imagesavecounter;
 }
-
-void waitForFolder() {
-  tmpfolder = null;
-  selectFolder("Select a folder to process:", "folderSelected");
-  while (tmpfolder == null) delay(200);
-
-  // labelaxes();
-  // for (String csv: filenames = folder.list(csvFilter)) println(csv);
-}
-
-void folderSelected(File selection) {
-  if (selection == null) {
-    println("Window was closed or the user hit cancel.");
-    tmpfolder = "";
-  } 
-  else {
-    println("User selected " + selection.getAbsolutePath());
-    folderTmp = selection.getAbsolutePath();
-    tmpfolder = folderTmp;
-  }
-}
-
-void ResetSerialConnection() {
-  StopData();
-  println("stopped data in resetserial");
-  display_error("Disconnecting USB Device!");
-  if (myPort!=null) {
-    myPort.clear();
-    myPort.stop();
-    myPort.clear();
-    myPort = null;
-  }
-  initializeFlag = true;
-  FVserial.connectserial();
-  drawConnectionIndicator();
-}
-
-//void ConnectSerial(){
-// PollSerialDevices();
-// USBPORT_correct = false;
-// TestingConnectionFlag = true;
-// // Connect - if only one USB device was found, try that one
-// if (USBPORTs.length > 0){
-// println("USB Devices Found");
-// display_error("USB Devices Found! Looking for FlexVolt...");
-// for (int i = 0; i < USBPORTs.length; i++) {
-// println("Testing USB ports"+i);
-// if (!USBPORT_correct){
-// println("Trying USB Device #" + (i+1) + "/" + USBPORTs.length + ", at port "+USBPORTs[i]);
-// TrySerialConnect(USBPORTs[i],500);
-// } else {println("Already found our port");}
-// }
-// }
-// if (BluetoothPORTs.length > 0 && !USBPORT_correct){
-// println("Bluetooth Ports Found");
-// display_error("No USB FlexVolts Found! Checking Bluetooth Ports...");
-// for (int i = 0; i < BluetoothPORTs.length; i++) {
-// println("Testing BT ports"+i);
-// if (!USBPORT_correct){
-// println("Trying Bluetooth Device #" + (i+1) + "/" + BluetoothPORTs.length + ", at port "+BluetoothPORTs[i]);
-// TrySerialConnect(BluetoothPORTs[i],4000);
-// } else {println("Already found our port");}
-// }
-// }
-//
-// if(USBPORT_correct){
-// TestingConnectionFlag = false;
-// println(myPort+" connected!");
-// delay(100);
-// myPort.clear();
-// display_error("FlexVolt Device Connected!");
-// myPort.buffer(1);
-// // kill some time!
-// delay(200); // custom function - not standard
-// }
-// else if(!USBPORT_correct){
-// display_error("No FlexVolts Found!");
-// myPort = null;
-// }
-//}
-
 
 void display_error(String msg) {
   strokeWeight(4);
@@ -3037,20 +1068,36 @@ void display_error(String msg) {
   strokeWeight(2);
 }
 
-
 void delay(int delay)
 {
   int time = millis();
   while (millis () - time <= delay);
 }
 
+void ResetSerialConnection() {
+  StopData();
+  communicationsflag = false;
+  println("stopped data in resetserial");
+  display_error("Disconnecting USB Device!");
+  if (myPort!=null) {
+    myPort.clear();
+    myPort.stop();
+    myPort.clear();
+    myPort = null;
+  }
+  initializeFlag = true;
+  FVserial.connectserial();
+  FVserial.drawConnectionIndicator();
+}
+
+
 void EstablishDataLink() {
-  if (myPort == null){
+  if (myPort == null) {
     println("no port to connect to");
     return;
   }
   myPort.write('G'); // tells Arduino to start sending data
-  if (commentflag)println("sent G");
+  if (commentflag)println("sent G at establishdatalink");
 
   SerialBufferN = SignalNumber;
   if (commentflag)println("Signum = "+SignalNumber);
@@ -3077,62 +1124,27 @@ void EstablishDataLink() {
   myPort.buffer((SerialBufferN+1)*SerialBurstN);
 }
 
+
 void StopData() {
   if (myPort == null) {
     println("no port to stop");
     return;
   }
-  myPort.write('Q');
+  try {
+    myPort.write('Q');
+  }
+  catch (RuntimeException e) {
+    if (e.getMessage().contains("Port busy")) {
+      println("Error = "+e.getMessage());
+    } 
+    else { 
+      println("Unknown Error = "+e.getMessage());
+    }
+  }
   dataflag = false;
   println("Stopped Data");
   FVserial.connectionindicator = FVserial.indicator_noconnection;
   // ConnectingFlag = false;
-}
-
-void saveSettings() {
-  // save all tmp vals from the settings menu in the actual variables
-  folder = folderTmp;
-  UserFreqIndex = UserFreqIndexTmp;
-  SmoothFilterVal = SmoothFilterValTmp;
-  DownSampleCount = DownSampleCountTmp;
-  Timer0AdjustVal = Timer0AdjustValTmp;
-  Prescaler = PrescalerTmp;
-  DataRecordTime = DataRecordTimeTmp;
-  SignalNumber = SignalNumberTmp;
-
-
-  UserFrequency = UserFreqArray[UserFreqIndex];
-  TimeMax = float(FullPlotWidth)/float(UserFrequency);
-  UserFreqCustom = 0;
-  CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0/((float)UserFrequency/CheckSerialNSamples) );
-  DataRecordLength = DataRecordTime*UserFrequency;
-  buttonsTDP[BTDPrecordnextdata].label = "Record "+DataRecordTime+"s";
-  buttonsFDP[BFDPrecordnextdata].label = "Record "+DataRecordTime+"s";
-  buttonsTP[BTPrecordnextdata].label = "Record "+DataRecordTime+"s";
-  buttonsMP[BMPrecordnextdata].label = "Record "+DataRecordTime+"s";
-  for (int i = 0; i<MaxSignalNumber;i++) {
-    if (i < SignalNumber) {
-      ChannelOn[i]=true;
-    } 
-    else if (i >= SignalNumber) {
-      ChannelOn[i]=false;
-    }
-  }
-  TimeMax = float(FullPlotWidth)/float(UserFrequency);
-
-  // build and save a txt file of settings
-  String[] SettingString = new String[8];
-  SettingString[0] = "FlexVoltViewer User Settings";
-  SettingString[1] = folder;
-  SettingString[2] = str(UserFreqIndex);
-  SettingString[3] = str(SmoothFilterVal);
-  SettingString[4] = str(MouseThresh[XLow]);
-  SettingString[5] = str(MouseThresh[XHigh]);
-  SettingString[6] = str(MouseThresh[YLow]);
-  SettingString[7] = str(MouseThresh[YHigh]);
-
-  saveStrings(HomePath+"/FlexVoltViewerSettings.txt", SettingString);
-  UpdateSettings();
 }
 
 void importSettings() {
@@ -3208,7 +1220,7 @@ void importSettings() {
 }
 
 void PollVersion() {
-  if (myPort == null){
+  if (myPort == null) {
     println("no port to poll");
     return;
   }
@@ -3216,7 +1228,7 @@ void PollVersion() {
   // handle changes to the Serial buffer coming out of settings
   delay(serialwritedelay);
   myPort.clear();
-  println("sent Q");
+  println("sent Q version");
   myPort.buffer(VersionBufferN+1);
   myPort.clear();
 
@@ -3261,16 +1273,8 @@ void UpdateSettings() {
    *
    * REG8<7:0> = Plug Test Frequency
    */
-  //  folder = folderTmp;
-  //  UserFreqIndex = UserFreqIndexTmp;
-  //  SmoothFilterVal = SmoothFilterValTmp;
-  //  DownSampleCount = DownSampleCountTmp;
-  //  Timer0AdjustVal = Timer0AdjustValTmp;
-  //  Prescaler = PrescalerTmp;
-  //  DataRecordTime = DataRecordTimeTmp;
-  //  SignalNumber = SignalNumberTmp;
 
-  if (myPort == null){
+  if (myPort == null) {
     println("no port to updatesettings on");
     return;
   }
@@ -3282,7 +1286,7 @@ void UpdateSettings() {
     DataRegWriteFlag = true;
     delay(serialwritedelay);
     myPort.clear();
-    println("sent Q");
+    println("sent Q update settings");
     myPort.buffer(1);
     myPort.clear();
 
@@ -3379,14 +1383,128 @@ int getIntFromString(String savedname, int defaultval) {
   return test;
 }
 
-void ChangeDomain(int NewDomain) {
-  OldDomain = CurrentDomain;
-  NamesFlag = false;
-  // handle changes to the Serial buffer coming out of settings
-  if (OldDomain == SettingsDomain) {
-    EstablishDataLink();
+void changePage(int newPage) {
+  oldpage = currentpage;
+  currentpage = newPage;
+  println("oldpage = "+oldpage+", newpage = "+currentpage);
+
+  if (currentpage == oldpage) {
+    if (oldpage == timedomainpage) {
+      currentpage = frequencydomainpage;
+    } 
+    else if (oldpage == frequencydomainpage) {
+      currentpage = timedomainpage;
+    }
   }
-  if (NewDomain == SettingsDomain) {
+
+  if (newPage != settingspage) {
+    background(backgroundcolor);
+  }
+
+  buttonsCommon[BCsettings].ChangeColorUnpressed();
+  buttonsCommon[BChelp].ChangeColorUnpressed();
+  buttonsCommon[BCtimedomain].BOn = false;
+  buttonsCommon[BCfreqdomain].BOn = false;
+  buttonsCommon[BCtraindomain].BOn = false;
+  buttonsCommon[BCmousedomain].BOn = false;
+
+  FVpages.get(currentpage).switchToPage();
+  labelGUI();
+
+  loadPixels();
+}
+
+
+
+/************************* BEGIN SETTINGS Page ***********************/
+public class SettingsPage implements pagesClass {
+  // variables
+  PApplet parent;
+
+  GuiButton[] buttons;
+  int ButtonNum = 0;
+  int
+    Bfolder = ButtonNum++, 
+  Bfiltup = ButtonNum++, 
+  Bfiltdown = ButtonNum++, 
+  Bfrequp = ButtonNum++, 
+  Bfreqdown = ButtonNum++, 
+  Brecordtimeup = ButtonNum++, 
+  Brecordtimedown = ButtonNum++, 
+  B1chan = ButtonNum++, 
+  B2chan = ButtonNum++, 
+  B4chan = ButtonNum++, 
+  B8chan = ButtonNum++, 
+  Bcancel = ButtonNum++, 
+  Bsave = ButtonNum++, 
+  Bdefaults = ButtonNum++, 
+  Bdownsampleup = ButtonNum++, 
+  Bdownsampledown = ButtonNum++, 
+  Btimeradjustup = ButtonNum++, 
+  Btimeradjustdown = ButtonNum++, 
+  //Bbitdepth8 = ButtonNum++,
+  //Bbitdepth10 = ButtonNum++,
+  Bprescalerup = ButtonNum++, 
+  Bprescalerdown = ButtonNum++;
+  // Settings Page Buttons
+
+  String pageName = "Settings";
+  String folderTmp = "";
+  String tmpfolder = "";
+  int currentbutton = 0;
+  int UserFrequencyTmp;
+  int UserFreqIndexTmp;
+  int SmoothFilterValTmp;
+  int DownSampleCountTmp;
+  int Timer0AdjustValTmp;
+  int PrescalerTmp;
+  int DataRecordTimeTmp;
+  int SignalNumberTmp;
+  boolean ButtonPressedFlag = false;
+
+  // constructor
+  SettingsPage(PApplet parent) {
+    this.parent = parent;
+    // set input variables
+    initializeButtons();
+
+    folderTmp = folder;
+    UserFreqIndexTmp = UserFreqIndex;
+    UserFrequencyTmp = UserFreqArray[UserFreqIndexTmp];
+    SmoothFilterValTmp = SmoothFilterVal;
+    DownSampleCountTmp = DownSampleCount;
+    Timer0AdjustValTmp = Timer0AdjustVal;
+    PrescalerTmp = Prescaler;
+    DataRecordTimeTmp = DataRecordTime;
+    SignalNumberTmp = SignalNumber;
+  }
+
+  void initializeButtons() {
+    buttons = new GuiButton[ButtonNum];
+    println("width here = "+width);
+    buttons[Bfolder]         = new GuiButton("Folder", ' ', dummypage, width/2-200, height/2-110, 80, Bheights, color(BIdleColor), color(0), "change", Bmomentary, false);
+    buttons[Bfiltup]         = new GuiButton("FilterUp", ' ', dummypage, width/2+115, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+    buttons[Bfiltdown]       = new GuiButton("FilterDn", ' ', dummypage, width/2+65, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+    buttons[Bfrequp]         = new GuiButton("FreqUp", ' ', dummypage, width/2-160, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+    buttons[Bfreqdown]       = new GuiButton("FreqDn", ' ', dummypage, width/2-230, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+    buttons[Brecordtimeup]   = new GuiButton("RecordTimeUp", ' ', dummypage, width/2+200, height/2-70, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+    buttons[Brecordtimedown] = new GuiButton("RecordTimeDn", ' ', dummypage, width/2+130, height/2-70, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+    buttons[B1chan]          = new GuiButton("1chanmodel", ' ', dummypage, width/2-105, height/2+10, 30, Bheights, color(BIdleColor), color(0), "1", Bonoff, false);
+    buttons[B2chan]          = new GuiButton("2chanmodel", ' ', dummypage, width/2-70, height/2+10, 30, Bheights, color(BIdleColor), color(0), "2", Bonoff, false);
+    buttons[B4chan]          = new GuiButton("4chanmodel", ' ', dummypage, width/2-35, height/2+10, 30, Bheights, color(BIdleColor), color(0), "4", Bonoff, true);
+    buttons[B8chan]          = new GuiButton("8chanmodel", ' ', dummypage, width/2+0, height/2+10, 30, Bheights, color(BIdleColor), color(0), "8", Bonoff, false);
+    buttons[Bdownsampleup]   = new GuiButton("DownSampleUp", ' ', dummypage, width/2+220, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+    buttons[Bdownsampledown] = new GuiButton("DownSampleDn", ' ', dummypage, width/2+170, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+    buttons[Btimeradjustup]  = new GuiButton("TimerAdjustUp", ' ', dummypage, width/2-70, height/2+80, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+    buttons[Btimeradjustdown]= new GuiButton("TimerAdjustDn", ' ', dummypage, width/2-130, height/2+80, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+    buttons[Bprescalerup]    = new GuiButton("PrescalerUp", ' ', dummypage, width/2+60, height/2+80, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
+    buttons[Bprescalerdown]  = new GuiButton("PrescalerDn", ' ', dummypage, width/2+0, height/2+80, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
+    buttons[Bsave]           = new GuiButton("Save", 's', dummypage, width/2-160, height/2+130, 140, 30, color(BIdleColor), color(0), "Save & Exit (s)", Bonoff, false);
+    buttons[Bdefaults]       = new GuiButton("Defaults", 'd', dummypage, width/2+160, height/2+130, 140, 30, color(BIdleColor), color(0), "Restore Defaults", Bonoff, false);
+    buttons[Bcancel]         = new GuiButton("Exit", 'c', dummypage, width/2, height/2+130, 120, 30, color(BIdleColor), color(0), "Cancel (c)", Bonoff, false);
+  }
+
+  void switchToPage() {
     folderTmp = folder;
     UserFreqIndexTmp = UserFreqIndex;
     UserFrequencyTmp = UserFrequency;
@@ -3396,77 +1514,998 @@ void ChangeDomain(int NewDomain) {
     PrescalerTmp = Prescaler;
     DataRecordTimeTmp = DataRecordTime;
     SignalNumberTmp = SignalNumber;
+
     StopData(); // turn data off
     delay(serialwritedelay);
-    if (myPort != null){
+    if (myPort != null) {
       myPort.clear();
     }
-    buttonsTDP[BTDPsettings].ChangeColorPressed();
-    buttonsFDP[BFDPsettings].ChangeColorPressed();
-    buttonsTP[BTPsettings].ChangeColorPressed();
-    buttonsMP[BMPsettings].ChangeColorPressed();
-    CurrentDomain = SettingsDomain;
-    DrawSettings();
-    println("Settings Menu");
+    println("width = "+width+", height = "+height+". but parent.width = "+parent.width);
   }
-  else if (NewDomain == HelpDomain) {
-    buttonsTDP[BTDPhelp].ChangeColorPressed();
-    buttonsFDP[BFDPhelp].ChangeColorPressed();
-    buttonsTP[BTPhelp].ChangeColorPressed();
-    buttonsMP[BMPhelp].ChangeColorPressed();
-    CurrentDomain = HelpDomain;
-    DrawHelp();
-    println("Help Page");
-  }
-  else if (NewDomain == TimeDomain) {
-    CurrentDomain = TimeDomain;
-    buttonsTDP[BTDPsettings].ChangeColorUnpressed();
-    buttonsTDP[BTDPhelp].ChangeColorUnpressed();
-    buttonsTDP[BTDPtimedomain].BOn = false;
-    buttonsTDP[BTDPfreqdomain].BOn = false;
-    buttonsTDP[BTDPtraindomain].BOn = false;
-    buttonsTDP[BTDPmousedomain].BOn = false;
-    buttonsTDP[BTDPtimedomain].BOn = true;
 
-    OffSetFlag = false;
+  void drawPage() {
+    // draw subfunctions
+    if (ButtonPressedFlag) {
+      if (millis() > ButtonColorTimer) {
+        ButtonPressedFlag = false;
+        println("Current Button = " + currentbutton);
+        if (buttons[currentbutton] != null && currentbutton < buttons.length) {
+          buttons[currentbutton].ChangeColorUnpressed();
+        }
+      }
+    }
+
+    drawSettings();
+  }
+
+  String getPageName() {
+    return pageName;
+  }
+
+  void saveSettings() {
+    // save all tmp vals from the settings menu in the actual variables
+    folder = folderTmp;
+    UserFreqIndex = UserFreqIndexTmp;
+    SmoothFilterVal = SmoothFilterValTmp;
+    DownSampleCount = DownSampleCountTmp;
+    Timer0AdjustVal = Timer0AdjustValTmp;
+    Prescaler = PrescalerTmp;
+    DataRecordTime = DataRecordTimeTmp;
+    SignalNumber = SignalNumberTmp;
+
+    UserFrequency = UserFreqArray[UserFreqIndex];
+    TimeMax = float(FullPlotWidth)/float(UserFrequency);
+    UserFreqCustom = 0;
+    CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0/((float)UserFrequency/CheckSerialNSamples) );
+    DataRecordLength = DataRecordTime*UserFrequency;
+    buttonsCommon[BCrecordnextdata].label = "Record "+DataRecordTime+"s";
+    for (int i = 0; i<MaxSignalNumber;i++) {
+      if (i < SignalNumber) {
+        ChannelOn[i]=true;
+      } 
+      else if (i >= SignalNumber) {
+        ChannelOn[i]=false;
+      }
+    }
+    TimeMax = float(FullPlotWidth)/float(UserFrequency);
+
+    // build and save a txt file of settings
+    String[] SettingString = new String[8];
+    SettingString[0] = "FlexVoltViewer User Settings";
+    SettingString[1] = folder;
+    SettingString[2] = str(UserFreqIndex);
+    SettingString[3] = str(SmoothFilterVal);
+    SettingString[4] = str(MouseThresh[XLow]);
+    SettingString[5] = str(MouseThresh[XHigh]);
+    SettingString[6] = str(MouseThresh[YLow]);
+    SettingString[7] = str(MouseThresh[YHigh]);
+
+    saveStrings(HomePath+"/FlexVoltViewerSettings.txt", SettingString);
+    UpdateSettings();
+  }
+
+  boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
+    boolean outflag = false;
+    currentbutton = -1;
+    for (int i = 0; i < buttons.length; i++) {
+      if (buttons[i] != null) {
+        if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
+          outflag = true;
+          buttons[i].BOn = !buttons[i].BOn;
+          buttons[i].ChangeColorPressed();
+          ButtonColorTimer = millis()+ButtonColorDelay;
+          ButtonPressedFlag = true;
+          currentbutton = i;
+
+          if (currentbutton == Bfolder) {
+            println("getting folder");
+            waitForFolder();
+            println(folder);
+          }
+          if (currentbutton == Bfrequp) {
+            UserFreqIndexTmp++;
+            if (UserFreqIndexTmp >= UserFreqArray.length)UserFreqIndexTmp=UserFreqArray.length-1;
+            println(UserFreqIndexTmp);
+            UserFrequencyTmp = UserFreqArray[UserFreqIndexTmp];
+          }
+          if (currentbutton == Bfreqdown) {
+            UserFreqIndexTmp--;
+            if (UserFreqIndexTmp < 0)UserFreqIndexTmp=0;
+            println(UserFreqIndexTmp);
+            UserFrequencyTmp = UserFreqArray[UserFreqIndexTmp];
+          }
+          if (currentbutton == Bfiltup) {
+            SmoothFilterValTmp++;  
+            SmoothFilterVal = constrain(SmoothFilterValTmp, SmoothFilterValMin, SmoothFilterValMax);
+          }
+          if (currentbutton == Bfiltdown) {
+            SmoothFilterValTmp--;  
+            SmoothFilterVal = constrain(SmoothFilterValTmp, SmoothFilterValMin, SmoothFilterValMax);
+          }
+          if (currentbutton == Bdownsampleup) {
+            DownSampleCountTmp++;  
+            DownSampleCountTmp = constrain(DownSampleCountTmp, DownSampleCountMin, DownSampleCountMax);
+          }
+          if (currentbutton == Bdownsampledown) {
+            DownSampleCountTmp--;  
+            DownSampleCountTmp = constrain(DownSampleCountTmp, DownSampleCountMin, DownSampleCountMax);
+          }
+          if (currentbutton == Btimeradjustup) {
+            Timer0AdjustValTmp++;  
+            Timer0AdjustValTmp = constrain(Timer0AdjustValTmp, Timer0AdjustValMin, Timer0AdjustValMax);
+          }
+          if (currentbutton == Btimeradjustdown) {
+            Timer0AdjustValTmp--;  
+            Timer0AdjustValTmp = constrain(Timer0AdjustValTmp, Timer0AdjustValMin, Timer0AdjustValMax);
+          }
+          if (currentbutton == Bprescalerup) {
+            PrescalerTmp++;
+            if (PrescalerTmp > PrescalerMax) PrescalerTmp = PrescalerMax;
+          }
+          if (currentbutton == Bprescalerdown) {
+            PrescalerTmp--;
+            if (PrescalerTmp < PrescalerMin) PrescalerTmp = PrescalerMin;
+          }
+          if (currentbutton == Brecordtimeup) {
+            DataRecordTimeTmp++;
+            if (DataRecordTimeTmp > DataRecordTimeMax) DataRecordTimeTmp = DataRecordTimeMax;
+          }
+          if (currentbutton == Brecordtimedown) {
+            DataRecordTimeTmp--;
+            if (DataRecordTimeTmp < DataRecordTimeMin) DataRecordTimeTmp = DataRecordTimeMin;
+          }
+          if (currentbutton == B1chan) {
+            SignalNumberTmp = 1;
+            buttons[B1chan].BOn = false;
+            buttons[B2chan].BOn = false;
+            buttons[B4chan].BOn = false;
+            buttons[B8chan].BOn = false;
+            buttons[currentbutton].BOn = true;
+          }
+          if (currentbutton == B2chan) {
+            SignalNumberTmp = 2;
+            buttons[B1chan].BOn = false;
+            buttons[B2chan].BOn = false;
+            buttons[B4chan].BOn = false;
+            buttons[B8chan].BOn = false;
+            buttons[currentbutton].BOn = true;
+          }
+          if (currentbutton == B4chan) {
+            SignalNumberTmp = 4;
+            buttons[B1chan].BOn = false;
+            buttons[B2chan].BOn = false;
+            buttons[B4chan].BOn = false;
+            buttons[B8chan].BOn = false;
+            buttons[currentbutton].BOn = true;
+          }
+          if (currentbutton == B8chan) {
+            SignalNumberTmp = 8;
+            buttons[B1chan].BOn = false;
+            buttons[B2chan].BOn = false;
+            buttons[B4chan].BOn = false;
+            buttons[B8chan].BOn = false;
+            buttons[currentbutton].BOn = true;
+          }
+          if (currentbutton == Bsave) {
+            println("Got the save 's'");
+            saveSettings();
+            changePage(oldpage);
+            buttons[currentbutton].BOn = false;
+            return outflag;
+          }
+          if (currentbutton == Bcancel) {
+            changePage(oldpage);
+            EstablishDataLink();
+            buttons[currentbutton].BOn = false;
+            return outflag;
+          }
+          if (currentbutton == Bdefaults) {
+            restoreDefaults();
+          }
+          drawSettings();
+        }
+      }
+    }
+    return outflag;
+  }
+
+  void useSerialEvent() {
+  }
+
+  void drawHelp() {
+    // help text
+  }
+
+  void restoreDefaults() {
+  }
+
+  void waitForFolder() {
+    tmpfolder = null;
+    selectFolder("Select a folder to process:", "folderSelected");
+    while (tmpfolder == null) delay(200);
+
+    // labelaxes();
+    // for (String csv: filenames = folder.list(csvFilter)) println(csv);
+  }
+
+  void folderSelected(File selection) {
+    if (selection == null) {
+      println("Window was closed or the user hit cancel.");
+      tmpfolder = "";
+    } 
+    else {
+      println("User selected " + selection.getAbsolutePath());
+      folderTmp = selection.getAbsolutePath();
+      tmpfolder = folderTmp;
+    }
+  }
+
+  void drawSettings() {
+    textAlign(CENTER, CENTER);
+    blankplot();
+    stroke(labelcolor);
+    strokeWeight(4);
+    fill(backgroundcolor);
+    rectMode(CENTER);
+    rect(width/2, height/2, FullPlotWidth+20, plotheight+40, 12);
+
+    strokeWeight(2);
+    textSize(labelsizexs);
+    textAlign(CENTER, CENTER);
+
+    stroke(labelcolor);
+    fill(backgroundcolor);
+    rect(width/2-90, height/2-90, 300, Bheights);
+    if (int(textWidth(folderTmp)) < 300) {
+      fill(labelcolor);
+      text(folderTmp, width/2-90, height/2-90);
+    }
+    else if (textWidth(folderTmp) >= 450) {
+      rect(width/2-90, height/2-70, 300, Bheights);
+      fill(labelcolor);
+      text(folderTmp, width/2-90, height/2-80, 300, Bheights*2);
+    }
+
+    textSize(titlesize);
+    text("FlexVolt Settings Menu", width/2, height/2-plotheight/2);
+
+    textSize(labelsizes);
+    text("Saving Data & Images", width/2, height/2-115);
+    textSize(labelsizexs);
+    text("Save Directory", width/2-200, height/2-130);
+
+    text("Data Recording Time (s)", width/2+170, height/2-95);
+    text(str(DataRecordTimeTmp), width/2+170, height/2-70);
+
+    textSize(labelsizes);
+    text("Data Sampling Settings", width/2, height/2-40);
+    textSize(labelsizexs);
+    text("Frequency, Hz", width/2-195, height/2-15);
+    text(str(UserFrequencyTmp), width/2-195, height/2+10);
+
+    text("Number of Channels", width/2-50, height/2-15); // reserved for future use
+
+    text("Smooth Filter", width/2+90, height/2-15);
+    text(str(SmoothFilterValTmp), width/2+90, height/2+10);
+
+    text("Downsample", width/2+200, height/2-15);
+    text(str(DownSampleCountTmp), width/2+200, height/2+10);
+
+    textSize(labelsizes);
+    text("Timing Settings (Advanced)", width/2, height/2+40);
+    textSize(labelsizexs);
+    text("Timer Adjust", width/2-100, height/2+60);
+    text(str(Timer0AdjustValTmp), width/2-100, height/2+80);
+
+    text("Prescaler", width/2+30, height/2+60);
+    text(str(PrescalerTmp), width/2+30, height/2+80);
+
+
+    for (int i = 0; i < buttons.length; i++) {
+      if (buttons[i] != null) {
+        buttons[i].drawButton();
+      }
+    }
+  }
+}
+/************************* END SETTINGS PAGE ***********************/
+
+
+/************************* BEGIN TimeDomainPlot Page ***********************/
+public class TimeDomainPlotPage implements pagesClass {
+  // variables
+  GuiButton[] buttons;
+  int ButtonNum = 0;
+  int
+    Boffset = ButtonNum++, 
+  Bpause = ButtonNum++, 
+  Bsmooth = ButtonNum++, 
+  Bclear = ButtonNum++, 
+  Bchan1 = ButtonNum++, 
+  Bchan2 = ButtonNum++, 
+  Bchan3 = ButtonNum++, 
+  Bchan4 = ButtonNum++, 
+  Bchan5 = ButtonNum++, 
+  Bchan6 = ButtonNum++, 
+  Bchan7 = ButtonNum++, 
+  Bchan8 = ButtonNum++;
+
+  String pageName = "Muscle Voltage";
+  int xPos = 0;
+  int[] OffSet2 = {    
+    +plotheight*3/4, +plotheight*1/4
+  };
+  int[] OffSet8 = {    
+    +plotheight*7/8, +plotheight*5/8, +plotheight*3/8, +plotheight*1/8, +plotheight*7/8, +plotheight*5/8, +plotheight*3/8, +plotheight*1/8
+  };
+  int[] OffSet4 = {    
+    +plotheight*7/8, +plotheight*5/8, +plotheight*3/8, +plotheight*1/8
+  };
+
+  boolean ButtonPressedFlag = false;
+
+  // constructor
+  TimeDomainPlotPage() {
+    // set input variables
+    initializeButtons();
+  }
+
+  void initializeButtons() {
+    buttons = new GuiButton[ButtonNum];
+    int buttony = yTitle+195;
+    int controlsy = yTitle+30;
+
+    buttons[Boffset] =new GuiButton("OffSet", 'o', dummypage, xStep+plotwidth+45, controlsy+70, 60, Bheight, color(BIdleColor), color(0), "OffSet", Bonoff, false);
+    buttons[Bpause] = new GuiButton("Pause", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+    buttons[Bsmooth] =new GuiButton("Smooth", 'f', dummypage, xStep+plotwidth+45, controlsy+100, 60, Bheight, color(BIdleColor), color(0), "Filter", Bonoff, false);
+    buttons[Bclear] = new GuiButton("Clear", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
+    buttons[Bchan1] = new GuiButton("Chan1", '1', dummypage, xStep+plotwidth+25, buttony, 30, Bheight, color(BIdleColor), Sig1Color, "1", Bonoff, true);
+    buttons[Bchan2] = new GuiButton("Chan2", '2', dummypage, xStep+plotwidth+25, buttony+30, 30, Bheight, color(BIdleColor), Sig2Color, "2", Bonoff, true);
+    buttons[Bchan3] = new GuiButton("Chan3", '3', dummypage, xStep+plotwidth+25, buttony+60, 30, Bheight, color(BIdleColor), Sig3Color, "3", Bonoff, true);
+    buttons[Bchan4] = new GuiButton("Chan4", '4', dummypage, xStep+plotwidth+25, buttony+90, 30, Bheight, color(BIdleColor), Sig4Color, "4", Bonoff, true);
+    buttons[Bchan5] = new GuiButton("Chan5", '5', dummypage, xStep+plotwidth+65, buttony, 30, Bheight, color(BIdleColor), Sig5Color, "5", Bonoff, false);
+    buttons[Bchan6] = new GuiButton("Chan6", '6', dummypage, xStep+plotwidth+65, buttony+30, 30, Bheight, color(BIdleColor), Sig6Color, "6", Bonoff, false);
+    buttons[Bchan7] = new GuiButton("Chan7", '7', dummypage, xStep+plotwidth+65, buttony+60, 30, Bheight, color(BIdleColor), Sig7Color, "7", Bonoff, false);
+    buttons[Bchan8] = new GuiButton("Chan8", '8', dummypage, xStep+plotwidth+65, buttony+90, 30, Bheight, color(BIdleColor), Sig8Color, "8", Bonoff, false);
+
+    OffSet2[0] = plotheight*3/4;
+    OffSet2[1] = plotheight*1/4;
+
+    OffSet4[0] = plotheight*7/8;
+    OffSet4[1] = plotheight*5/8;
+    OffSet4[2] = plotheight*3/8;
+    OffSet4[3] = plotheight*1/8;
+
+    OffSet8[0] = plotheight*7/8;
+    OffSet8[1] = plotheight*5/8;
+    OffSet8[2] = plotheight*3/8;
+    OffSet8[3] = plotheight*1/8;
+    OffSet8[4] = plotheight*7/8;
+    OffSet8[5] = plotheight*5/8;
+    OffSet8[6] = plotheight*3/8;
+    OffSet8[7] = plotheight*1/8;
+  }
+
+  void switchToPage() {
+    //    SmoothFilterFlag = false; //todo make this stay as it was for this page
+    //    OffSetFlag = false;
     PauseFlag = false;
+    for (int i = 0; i < MaxSignalNumber; i++) {
+      buttons[Bchan1+i].BOn = ChannelOn[i];
+    }
+    buttons[Boffset].BOn = OffSetFlag;
+    buttons[Bsmooth].BOn = SmoothFilterFlag;
+    buttons[Bpause].BOn = PauseFlag;
+
     datacounter = 0;
     plotwidth = FullPlotWidth;
     xPos = 0;
-    GetChannelButtons(buttonsTDP);
-    background(backgroundcolor);
+    //    background(backgroundcolor);
     labelaxes();
     blankplot();
     println("TimeDomain");
   }
-  else if (NewDomain == FreqDomain) {
-    CurrentDomain = FreqDomain;
-    buttonsFDP[BFDPsettings].ChangeColorUnpressed();
-    buttonsFDP[BFDPhelp].ChangeColorUnpressed();
-    buttonsFDP[BFDPfreqdomain].label = "Switch to Time";
-    buttonsFDP[BFDPtimedomain].BOn = false;
-    buttonsFDP[BFDPfreqdomain].BOn = false;
-    buttonsFDP[BFDPtraindomain].BOn = false;
-    buttonsFDP[BFDPmousedomain].BOn = false;
-    // buttonsFDP[BFDPfreqdomain].BOn = true;
-    buttonsFDP[BFDPtimedomain].BOn = true;
+
+  void drawPage() {
+    // draw subfunctions
+    if (ButtonPressedFlag) {
+      if (millis() > ButtonColorTimer) {
+        ButtonPressedFlag = false;
+        println("Current Button = " + currentbutton);
+        if (buttons[currentbutton] != null && currentbutton < buttons.length) {
+          buttons[currentbutton].ChangeColorUnpressed();
+        }
+      }
+    }
+
+    if (!(xPos == plotwidth && PauseFlag)) {
+      // startTime = System.nanoTime()/1000;
+      drawTrace();
+      // endTime = System.nanoTime()/1000;
+      // println("drawTrace takes "+(endTime-startTime));
+    }
+  }
+
+  String getPageName() {
+    return pageName;
+  }
+
+  void labelaxes() {
+    fill(labelcolor);
+    stroke(labelcolor);
+    strokeWeight(2);
+    textAlign(CENTER, CENTER);
+
+    // title
+    textSize(titlesize);
+    text("Muscle Voltage", xStep+FullPlotWidth/2+20, yTitle-45);
+
+    textSize(axisnumbersize);
+    // x-axis
+    float val = 0;
+    for (int i = 0; i < Nxticks+1; i++) {
+      text(nf(val, 1, 0), xStep+int(map(val, 0, TimeMax, 0, plotwidth-10)), height-yStep+10);
+      val += TimeMax/Nxticks;
+    }
+
+    // y-axis
+    if (!OffSetFlag) {
+      val = VoltageMin;
+      for (int i = 0; i < Nyticks+1; i++) {
+        if (val > 0) {
+          text(("+"+nf(val, 1, 0)), xStep-20, ytmp -5 - int(map(val, VoltageMin, VoltageMax, 0, plotheight-10)));
+        } 
+        else {
+          text(nf(val, 1, 0), xStep-20, ytmp -5 - int(map(val, VoltageMin, VoltageMax, 0, plotheight-10)));
+        }
+        val += (VoltageMax-VoltageMin)/Nyticks;
+      }
+    }
+    else if (OffSetFlag) {
+      val = VoltageMin/2;
+      // val = VoltageMin;
+      int xtmp = 0;
+      for (int i = 0; i < NyticksHalf+1; i++) {
+        xtmp = xStep-20;
+        if (val > 0) {
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, 0, plotheight/4)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/4, plotheight/2)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/2, plotheight*3/4)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight*3/4, plotheight)));
+        } 
+        else {
+          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, 0, plotheight/4)));
+          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/4, plotheight/2)));
+          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight/2, plotheight*3/4)));
+          text(nf(val, 1, 0), xtmp, ytmp - int(map(val, VoltageMin, VoltageMax, plotheight*3/4, plotheight)));
+        }
+        val += ((VoltageMax/2)-(VoltageMin/2))/NyticksHalf;
+        // val += ((VoltageMax)-(VoltageMin))/Nyticks;
+      }
+    }
+
+    // axis labels
+    textSize(labelsizes);
+    translate(12, height/2);
+    rotate(-PI/2);
+    text("Electrical Potential, millivolts", 0, 0);
+    rotate(PI/2);
+    translate(-12, -height/2);
+    text("Time, seconds", xStep + plotwidth/2, height-15);
+
+    textSize(labelsize);
+    text("Channel", xStep+FullPlotWidth+45, yTitle+165);
+    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
+
+    for (int i = 0; i < buttons.length; i++) {
+      buttons[i].drawButton();
+    }
+  }
+
+  boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
+    boolean outflag = false;
+    currentbutton = -1;
+    for (int i = 0; i < buttons.length; i++) {
+      if (buttons[i] != null) {
+        if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
+          outflag = true;
+          buttons[i].BOn = !buttons[i].BOn;
+          buttons[i].ChangeColorPressed();
+          ButtonColorTimer = millis()+ButtonColorDelay;
+          ButtonPressedFlag = true;
+          currentbutton = i;
+
+          if (currentbutton == Boffset) {
+            OffSetFlag = !OffSetFlag;
+            ClearYAxis();
+          }
+          if (currentbutton == Bsmooth) {
+            SmoothFilterFlag = !SmoothFilterFlag;
+            if (SmoothFilterFlag) {
+              DownSampleCount = 10;
+              BitDepth10 = false;
+            }
+            else {
+              DownSampleCount = 1;
+              BitDepth10 = true;
+            }
+            UpdateSettings();
+          }
+          if (currentbutton == Bclear) {
+            datacounter = 0;
+            xPos = 0;
+            blankplot();
+          }
+          if (currentbutton == Bpause) {
+            PauseFlag = !PauseFlag;
+            if (!PauseFlag) {
+              buttons[currentbutton].label = "Pause";
+              datacounter = 0;
+              xPos = 0;
+            }
+            else if (PauseFlag) {
+              buttons[currentbutton].label = "Play";
+            }
+          }
+          if (currentbutton == Bchan1) {
+            ChannelOn[0] = !ChannelOn[0];
+          }
+          if (currentbutton == Bchan2) {
+            ChannelOn[1] = !ChannelOn[1];
+          }
+          if (currentbutton == Bchan3) {
+            ChannelOn[2] = !ChannelOn[2];
+          }
+          if (currentbutton == Bchan4) {
+            ChannelOn[3] = !ChannelOn[3];
+          }
+          if (currentbutton == Bchan5) {
+            ChannelOn[4] = !ChannelOn[4];
+          }
+          if (currentbutton == Bchan6) {
+            ChannelOn[5] = !ChannelOn[5];
+          }
+          if (currentbutton == Bchan7) {
+            ChannelOn[6] = !ChannelOn[6];
+          }
+          if (currentbutton == Bchan8) {
+            ChannelOn[7] = !ChannelOn[7];
+          }
+
+          labelaxes();
+        }
+      }
+    }
+    return outflag;
+  }
+
+  void useSerialEvent() {
+  }
+
+  void drawHelp() {
+    // help text
+  }
+
+  void drawTrace() {
+    int sigtmp = 0;
+    loadPixels();
+    while (datacounter > 1) {
+      xPos++;//=DownSampleCount;
+      if (xPos >= plotwidth && !PauseFlag) {
+        xPos = -1;
+        updatePixels();
+        return;
+      }
+      else if (xPos >= plotwidth && PauseFlag) {
+        xPos = plotwidth-1;
+        updatePixels();
+        return;
+      }
+      else if (xPos == 0) {
+        updatePixels();
+        blankplot();
+        return;
+      }
+
+      for (int j = 0; j < SignalNumber;j++) {
+        if (ChannelOn[j]) {
+          int tmpind = signalindex-datacounter;//*DownSampleCount;
+          while (tmpind < 0) {
+            tmpind+=MaxSignalLength;
+          }
+          if (!OffSetFlag) {
+            sigtmp = int(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, 0, plotheight));
+          }
+          else {
+            if (ChannelOn[4] || ChannelOn[5] || ChannelOn[6] || ChannelOn[7]) {
+              sigtmp = OffSet8[j]+int(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, -plotheight/(2*SignalNumber), plotheight/(2*SignalNumber)));
+            } 
+            else if (ChannelOn[3] || ChannelOn[2]) {
+              sigtmp = OffSet4[j]+int(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, -plotheight/(2*SignalNumber), plotheight/(2*SignalNumber)));
+            } 
+            else if (ChannelOn[1]) {
+              sigtmp = OffSet2[j]+int(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, -plotheight/(2*SignalNumber), plotheight/(2*SignalNumber)));
+            }
+          }
+          sigtmp = constrain( sigtmp, pointThickness, plotheight - pointThickness);
+          drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, SigColorM[j], pointThickness);
+          oldPlotSignal[j] = sigtmp;
+        }
+      }
+      datacounter --;
+    }
+    updatePixels();
+  }
+}
+/************************* END TimeDomainPlot PAGE ***********************/
+
+
+/************************* BEGIN FreqDomainPlot Page ***********************/
+public class FreqDomainPlotPage implements pagesClass {
+  // variables
+  GuiButton[] buttons;
+  int ButtonNum = 0;
+  int
+    Boffset = ButtonNum++, 
+  Bpause = ButtonNum++, 
+  Bclear = ButtonNum++, 
+  Bchan1 = ButtonNum++, 
+  Bchan2 = ButtonNum++, 
+  Bchan3 = ButtonNum++, 
+  Bchan4 = ButtonNum++, 
+  Bchan5 = ButtonNum++, 
+  Bchan6 = ButtonNum++, 
+  Bchan7 = ButtonNum++, 
+  Bchan8 = ButtonNum++;
+  int xPos = 0;
+  float FreqMax = 500;//Hz for fft dilay window
+  float FreqAmpMin = 0;
+  float FreqAmpMax = 1;
+  int FFTscale = 80; // multiplying fft amplitude
+  int OffSet2[] = {    
+    0, plotheight/2
+  };
+  int OffSet4[] = {    
+    0, plotheight/4, plotheight/2, plotheight*3/4
+  };
+  int OffSet8[] = {    
+    0, plotheight/8, plotheight/4, plotheight*3/8, plotheight/2, plotheight*5/8, plotheight*3/4, plotheight*7/8
+  };
+  boolean ButtonPressedFlag = false;
+  String pageName = "Muscle Signal Frequency";
+
+  //  int FreqFactor = FullPlotWidth/250;
+  int FFTstep = 2;
+  float FreqFactor = (float)plotwidth/FrequencyMax;
+
+  // constructor
+  FreqDomainPlotPage() {
+    // set input variables
+    initializeButtons();
+  }
+
+  void initializeButtons() {
+    int buttony = yTitle+195;
+    int controlsy = yTitle+30;
+    buttons = new GuiButton[ButtonNum];
+    buttons[Boffset]= new GuiButton("OffSet", 'o', dummypage, xStep+plotwidth+45, controlsy+70, 60, Bheight, color(BIdleColor), color(0), "OffSet", Bonoff, false);
+    buttons[Bpause] = new GuiButton("Pause", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+    buttons[Bclear] = new GuiButton("Clear", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
+    buttons[Bchan1] = new GuiButton("Chan1", '1', dummypage, xStep+plotwidth+25, buttony, 30, Bheight, color(BIdleColor), Sig1Color, "1", Bonoff, true);
+    buttons[Bchan2] = new GuiButton("Chan2", '2', dummypage, xStep+plotwidth+25, buttony+30, 30, Bheight, color(BIdleColor), Sig2Color, "2", Bonoff, true);
+    buttons[Bchan3] = new GuiButton("Chan3", '3', dummypage, xStep+plotwidth+25, buttony+60, 30, Bheight, color(BIdleColor), Sig3Color, "3", Bonoff, true);
+    buttons[Bchan4] = new GuiButton("Chan4", '4', dummypage, xStep+plotwidth+25, buttony+90, 30, Bheight, color(BIdleColor), Sig4Color, "4", Bonoff, true);
+    buttons[Bchan5] = new GuiButton("Chan5", '5', dummypage, xStep+plotwidth+65, buttony, 30, Bheight, color(BIdleColor), Sig5Color, "5", Bonoff, false);
+    buttons[Bchan6] = new GuiButton("Chan6", '6', dummypage, xStep+plotwidth+65, buttony+30, 30, Bheight, color(BIdleColor), Sig6Color, "6", Bonoff, false);
+    buttons[Bchan7] = new GuiButton("Chan7", '7', dummypage, xStep+plotwidth+65, buttony+60, 30, Bheight, color(BIdleColor), Sig7Color, "7", Bonoff, false);
+    buttons[Bchan8] = new GuiButton("Chan8", '8', dummypage, xStep+plotwidth+65, buttony+90, 30, Bheight, color(BIdleColor), Sig8Color, "8", Bonoff, false);
+
+    OffSet2[0] = 0;
+    OffSet2[1] = plotheight/2;
+
+    OffSet4[0] = 0;
+    OffSet4[1] = plotheight/4;
+    OffSet4[2] = plotheight/2;
+    OffSet4[3] = plotheight*3/4;
+
+    OffSet8[0] = 0;
+    OffSet8[1] = plotheight/8;
+    OffSet8[2] = plotheight/4;
+    OffSet8[3] = plotheight*3/8;
+    OffSet8[4] = plotheight/2;
+    OffSet8[5] = plotheight*5/8;
+    OffSet8[6] = plotheight*3/4;
+    OffSet8[7] = plotheight*7/8;
+
+    FreqFactor = (float)plotwidth/FrequencyMax;
+  }
+
+  void switchToPage() {
+    //    OffSetFlag = false;
     PauseFlag = false;
+    for (int i = 0; i < MaxSignalNumber; i++) {
+      buttons[Bchan1+i].BOn = ChannelOn[i];
+    }
+    buttons[Boffset].BOn = OffSetFlag;
+    buttons[Bpause].BOn = PauseFlag;
+
     plotwidth = FullPlotWidth;
-    GetChannelButtons(buttonsFDP);
-    background(backgroundcolor);
+    //    background(backgroundcolor);
     labelaxes();
     blankplot();
     println("FreqDomain");
   }
-  else if (NewDomain == TrainingDomain) {
-    CurrentDomain = TrainingDomain;
-    buttonsTP[BTPsettings].ChangeColorUnpressed();
-    buttonsTP[BTPhelp].ChangeColorUnpressed();
-    buttonsTP[BTPtimedomain].BOn = false;
-    buttonsTP[BTPfreqdomain].BOn = false;
-    buttonsTP[BTPtraindomain].BOn = false;
-    buttonsTP[BTPmousedomain].BOn = false;
-    buttonsTP[BTPtraindomain].BOn = true;
+
+  void drawPage() {
+    // draw subfunctions
+    if (ButtonPressedFlag) {
+      if (millis() > ButtonColorTimer) {
+        ButtonPressedFlag = false;
+        println("Current Button = " + currentbutton);
+        if (buttons[currentbutton] != null && currentbutton < buttons.length) {
+          buttons[currentbutton].ChangeColorUnpressed();
+        }
+      }
+    }
+
+    if (!PauseFlag) {
+      drawFFT();
+    }
+  }
+
+  String getPageName() {
+    return pageName;
+  }
+
+  void labelaxes() {
+    fill(labelcolor);
+    stroke(labelcolor);
+    strokeWeight(2);
+    textAlign(CENTER, CENTER);
+
+    // title
+    textSize(titlesize);
+    text("Signal Frequency", xStep+FullPlotWidth/2+20, yTitle-45);
+
+    // x-axis
+    textSize(axisnumbersize);
+    float val = 0;
+    //    println("MSL = "+MaxSignalLength+", plotwidth = "+plotwidth+", freqfac = "+FreqFactor);
+    //    float tmp = (float)MaxSignalLength/plotwidth;
+    //    tmp = max(tmp,1);
+    //    FreqMax = (int)(float(UserFrequency)/(tmp)/float(FreqFactor));
+    //    println("fm = "+FreqMax);
+    for (int i = 0; i < Nxticks+1; i++) {
+      text(nf(val, 1, 0), xStep+int(map(val, 0, FrequencyMax, 0, plotwidth)), height-yStep+10);
+      val += FrequencyMax/Nxticks;
+    }
+
+    // axis labels
+    textSize(labelsizes);
+    translate(40, height/2);
+    rotate(-PI/2);
+    text("Intensity, a.u.", 0, 0);
+    rotate(PI/2);
+    translate(-40, -height/2);
+    text("Frequency, Hz", xStep + plotwidth/2, height-15);
+
+    textSize(labelsize);
+    text("Channel", xStep+FullPlotWidth+45, yTitle+165);
+    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
+    textSize(labelsizes);
+
+    for (int i = 0; i < buttons.length; i++) {
+      buttons[i].drawButton();
+    }
+  }
+
+  boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
+    boolean outflag = false;
+    currentbutton = -1;
+    for (int i = 0; i < buttons.length; i++) {
+      if (buttons[i] != null) {
+        if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
+          outflag = true;
+          buttons[i].BOn = !buttons[i].BOn;
+          buttons[i].ChangeColorPressed();
+          ButtonColorTimer = millis()+ButtonColorDelay;
+          ButtonPressedFlag = true;
+          currentbutton = i;
+
+          if (currentbutton == Boffset) {
+            OffSetFlag = !OffSetFlag;
+            ClearYAxis();
+            labelaxes();
+            println("OffSet Changed");
+          }
+          if (currentbutton == Bclear) {
+            datacounter = 0;
+            xPos = 0;
+            blankplot();
+            labelaxes();
+            println("Plot Cleared");
+          }
+          if (currentbutton == Bpause) {
+            PauseFlag = !PauseFlag;
+            if (!PauseFlag) { 
+              buttons[currentbutton].label = "Pause";
+            }
+            else if (PauseFlag) { 
+              buttons[currentbutton].label = "Play";
+            }
+          }
+          if (currentbutton == Bchan1) {  
+            ChannelOn[0] = !ChannelOn[0];
+          }
+          if (currentbutton == Bchan2) {  
+            ChannelOn[1] = !ChannelOn[1];
+          }
+          if (currentbutton == Bchan3) {  
+            ChannelOn[2] = !ChannelOn[2];
+          }
+          if (currentbutton == Bchan4) {  
+            ChannelOn[3] = !ChannelOn[3];
+          }
+          if (currentbutton == Bchan5) {  
+            ChannelOn[4] = !ChannelOn[4];
+          }
+          if (currentbutton == Bchan6) {  
+            ChannelOn[5] = !ChannelOn[5];
+          }
+          if (currentbutton == Bchan7) {  
+            ChannelOn[6] = !ChannelOn[6];
+          }
+          if (currentbutton == Bchan8) {  
+            ChannelOn[7] = !ChannelOn[7];
+          }
+
+          labelaxes();
+        }
+      }
+    }
+    return outflag;
+  }
+
+  void useSerialEvent() {
+  }
+
+  void drawHelp() {
+    // help text
+  }
+
+  void drawFFT() {
+    blankplot();
+    stroke(FFTcolor);
+    // filtered=filter1.apply(signalIn);
+    // filtered = signalIn1;
+
+
+    for (int j = 0; j < SignalNumber; j++) {
+      System.arraycopy(fft.computeFFT(FFTsignalIn[j]), 0, fft_result[j], 0, FFTSignalLength/2);
+    }
+
+    for (int i = 2; i<min(fft.WS2,FrequencyMax); i++) {
+      int xtmp = xStep+int(FreqFactor*float(i-1));
+      for (int j = 0; j < SignalNumber;j++) {
+        if (ChannelOn[j]) {
+          stroke(SigColorM[j]);
+          if (OffSetFlag) {
+            if (ChannelOn[4] || ChannelOn[5] || ChannelOn[6] || ChannelOn[7]) {
+              for (int k = 0; k < FreqFactor; k++) {
+                line(xtmp+k, ytmp - FFTstep - OffSet8[j], xtmp+k, min(ytmp-FFTstep-OffSet8[j], max(yTitle+2+OffSet8[7-j], ytmp - OffSet8[j] - int(FFTscale*fft_result[j][i])/8)) );
+              }
+            }
+            else if (ChannelOn[3] || ChannelOn[2]) {
+              for (int k = 0; k < FreqFactor; k++) {
+                line(xtmp+k, ytmp - FFTstep - OffSet4[j], xtmp+k, min(ytmp-FFTstep-OffSet4[j], max(yTitle+2+OffSet4[3-j], ytmp - OffSet4[j] - int(FFTscale*fft_result[j][i])/4)) );
+              }
+            }
+            else {
+              for (int k = 0; k < FreqFactor; k++) {
+                line(xtmp+k, ytmp - FFTstep - OffSet2[j], xtmp+k, min(ytmp-FFTstep-OffSet2[j], max(yTitle+2+OffSet2[1-j], ytmp - OffSet2[j] - int(FFTscale*fft_result[j][i])/2)) );
+              }
+            }
+          }
+          else {
+            line(xtmp, ytmp - FFTstep, xtmp, min(ytmp-FFTstep, max(yTitle+2, ytmp - int(FFTscale*fft_result[j][i]))) );
+          }
+        }
+      }
+    }
+  }
+}
+/************************* END FrequencyDomainPlot PAGE ***********************/
+
+
+/************************* BEGIN WORKOUT PAGE ***********************/
+public class WorkoutPage implements pagesClass {
+  // variables
+  GuiButton[] buttons;
+  int ButtonNum = 0;
+  int
+    Breset = ButtonNum++, 
+  BsetReps1 = ButtonNum++, 
+  BsetReps2 = ButtonNum++, 
+  Bthresh1up = ButtonNum++, 
+  Bthresh1down = ButtonNum++, 
+  Bthresh2up = ButtonNum++, 
+  Bthresh2down = ButtonNum++, 
+  Bchan1 = ButtonNum++, 
+  Bchan2 = ButtonNum++, 
+  Bchan1up = ButtonNum++, 
+  Bchan2up = ButtonNum++, 
+  Bchan1down = ButtonNum++, 
+  Bchan2down = ButtonNum++, 
+  Bchan1name = ButtonNum++, 
+  Bchan2name = ButtonNum++;
+
+
+  // Workout
+  int Reps = 0, Work = 1;
+  int BTWorkoutType = Reps;
+  int RepsTargetDefault = 10;
+  int RepsTarget[] = {     
+    RepsTargetDefault, RepsTargetDefault
+  };
+  int RepThreshDefault = 64;
+  int RepThresh[] = {    
+    RepThreshDefault, RepThreshDefault
+  };
+  int RepThreshStep = 10;
+  int RepsCounter[] = {     
+    0, 0
+  };
+  int FlexOnCounter[] = {     
+    0, 0
+  };
+  boolean ChanFlexed[] = {     
+    false, false
+  };
+  int TRepCounter = 0, TDataLogger = 1;
+  int TrainingMode = TRepCounter;
+  int DataThresh[] = {    
+    545, 545
+  };
+  int[][] TMax;
+  int TrainChan[] = {    
+    0, 1
+  };
+
+  String pageName = "FlexVolt Training";
+  String typing = "";
+  String savedname = "";
+  boolean NamesFlag = false;
+  int NameNumber = 0;
+  int RepBarWidth = 30;
+  int xPos = 0;
+  boolean ButtonPressedFlag = false;
+
+  // constructor
+  WorkoutPage() {
+    // set input variables
+    initializeButtons();
+  }
+
+  void initializeButtons() {
+    buttons = new GuiButton[ButtonNum];
+    buttons[Breset]       = new GuiButton("Reset", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+plotheight/2+5, 120, Bheights, color(BIdleColor), color(0), "Reset Workout", Bmomentary, false);
+    buttons[BsetReps1]    = new GuiButton("SetReps1", ' ', dummypage, xStep+HalfPlotWidth+30, yTitle+70, 50, Bheights, color(BIdleColor), color(0), str(RepsTarget[0]), Bonoff, false);
+    buttons[BsetReps2]    = new GuiButton("SetReps2", ' ', dummypage, xStep+HalfPlotWidth+30, yTitle+plotheight/2+90, 50, Bheights, color(BIdleColor), color(0), str(RepsTarget[1]), Bonoff, false);
+    buttons[Bthresh1up]   = new GuiButton("repthresh1up", ' ', dummypage, xStep+HalfPlotWidth+20, yTitle+plotheight/2-50, 30, Bheights, color(BIdleColor), color(0), "up", Bmomentary, false);
+    buttons[Bthresh1down] = new GuiButton("repthresh1dn", ' ', dummypage, xStep+HalfPlotWidth+20, yTitle+plotheight/2-26, 30, Bheights, color(BIdleColor), color(0), "dn", Bmomentary, false);
+    buttons[Bthresh2up]   = new GuiButton("repthresh2up", ' ', dummypage, xStep+HalfPlotWidth+20, yTitle+plotheight-29, 30, Bheights, color(BIdleColor), color(0), "up", Bmomentary, false);
+    buttons[Bthresh2down] = new GuiButton("repthresh2dn", ' ', dummypage, xStep+HalfPlotWidth+20, yTitle+plotheight-5, 30, Bheights, color(BIdleColor), color(0), "dn", Bmomentary, false);
+    buttons[Bchan1]       = new GuiButton("Chan1", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+40, 30, Bheights, color(BIdleColor), SigColorM[TrainChan[0]], str(TrainChan[0]+1), Bonoff, true);
+    buttons[Bchan1name]   = new GuiButton("Name1", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+15, 120, Bheights, color(BIdleColor), color(0), "name1", Bonoff, false);
+    buttons[Bchan1up]     = new GuiButton("Ch1up", ' ', dummypage, xStep+HalfPlotWidth+105, yTitle+40, Bheights, Bheights, color(BIdleColor), color(0), ">", Bmomentary, false);
+    buttons[Bchan1down]   = new GuiButton("Ch1dn", ' ', dummypage, xStep+HalfPlotWidth+25, yTitle+40, Bheights, Bheights, color(BIdleColor), color(0), "<", Bmomentary, false);
+    buttons[Bchan2]       = new GuiButton("Chan2", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+plotheight/2+60, 30, Bheights, color(BIdleColor), SigColorM[TrainChan[1]], str(TrainChan[1]+1), Bonoff, false);
+    buttons[Bchan2name]   = new GuiButton("Name2", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+plotheight/2+35, 120, Bheights, color(BIdleColor), color(0), "name2", Bonoff, false);
+    buttons[Bchan2up]     = new GuiButton("Ch2up", ' ', dummypage, xStep+HalfPlotWidth+105, yTitle+plotheight/2+60, Bheights, Bheights, color(BIdleColor), color(0), ">", Bmomentary, false);
+    buttons[Bchan2down]   = new GuiButton("Ch2dn", ' ', dummypage, xStep+HalfPlotWidth+25, yTitle+plotheight/2+60, Bheights, Bheights, color(BIdleColor), color(0), "<", Bmomentary, false);
+  }
+
+  void switchToPage() {
 
     DownSampleCount = DownSampleCountTraining; //!!!!!!!!!!!!!!!
     UserFreqIndex = UserFreqIndexTraining;
@@ -3474,26 +2513,800 @@ void ChangeDomain(int NewDomain) {
     CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0/((float)UserFrequency/CheckSerialNSamples) );
     SmoothFilterFlag = true;
     BitDepth10 = false;
-
     OffSetFlag = true;
     PauseFlag = false;
+    ChannelOn[TrainChan[0]] = true;
+    ChannelOn[TrainChan[1]] = true;
+    buttons[Bchan1].BOn = ChannelOn[TrainChan[0]];
+    buttons[Bchan2].BOn = ChannelOn[TrainChan[1]];
     plotwidth = HalfPlotWidth;
-    GetChannelButtons(buttonsTP);
-    background(backgroundcolor);
+    //    background(backgroundcolor);
     labelaxes();
     blankplot();
     UpdateSettings();
     println("Workout Turned ON");
   }
-  else if (NewDomain == MouseDomain) {
-    CurrentDomain = MouseDomain;
-    buttonsMP[BMPsettings].ChangeColorUnpressed();
-    buttonsMP[BMPhelp].ChangeColorUnpressed();
-    buttonsMP[BMPtimedomain].BOn = false;
-    // buttonsMP[BMPfreqdomain].BOn = false;
-    buttonsMP[BMPtraindomain].BOn = false;
-    buttonsMP[BMPmousedomain].BOn = false;
-    buttonsMP[BMPmousedomain].BOn = true;
+
+  void drawPage() {
+    if (ButtonPressedFlag) {
+      if (millis() > ButtonColorTimer) {
+        ButtonPressedFlag = false;
+        println("Current Button = " + currentbutton);
+        if (buttons[currentbutton] != null && currentbutton < buttons.length) {
+          buttons[currentbutton].ChangeColorUnpressed();
+        }
+      }
+    }
+
+    drawTrace();
+    drawThresh();
+    if (TrainingMode == TRepCounter) {
+      CountReps();
+      drawRepBar();
+    }
+  }
+
+  String getPageName() {
+    return pageName;
+  }
+
+  void labelaxes() {
+    fill(labelcolor);
+    stroke(labelcolor);
+    strokeWeight(2);
+    textAlign(CENTER, CENTER);
+
+    // title
+    textSize(titlesize);
+    text("Flex Training", xStep+FullPlotWidth/2+20, yTitle-45);
+
+    // y-axis
+    float val = 0;
+    textSize(20);
+    for (int i = 0; i < NyticksHalf+1; i++) {
+      text(nf(val, 1, 0), xStep-25, ytmp - int(map(val, 0, VoltageMax, 0, plotheight/2-20)));
+      text(nf(val, 1, 0), xStep-25, ytmp - int(map(val, 0, VoltageMax, 0, plotheight/2-10)) - plotheight/2 - 10);
+      val += (VoltageMax)/NyticksHalf;
+    }
+
+    textSize(labelsizes);
+    translate(15, height/2);
+    rotate(-PI/2);
+    text("Muscle Voltage, mV", 0, 0);
+    rotate(PI/2);
+    translate(-15, -height/2);
+
+    textSize(labelsizes);
+    // fill(100);
+    // rectMode(CENTER);
+    // rect(xStep+580, 230, 100, 50,15);
+    // rect(xStep+580, yTitle+plotheight-150, 100, 50,15);
+    fill(labelcolor);
+    text("Set Reps", xStep+plotwidth+100, yTitle+70);
+    text("Set Reps", xStep+plotwidth+100, yTitle+plotheight/2+90);
+    text("Threshold", xStep+plotwidth+90, yTitle+plotheight/2-40);
+    text("Threshold", xStep+plotwidth+90, yTitle+plotheight-20);
+
+    for (int i = 0; i < buttons.length; i++) {
+      if (buttons[i] != null) {
+        buttons[i].drawButton();
+      }
+    }
+
+    LabelRepBar(3);
+  }
+
+  boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
+    boolean outflag = false;
+
+    if (NamesFlag) {
+      if (key == '\n' ) {
+        println("here");
+        println(typing);
+        int tmpint = 0;
+        savedname = typing;
+        if (NameNumber == BsetReps1 || NameNumber == BsetReps2) {
+          tmpint = getIntFromString(typing, RepsTargetDefault);
+          savedname = str(tmpint);
+        }
+        buttons[NameNumber].label = savedname;
+        if (NameNumber == BsetReps1) {
+          RepsTarget[0] = tmpint;
+          ClearRepBar(1);
+          LabelRepBar(1);
+        }
+        else if (NameNumber == BsetReps2) {
+          RepsTarget[1] = tmpint;
+          ClearRepBar(2);
+          LabelRepBar(2);
+        }
+        NamesFlag = !NamesFlag;
+        buttons[currentbutton].BOn = !buttons[currentbutton].BOn;
+        buttons[NameNumber].drawButton();
+        typing = "";
+        NameNumber = -1;
+        outflag = true;
+      }
+      else if ((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z') || (key == ' ') || (key >='0' && key <= '9')) {
+        // Otherwise, concatenate the String - Each character typed by the user is added to the end of the String variable.
+        typing = typing + key;
+        buttons[NameNumber].label = typing;
+        buttons[NameNumber].drawButton();
+        outflag = true;
+      }
+    }
+    else if (!NamesFlag) {
+      currentbutton = -1;
+      for (int i = 0; i < buttons.length; i++) {
+        if (buttons[i] != null) {
+          if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
+            outflag = true;
+            buttons[i].BOn = !buttons[i].BOn;
+            buttons[i].ChangeColorPressed();
+            ButtonColorTimer = millis()+ButtonColorDelay;
+            ButtonPressedFlag = true;
+            currentbutton = i;
+
+            if (currentbutton == Breset) {
+              resetWorkout();
+            }
+            if (currentbutton == BsetReps1 || currentbutton == BsetReps2 || currentbutton == Bchan1name || currentbutton == Bchan2name) {
+              if (NameNumber == currentbutton) {
+                int tmpint = 0;
+                savedname = typing;
+                if (NameNumber == BsetReps1 || NameNumber == BsetReps2) {
+                  tmpint = getIntFromString(typing, RepsTargetDefault);
+                  savedname = str(tmpint);
+                }
+                println(tmpint);
+                buttons[NameNumber].label = savedname;
+                if (NameNumber == BsetReps1) {
+                  RepsTarget[0] = tmpint;
+                  println("int saved");
+                  println(RepsTarget[0]);
+                  ClearRepBar(1);
+                  LabelRepBar(1);
+                }
+                else if (NameNumber == BsetReps2) {
+                  RepsTarget[1] = tmpint;
+                  println("int saved");
+                  println(RepsTarget[0]);
+                  ClearRepBar(2);
+                  LabelRepBar(2);
+                }
+
+                NamesFlag = !NamesFlag;
+                //buttons[currentbutton].BOn = !buttons[currentbutton].BOn;
+
+                buttons[NameNumber].drawButton();
+                typing = "";
+                NameNumber = -1;
+              }
+              else {
+                NameNumber = currentbutton;
+                NamesFlag = true;
+                buttons[currentbutton].BOn = true;
+                typing = "";
+                buttons[NameNumber].label = typing;
+                buttons[NameNumber].drawButton();
+              }
+              println("Names Toggled");
+            }
+            if (currentbutton == Bchan1) {
+              ChannelOn[0] = !ChannelOn[0];
+              println("Chan1 Toggled");
+            }
+            if (currentbutton == Bchan2) {
+              ChannelOn[1] = !ChannelOn[1];
+              println("Chan2 Toggled");
+            }
+            if (currentbutton == Bchan1up) {
+              TrainChan[0]++;
+              if (TrainChan[0]>=SignalNumber) {
+                TrainChan[0]=SignalNumber-1;
+              }
+              if (TrainChan[0] == TrainChan[1]) {
+                TrainChan[0]++;
+                if (TrainChan[0]>=SignalNumber) {
+                  TrainChan[0]=TrainChan[1]-1;
+                }
+              }
+              buttons[Bchan1].ctext = SigColorM[TrainChan[0]];
+              buttons[Bchan1].label = str(TrainChan[0]+1);
+              buttons[Bchan1].drawButton();
+              ChannelOn[TrainChan[0]] = buttons[Bchan1].BOn;
+            }
+            if (currentbutton == Bchan1down) {
+              TrainChan[0]--;
+              if (TrainChan[0]<0) {
+                TrainChan[0]=0;
+              }
+              if (TrainChan[0] == TrainChan[1]) {
+                TrainChan[0]--;
+                if (TrainChan[0]<0) {
+                  TrainChan[0]=TrainChan[1]+1;
+                }
+              }
+              buttons[Bchan1].ctext = SigColorM[TrainChan[0]];
+              buttons[Bchan1].label = str(TrainChan[0]+1);
+              buttons[Bchan1].drawButton();
+              ChannelOn[TrainChan[0]] = buttons[Bchan1].BOn;
+            }
+            if (currentbutton == Bchan2up) {
+              TrainChan[1]++;
+              if (TrainChan[1]>=SignalNumber) {
+                TrainChan[1]=SignalNumber-1;
+              }
+              if (TrainChan[1] == TrainChan[0]) {
+                TrainChan[1]++;
+                if (TrainChan[1]>=SignalNumber) {
+                  TrainChan[1]=TrainChan[0]-1;
+                }
+              }
+              buttons[Bchan2].ctext = SigColorM[TrainChan[1]];
+              buttons[Bchan2].label = str(TrainChan[1]+1);
+              buttons[Bchan2].drawButton();
+              ChannelOn[TrainChan[1]] = buttons[Bchan2].BOn;
+            }
+            if (currentbutton == Bchan2down) {
+              TrainChan[1]--;
+              if (TrainChan[1]<0) {
+                TrainChan[1]=0;
+              }
+              if (TrainChan[1] == TrainChan[0]) {
+                TrainChan[1]--;
+                if (TrainChan[1]<0) {
+                  TrainChan[1]=TrainChan[0]+1;
+                }
+              }
+              buttons[Bchan2].ctext = SigColorM[TrainChan[1]];
+              buttons[Bchan2].label = str(TrainChan[1]+1);
+              buttons[Bchan2].drawButton();
+              ChannelOn[TrainChan[1]] = buttons[Bchan2].BOn;
+            }
+            if (currentbutton == Bthresh1up) {
+              RepThresh[0]+=RepThreshStep;
+              if (RepThresh[0]>=MaxSignalVal) {
+                RepThresh[0]=MaxSignalVal;
+              }
+            }
+            if (currentbutton == Bthresh1down) {
+              RepThresh[0]-=RepThreshStep;
+              if (RepThresh[0]<0) {
+                RepThresh[0]=0;
+              }
+            }
+            if (currentbutton == Bthresh2up) {
+              RepThresh[1]+=RepThreshStep;
+              if (RepThresh[1]>=MaxSignalVal) {
+                RepThresh[1]=MaxSignalVal;
+              }
+            }
+            if (currentbutton == Bthresh2down) {
+              RepThresh[1]-=RepThreshStep;
+              if (RepThresh[1]<0) {
+                RepThresh[1]=0;
+              }
+            }
+
+            labelaxes();
+          }
+        }
+      }
+    }
+    return outflag;
+  }
+
+  boolean useKeyPressed() {
+    boolean outflag = false;
+    if (NamesFlag) {
+      if (key == '\n' ) {
+        println("here");
+        println(typing);
+        int tmpint = 0;
+        savedname = typing;
+        if (NameNumber == BsetReps1 || NameNumber == BsetReps2) {
+          tmpint = getIntFromString(typing, RepsTargetDefault);
+          println(tmpint);
+          savedname = str(tmpint);
+        }
+        buttons[NameNumber].label = savedname;
+        if (NameNumber == BsetReps1) {
+          RepsTarget[0] = tmpint;
+          println("int saved");
+          println(RepsTarget[0]);
+          ClearRepBar(1);
+          LabelRepBar(1);
+        }
+        else if (NameNumber == BsetReps2) {
+          RepsTarget[1] = tmpint;
+          println("int saved");
+          println(RepsTarget[0]);
+          ClearRepBar(2);
+          LabelRepBar(2);
+        }
+        NamesFlag = !NamesFlag;
+        buttons[currentbutton].BOn = !buttons[currentbutton].BOn;
+
+        buttons[NameNumber].drawButton();
+        typing = "";
+        NameNumber = -1;
+        outflag = true;
+      }
+      else if ((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z') || (key == ' ') || (key >='0' && key <= '9')) {
+        // Otherwise, concatenate the String
+        // Each character typed by the user is added to the end of the String variable.
+        typing = typing + key;
+        buttons[NameNumber].label = typing;
+        buttons[NameNumber].drawButton();
+        println("adjusting");
+        outflag = true;
+      }
+    }
+    return outflag;
+  }
+
+  void useSerialEvent() {
+  }
+
+  void useMousePressed() {
+    currentbutton = -1;
+    println("mouse pressed");
+    int x = mouseX, y = mouseY;
+    for (int i = 0; i < buttons.length; i++) {
+      if (buttons[i] != null) {
+        if (buttons[i].IsMouseOver(x, y)) {
+          buttons[i].BOn = !buttons[i].BOn;
+          buttons[i].ChangeColorPressed();
+          currentbutton = i;
+          ButtonColorTimer = millis()+ButtonColorDelay;
+          ButtonPressedFlag = true;
+        }
+      }
+    }
+    if (currentbutton == Breset) {
+      resetWorkout();
+    }
+    if (currentbutton == BsetReps1 || currentbutton == BsetReps2 || currentbutton == Bchan1name || currentbutton == Bchan2name) {
+      if (NameNumber == currentbutton) {
+        int tmpint = 0;
+        savedname = typing;
+        if (NameNumber == BsetReps1 || NameNumber == BsetReps2) {
+          tmpint = getIntFromString(typing, RepsTargetDefault);
+          savedname = str(tmpint);
+        }
+        println(tmpint);
+        buttons[NameNumber].label = savedname;
+        if (NameNumber == BsetReps1) {
+          RepsTarget[0] = tmpint;
+          println("int saved");
+          println(RepsTarget[0]);
+          ClearRepBar(1);
+          LabelRepBar(1);
+        }
+        else if (NameNumber == BsetReps2) {
+          RepsTarget[1] = tmpint;
+          println("int saved");
+          println(RepsTarget[0]);
+          ClearRepBar(2);
+          LabelRepBar(2);
+        }
+
+        NamesFlag = !NamesFlag;
+        //buttons[currentbutton].BOn = !buttons[currentbutton].BOn;
+
+        buttons[NameNumber].drawButton();
+        typing = "";
+        NameNumber = -1;
+      }
+      else {
+        NameNumber = currentbutton;
+        NamesFlag = true;
+        buttons[currentbutton].BOn = true;
+        typing = "";
+        buttons[NameNumber].label = typing;
+        buttons[NameNumber].drawButton();
+      }
+      println("Names Toggled");
+    }
+    if (currentbutton == Bchan1) {
+      ChannelOn[0] = !ChannelOn[0];
+      println("Chan1 Toggled");
+    }
+    if (currentbutton == Bchan2) {
+      ChannelOn[1] = !ChannelOn[1];
+      println("Chan2 Toggled");
+    }
+    if (currentbutton == Bchan1up) {
+      TrainChan[0]++;
+      if (TrainChan[0]>=SignalNumber) {
+        TrainChan[0]=SignalNumber-1;
+      }
+      if (TrainChan[0] == TrainChan[1]) {
+        TrainChan[0]++;
+        if (TrainChan[0]>=SignalNumber) {
+          TrainChan[0]=TrainChan[1]-1;
+        }
+      }
+      buttons[Bchan1].ctext = SigColorM[TrainChan[0]];
+      buttons[Bchan1].label = str(TrainChan[0]+1);
+      buttons[Bchan1].drawButton();
+      ChannelOn[TrainChan[0]] = buttons[Bchan1].BOn;
+    }
+    if (currentbutton == Bchan1down) {
+      TrainChan[0]--;
+      if (TrainChan[0]<0) {
+        TrainChan[0]=0;
+      }
+      if (TrainChan[0] == TrainChan[1]) {
+        TrainChan[0]--;
+        if (TrainChan[0]<0) {
+          TrainChan[0]=TrainChan[1]+1;
+        }
+      }
+      buttons[Bchan1].ctext = SigColorM[TrainChan[0]];
+      buttons[Bchan1].label = str(TrainChan[0]+1);
+      buttons[Bchan1].drawButton();
+      ChannelOn[TrainChan[0]] = buttons[Bchan1].BOn;
+    }
+    if (currentbutton == Bchan2up) {
+      TrainChan[1]++;
+      if (TrainChan[1]>=SignalNumber) {
+        TrainChan[1]=SignalNumber-1;
+      }
+      if (TrainChan[1] == TrainChan[0]) {
+        TrainChan[1]++;
+        if (TrainChan[1]>=SignalNumber) {
+          TrainChan[1]=TrainChan[0]-1;
+        }
+      }
+      buttons[Bchan2].ctext = SigColorM[TrainChan[1]];
+      buttons[Bchan2].label = str(TrainChan[1]+1);
+      buttons[Bchan2].drawButton();
+      ChannelOn[TrainChan[1]] = buttons[Bchan2].BOn;
+    }
+    if (currentbutton == Bchan2down) {
+      TrainChan[1]--;
+      if (TrainChan[1]<0) {
+        TrainChan[1]=0;
+      }
+      if (TrainChan[1] == TrainChan[0]) {
+        TrainChan[1]--;
+        if (TrainChan[1]<0) {
+          TrainChan[1]=TrainChan[0]+1;
+        }
+      }
+      buttons[Bchan2].ctext = SigColorM[TrainChan[1]];
+      buttons[Bchan2].label = str(TrainChan[1]+1);
+      buttons[Bchan2].drawButton();
+      ChannelOn[TrainChan[1]] = buttons[Bchan2].BOn;
+    }
+    if (currentbutton == Bthresh1up) {
+      RepThresh[0]+=RepThreshStep;
+      if (RepThresh[0]>=MaxSignalVal) {
+        RepThresh[0]=MaxSignalVal;
+      }
+    }
+    if (currentbutton == Bthresh1down) {
+      RepThresh[0]-=RepThreshStep;
+      if (RepThresh[0]<0) {
+        RepThresh[0]=0;
+      }
+    }
+    if (currentbutton == Bthresh2up) {
+      RepThresh[1]+=RepThreshStep;
+      if (RepThresh[1]>=MaxSignalVal) {
+        RepThresh[1]=MaxSignalVal;
+      }
+    }
+    if (currentbutton == Bthresh2down) {
+      RepThresh[1]-=RepThreshStep;
+      if (RepThresh[1]<0) {
+        RepThresh[1]=0;
+      }
+    }
+  }
+
+  void drawHelp() {
+  }
+
+  void drawTrace() {
+    int sigtmp = 0;
+    loadPixels();
+    while (datacounter > 1) {
+      xPos++;//=DownSampleCount;
+      if (xPos >= plotwidth && !PauseFlag) {
+        xPos = -1;
+        updatePixels();
+        return;
+      }
+      else if (xPos >= plotwidth && PauseFlag) {
+        xPos = plotwidth-1;
+        updatePixels();
+        return;
+      }
+      else if (xPos == 0) {
+        updatePixels();
+        blankplot();
+        return;
+      }
+
+      for (int j = 0; j < SignalNumber;j++) {
+        if (ChannelOn[j]) {
+          if (j == TrainChan[0] || j == TrainChan[1]) {
+            int tmpind = signalindex-datacounter;//*DownSampleCount;
+            while (tmpind < 0) {
+              tmpind+=MaxSignalLength;
+            }
+            if (j == TrainChan[0]) {
+              sigtmp = int(map((signalIn[j][tmpind]+Calibration[j] - HalfSignalVal)*VoltScale, 0, MaxSignalVal, plotheight/2, plotheight));
+              sigtmp = constrain(sigtmp, plotheight/2+pointThickness+1, plotheight-pointThickness-1);
+            }
+            if (j==TrainChan[1]) {
+              sigtmp = int(map((signalIn[j][tmpind]+Calibration[j] - HalfSignalVal)*VoltScale, 0, MaxSignalVal, 0, plotheight/2));
+              sigtmp = constrain(sigtmp, pointThickness+1, plotheight/2 - pointThickness-1)-plot2offset;
+            }
+            drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, SigColorM[j], pointThickness);
+            oldPlotSignal[j] = sigtmp;
+          }
+        }
+      }
+      datacounter --;
+    }
+    updatePixels();
+  }
+
+  void drawThresh() {
+    int sigtmp;
+    stroke(255, 255, 0);
+    strokeWeight(1);
+
+    // channel 1
+    sigtmp = int(map(RepThresh[0], 0, MaxSignalVal, plotheight/2, plotheight));
+    sigtmp = constrain(sigtmp, plotheight/2 + pointThickness, plotheight-pointThickness);
+    line(xStep, ytmp-sigtmp, xStep+plotwidth, ytmp-sigtmp);
+
+    // channel 2
+    sigtmp = int(map(RepThresh[1], 0, MaxSignalVal, 0-plot2offset, plotheight/2-plot2offset));
+    sigtmp = constrain(sigtmp, pointThickness-plot2offset, plotheight/2-pointThickness-plot2offset);
+    line(xStep, ytmp-sigtmp, xStep+plotwidth, ytmp-sigtmp);
+  }
+
+  void resetWorkout() {
+    ChanFlexed[0] = false;
+    ChanFlexed[0] = false;
+    RepsCounter[0] = 0;
+    RepsCounter[1] = 0;
+    FlexOnCounter[0] = 0;
+    FlexOnCounter[1] = 0;
+    if (TrainingMode == TRepCounter) {
+      ClearRepBar(3);
+      LabelRepBar(3);
+    }
+    else if (TrainingMode == TDataLogger) {
+      TMax = new int[2][100];
+      ClearRepBar(3);
+      LabelTData();
+    }
+  }
+
+  void LabelTData() {
+    textAlign(CENTER, CENTER);
+    stroke(0);
+    fill(0);
+    text("Max Voltages", xStep+880, 40);
+  }
+
+  void CountReps() {
+    int tmpind = 0;
+    tmpind = signalindex-datacounter;
+    while (tmpind < 0) {
+      tmpind+=MaxSignalLength;
+    }
+    for (int i = 0; i < 2; i++) {
+      if (ChannelOn[TrainChan[i]]) {
+        if ((signalIn[TrainChan[i]][tmpind]-HalfSignalVal)>RepThresh[i]) {
+          if (!ChanFlexed[i]) {
+            FlexOnCounter[i]++;
+            if (FlexOnCounter[i] > 2) {
+              ChanFlexed[i] = true;
+              if (RepsCounter[i] < RepsTarget[i]) {
+                RepsCounter[i]++;
+              }
+              FlexOnCounter[i]=0;
+            }
+          }
+        }
+        else if ((signalIn[TrainChan[i]][tmpind]-HalfSignalVal)<RepThresh[i]) {
+          ChanFlexed[i] = false;
+          FlexOnCounter[i] = 0;
+        }
+      }
+    }
+  }
+
+  void ClearRepBar(int barN) {
+    fill(backgroundcolor);
+    stroke(backgroundcolor);
+    rectMode(CENTER);
+    if (barN == 1 || barN == 3) {
+      rect(xStep+plotwidth+200, yTitle+plotheight/2, 80, plotheight-40);
+    }
+    if (barN == 2 || barN == 3) {
+      rect(xStep+plotwidth+300, yTitle+plotheight/2, 80, plotheight-40);
+    }
+  }
+
+  void drawRepBar() {
+    if (ChannelOn[TrainChan[0]]) {
+      int top = min(plotheight, int(map(RepsCounter[0], 0, RepsTarget[0], 0, plotheight-60)));
+      rectMode(CENTER);
+      stroke(0);
+      strokeWeight(2);
+      fill(SigColorM[TrainChan[0]]);
+      rect(xStep+plotwidth+200, ytmp-top/2-20, RepBarWidth, top);
+    }
+    if (ChannelOn[TrainChan[1]]) {
+      int top = min(plotheight, int(map(RepsCounter[1], 0, RepsTarget[1], 0, plotheight-60)));
+      rectMode(CENTER);
+      stroke(0);
+      fill(SigColorM[TrainChan[1]]);
+      rect(xStep+plotwidth+300, ytmp-top/2-20, RepBarWidth, top);
+    }
+    rectMode(CENTER);
+  }
+
+  void LabelRepBar(int ChanN) {
+    int val;
+    textAlign(CENTER, CENTER);
+    stroke(labelcolor);
+    fill(labelcolor);
+    if (ChanN == 1 || ChanN == 3) {
+      if (ChannelOn[TrainChan[0]]) {
+        val = 0;
+        for (int i = 0; i <= RepsTarget[0]; i++) {
+          text(nf(val, 1, 0), plotwidth+220, ytmp - 20 - int(map(val, 0, RepsTarget[0], 0, plotheight-60)));
+          val ++;
+        }
+        text(buttons[Bchan1].label, plotwidth+260, yTitle+20);
+      }
+    }
+    if (ChanN == 2 || ChanN == 3) {
+      if (ChannelOn[TrainChan[1]]) {
+        val = 0;
+        for (int i = 0; i <= RepsTarget[1]; i++) {
+          text(nf(val, 1, 0), plotwidth+320, ytmp - 20 - int(map(val, 0, RepsTarget[1], 0, plotheight-60)));
+          val ++;
+        }
+        text(buttons[Bchan2].label, plotwidth+360, yTitle+20);
+      }
+    }
+  }
+
+  void TLogData() {
+    for (int i = 0; i < 2; i++) {
+      if (ChannelOn[i]) {
+        if (signalIn[TrainChan[i]][signalindex]>DataThresh[i]) {
+          if (!ChanFlexed[i]) {
+            FlexOnCounter[i]++;
+            if (FlexOnCounter[i] > 15) {
+              ChanFlexed[i] = true;
+              RepsCounter[i]++;
+              //FlexOnCounter[i]=0;
+            }
+          }
+          else if (ChanFlexed[i]) {
+            TMax[i][RepsCounter[i]] = max(TMax[i][RepsCounter[i]], int(signalIn[TrainChan[i]][signalindex]));
+          }
+        }
+        else if (signalIn[TrainChan[i]][signalindex]<DataThresh[i]) {
+          if (ChanFlexed[i]) {
+            FlexOnCounter[i]--;
+            if (FlexOnCounter[i] <= 0) {
+              ChanFlexed[i] = false;
+              FlexOnCounter[i] = 0;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  void drawTData() {
+    int xstart = 750;
+    int sigtmp = 0;
+    for (int i = 0; i < 100; i++) {
+      int j = 0;
+      if (ChannelOn[j]) {
+        stroke(0, 255, 0);
+        fill(0, 255, 0);
+        sigtmp = int(map(TMax[j][i], MaxSignalVal/2, MaxSignalVal, 0, plotheight));
+        sigtmp = max(sigtmp, 0);
+        line(xstart, yTitle+plotheight/2, xstart, yTitle+plotheight/2-sigtmp);
+        line(xstart+1, yTitle+plotheight/2, xstart+1, yTitle+plotheight/2-sigtmp);
+      }
+      j = 1;
+      if (ChannelOn[j]) {
+        stroke(0, 0, 255);
+        fill(0, 0, 255);
+        sigtmp = int(map(TMax[j][i], MaxSignalVal/2, MaxSignalVal, 0, plotheight));
+        sigtmp = max(sigtmp, 0);
+        line(xstart, yTitle+plotheight, xstart, yTitle+plotheight-sigtmp);
+        line(xstart+1, yTitle+plotheight, xstart+1, yTitle+plotheight-sigtmp);
+      }
+      xstart+=4;
+    }
+  }
+}
+//############################END WORKOUT PAGE#######################################
+
+
+/************************* BEGIN TARGET PRACTICE Page ***********************/
+public class TargetPracticePage implements pagesClass {
+  // variables
+  GuiButton[] buttons;
+  int ButtonNum = 0;
+  int
+    Bclear = ButtonNum++, 
+  Bpause = ButtonNum++, 
+  Bchan1 = ButtonNum++, 
+  Bchan2 = ButtonNum++, 
+  Bchan1up = ButtonNum++, 
+  Bchan2up = ButtonNum++, 
+  Bchan1down = ButtonNum++, 
+  Bchan2down = ButtonNum++;
+
+  // MouseGame
+  int GameTargetX;
+  int GameTargetY;
+  int GamedelayTime = 10;
+  int GamedelayTimeMin = 1;
+  int GamedelayTimeMax = 10;
+  int GamedelayTimeIncrement = 1;
+  int GamenextStep;
+  int Gametargetsize = 60;
+  int GameScore = 0;
+  boolean MouseTuneFlag = false;
+  char MouseAxis = 'X';
+  boolean MouseXAxisFlip = false;
+  boolean MouseYAxisFlip = false;
+
+
+  int MouseThreshStandOff = 5;
+  int MouseThreshInd = 0;
+  int XMouseFactor1 = 2;
+  int XMouseFactor2 = 2;
+  int XMouseFactor3 = 2;
+  int YMouseFactor1 = 2;
+  int YMouseFactor2 = 2;
+  int YMouseFactor3 = 2;
+  int MouseX=0, MouseY=0;
+  int MouseSpeed = 3;
+  boolean ButtonPressedFlag = false;
+  String pageName = "Target Practice";
+
+  // constructor
+  TargetPracticePage() {
+    // set input variables
+    // Mouse Page Buttons
+    initializeButtons();
+  }
+
+  void initializeButtons() {
+    buttons = new GuiButton[ButtonNum];
+    int buttony = yTitle+195;
+    int controlsy = yTitle+30;
+    buttons[Bpause]    = new GuiButton("Pause", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+    buttons[Bclear]    = new GuiButton("Clear", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
+    buttons[Bchan1up]  = new GuiButton("MChan1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
+    buttons[Bchan1down]= new GuiButton("MChan1down", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
+    buttons[Bchan1]    = new GuiButton("MChan1", ' ', dummypage, xStep+plotwidth+50, yTitle+200, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[0]], ""+(MouseChan[0]+1), Bonoff, true);
+    buttons[Bchan2up]  = new GuiButton("MChan2up", ' ', dummypage, xStep+plotwidth+80, yTitle+260, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
+    buttons[Bchan2down]= new GuiButton("MChan2down", ' ', dummypage, xStep+plotwidth+16, yTitle+260, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
+    buttons[Bchan2]    = new GuiButton("MChan2", ' ', dummypage, xStep+plotwidth+50, yTitle+260, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[1]], ""+(MouseChan[1]+1), Bonoff, true);
+  }
+
+  void switchToPage() {
     plotwidth = FullPlotWidth;
 
     DownSampleCount = DownSampleCountMouse; //!!!!!!!!!!!!!!!
@@ -3504,9 +3317,14 @@ void ChangeDomain(int NewDomain) {
     PauseFlag = true;
     SmoothFilterFlag = true;
     BitDepth10 = false;
+    ChannelOn[MouseChan[0]] = true;
+    ChannelOn[MouseChan[1]] = true;
+    buttons[Bchan1].BOn = ChannelOn[MouseChan[0]];
+    buttons[Bchan2].BOn = ChannelOn[MouseChan[1]];
+    buttons[Bpause].BOn = PauseFlag;
+
     UpdateSettings();
-    GetChannelButtons(buttonsMP);
-    background(backgroundcolor);
+    //    background(backgroundcolor);
     labelaxes();
     blankplot();
     drawTarget();
@@ -3519,209 +3337,525 @@ void ChangeDomain(int NewDomain) {
     robot.mouseMove(MouseX, MouseY);
     MouseTuneFlag = false;
   }
+
+  void drawPage() {
+    // draw subfunctions
+    if (ButtonPressedFlag) {
+      if (millis() > ButtonColorTimer) {
+        ButtonPressedFlag = false;
+        println("Current Button = " + currentbutton);
+        if (buttons[currentbutton] != null && currentbutton < buttons.length) {
+          buttons[currentbutton].ChangeColorUnpressed();
+        }
+      }
+    }
+
+    drawTargetPractice();
+  }
+
+  String getPageName() {
+    return pageName;
+  }
+
+  void labelaxes() {
+    fill(labelcolor);
+    stroke(labelcolor);
+    strokeWeight(2);
+    textAlign(CENTER, CENTER);
+
+    // title
+    textSize(titlesize);
+    text("Flex Mouse", xStep+FullPlotWidth/2+20, yTitle-45);
+
+    textSize(labelsizes);
+    text("'p' or pause/play = toggle control of your mouse pointer.", xStep+plotwidth/2, yTitle+plotheight+9);
+    text("'k' = set sensitivity. 'm' = exit mouse games. 'g' = snakegame!", xStep+plotwidth/2, yTitle+plotheight+26);
+    text("x=left/right", xStep+plotwidth+barwidth/2, yTitle+120);
+    text("y=up/down", xStep+plotwidth+barwidth/2, yTitle+140);
+    // text("Select which input channel controls X (left/right) and Y(up/down) axes.",width/2,yTitle+plotheight+25);
+
+
+    // blankplot();
+    for (int i = 0; i < buttons.length; i++) {
+      buttons[i].drawButton();
+    }
+    textSize(labelsize);
+    text("X-Axis", xStep+FullPlotWidth+50, yTitle+170);
+    text("Y-Axis", xStep+FullPlotWidth+50, yTitle+230);
+    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
+  }
+
+  boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
+    boolean outflag = false;
+
+    if (key == 'F' || key == 'f') {
+      if (MouseAxis == 'X') {
+        MouseXAxisFlip = !MouseXAxisFlip;
+        print("MouseXAxis Flipped. Axis = ");
+        println(MouseXAxisFlip);
+      }
+      else if (MouseAxis == 'Y') {
+        MouseYAxisFlip = !MouseYAxisFlip;
+        print("MouseYAxis Flipped. Axis = ");
+        println(MouseYAxisFlip);
+      }
+      //      outflag = true;
+      return outflag = true;
+    }
+    if (key == 'K' || key == 'k') {
+      MouseTuneFlag = !MouseTuneFlag;
+      if (!MouseTuneFlag) {
+        drawTarget();
+        GamenextStep = second()+GamedelayTime;
+        println(GamenextStep);
+        GameScore = 0;
+      }
+      outflag = true;
+    }
+    if (MouseTuneFlag) {
+      if (key == CODED) {
+        if (keyCode == LEFT) {
+          MouseThreshInd --;
+          if (MouseThreshInd < 0) {
+            MouseThreshInd = 3;
+          }
+          outflag = true;
+        }
+        else if (keyCode == RIGHT) {
+          MouseThreshInd ++;
+          if (MouseThreshInd > 3) {
+            MouseThreshInd = 0;
+          }
+          outflag = true;
+        }
+        else if (keyCode == UP) {
+
+          if (MouseThreshInd == YLow && MouseThresh[YLow] > (MouseThresh[YHigh]-MouseThreshStandOff)) {
+            // do nothing - can't have low >= high!
+          }
+          else if (MouseThreshInd == XLow && MouseThresh[XLow] > (MouseThresh[XHigh]-MouseThreshStandOff)) {
+            // do nothing - can't have low >= high!
+          }
+          else {
+            MouseThresh[MouseThreshInd]+=2;
+            MouseThresh[MouseThreshInd] = constrain(MouseThresh[MouseThreshInd], MaxSignalVal, MaxSignalVal*2);
+          }
+          outflag = true;
+        }
+        else if (keyCode == DOWN) {
+          if (MouseThreshInd == YHigh && MouseThresh[YLow] > (MouseThresh[YHigh]-MouseThreshStandOff)) {
+            // do nothing - can't have low >= high!
+          }
+          else if (MouseThreshInd == XHigh && MouseThresh[XLow] > (MouseThresh[XHigh]-MouseThreshStandOff)) {
+            // do nothing - can't have low >= high!
+          }
+          else {
+            MouseThresh[MouseThreshInd]-=2;
+            MouseThresh[MouseThreshInd] = constrain(MouseThresh[MouseThreshInd], MaxSignalVal, MaxSignalVal*2);
+          }
+          outflag = true;
+        }
+        println("New MouseThresh = "+MouseThresh[MouseThreshInd]);
+      }
+    }
+
+    currentbutton = -1;
+    for (int i = 0; i < buttons.length; i++) {
+      if (buttons[i] != null) {
+        if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
+          outflag = true;
+          buttons[i].BOn = !buttons[i].BOn;
+          buttons[i].ChangeColorPressed();
+          ButtonColorTimer = millis()+ButtonColorDelay;
+          ButtonPressedFlag = true;
+          currentbutton = i;
+
+          if (currentbutton == Bclear) {
+            blankplot();
+            labelaxes();
+            println("Plot Cleared");
+          }
+          if (currentbutton == Bpause) {
+            PauseFlag = !PauseFlag;
+            if (!PauseFlag) {
+              buttons[currentbutton].label = "Pause";
+              buttons[currentbutton].drawButton();
+            }
+            else if (PauseFlag) {
+              buttons[currentbutton].label = "Play";
+              buttons[currentbutton].drawButton();
+            }
+            println("Pause Toggled");
+          }
+          if (currentbutton == Bchan1up) {
+            MouseChan[0]++;
+            if (MouseChan[0]>=SignalNumber) {
+              MouseChan[0]=SignalNumber-1;
+            }
+            if (MouseChan[0] == MouseChan[1]) {
+              MouseChan[0]++;
+              if (MouseChan[0]>=SignalNumber) {
+                MouseChan[0]=MouseChan[1]-1;
+              }
+            }
+            buttons[Bchan1].ctext = SigColorM[MouseChan[0]];
+            buttons[Bchan1].label = str(MouseChan[0]+1);
+            buttons[Bchan1].drawButton();
+            ChannelOn[MouseChan[0]] = buttons[Bchan1].BOn;
+          }
+          if (currentbutton == Bchan1down) {
+            MouseChan[0]--;
+            if (MouseChan[0]<0) {
+              MouseChan[0]=0;
+            }
+            if (MouseChan[0] == MouseChan[1]) {
+              MouseChan[0]--;
+              if (MouseChan[0]<0) {
+                MouseChan[0]=MouseChan[1]+1;
+              }
+            }
+            buttons[Bchan1].ctext = SigColorM[MouseChan[0]];
+            buttons[Bchan1].label = str(MouseChan[0]+1);
+            buttons[Bchan1].drawButton();
+            ChannelOn[MouseChan[0]] = buttons[Bchan1].BOn;
+          }
+          if (currentbutton == Bchan2up) {
+            MouseChan[1]++;
+            if (MouseChan[1]>=SignalNumber) {
+              MouseChan[1]=SignalNumber-1;
+            }
+            if (MouseChan[1] == MouseChan[0]) {
+              MouseChan[1]++;
+              if (MouseChan[1]>=SignalNumber) {
+                MouseChan[1]=MouseChan[0]-1;
+              }
+            }
+            buttons[Bchan2].ctext = SigColorM[MouseChan[1]];
+            buttons[Bchan2].label = str(MouseChan[1]+1);
+            buttons[Bchan2].drawButton();
+            ChannelOn[MouseChan[1]] = buttons[Bchan2].BOn;
+          }
+          if (currentbutton == Bchan2down) {
+            MouseChan[1]--;
+            if (MouseChan[1]<0) {
+              MouseChan[1]=0;
+            }
+            if (MouseChan[1] == MouseChan[0]) {
+              MouseChan[1]--;
+              if (MouseChan[1]<0) {
+                MouseChan[1]=MouseChan[0]+1;
+              }
+            }
+            buttons[Bchan2].ctext = SigColorM[MouseChan[1]];
+            buttons[Bchan2].label = str(MouseChan[1]+1);
+            buttons[Bchan2].drawButton();
+            ChannelOn[MouseChan[1]] = buttons[Bchan2].BOn;
+          }
+
+          labelaxes();
+        }
+      }
+    }
+    return outflag;
+  }
+
+  void useSerialEvent() {
+  }
+
+  void drawHelp() {
+    // help text
+  }
+
+  void drawTargetPractice() {
+    int tmp = 0;
+    if (MouseTuneFlag) {
+      // println("MousetuneFlag!");
+      blankplot();
+      textSize(labelsizes);
+      strokeWeight(4);
+      textAlign(CENTER, CENTER);
+      fill(backgroundcolor);
+      rectMode(CENTER);
+      rect(xStep+plotwidth*5/16, yTitle+plotheight/2, plotwidth*5/8-2, plotheight-2);
+      fill(0);
+      text("Mouse Calibration", xStep+plotwidth*1/4, yTitle+12);
+      textSize(labelsizes);
+
+      // // arrows indicating axis directions
+      // // x-axis
+      // int addtmp = -140;
+      // line(xStep+plotwidth/4+50+addtmp,yTitle+80,xStep+plotwidth/4+100+addtmp,yTitle+80);
+      // line(xStep+plotwidth/4+90+addtmp,yTitle+70,xStep+plotwidth/4+100+addtmp,yTitle+80);
+      // line(xStep+plotwidth/4+90+addtmp,yTitle+90,xStep+plotwidth/4+100+addtmp,yTitle+80);
+      // line(xStep+plotwidth/4+60+addtmp,yTitle+70,xStep+plotwidth/4+50+addtmp,yTitle+80);
+      // line(xStep+plotwidth/4+60+addtmp,yTitle+90,xStep+plotwidth/4+50+addtmp,yTitle+80);
+      // // y-axis
+      // addtmp = 100;
+      // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+75+addtmp,yTitle+110);
+      // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+65+addtmp,yTitle+70);
+      // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+85+addtmp,yTitle+70);
+      // line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+65+addtmp,yTitle+100);
+      // line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+85+addtmp,yTitle+100);
+
+
+      // x-low
+      tmp = constrain(int(map(MouseThresh[XLow]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+      stroke(255, 255, 0);
+      fill(0);
+      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+      if (MouseThreshInd == XLow) {
+        fill(255, 255, 0);
+      }
+      if (ytmp-tmp +20 > yTitle+plotheight-20) {
+        text("X Low", xStep+plotwidth*11/16, ytmp-tmp-20);
+      }
+      else {    
+        text("X Low", xStep+plotwidth*11/16, ytmp-tmp+20);
+      }
+      // y-low
+      tmp = constrain(int(map(MouseThresh[YLow]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+      fill(0);
+      if (MouseThreshInd == YLow) {
+        fill(255, 255, 0);
+      }
+      text("Y Low", xStep+plotwidth*11/16, ytmp-tmp+20);
+      // x-high
+      stroke(255, 0, 0);
+      tmp = constrain(int(map(MouseThresh[XHigh]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+      fill(0);
+      if (MouseThreshInd == XHigh) {
+        fill(255, 255, 0);
+      }
+      if (ytmp-tmp +20 > yTitle+plotheight-20) {
+        text("X High", xStep+plotwidth*15/16, ytmp-tmp-20);
+      }
+      else {    
+        text("X High", xStep+plotwidth*15/16, ytmp-tmp+20);
+      }
+      // y-high
+      tmp = constrain(int(map(MouseThresh[YHigh]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+      fill(0);
+      if (MouseThreshInd == YHigh) {
+        fill(255, 255, 0);
+      }
+      text("Y High", xStep+plotwidth*15/16, ytmp-tmp+20);
+
+      // actual signals
+      stroke(0, 255, 0);
+      fill(0, 255, 0);
+      int tmpind = 0;
+      tmpind = signalindex-datacounter;
+      datacounter = 0;
+      while (tmpind < 0) {
+        tmpind+=MaxSignalLength;
+      }
+      tmp = constrain(int(map(signalIn[MouseChan[0]][tmpind]+Calibration[MouseChan[0]]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+      line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+      if (tmp < 50) {
+        text("X-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
+      }
+      else {
+        text("X-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
+      }
+
+      tmp = constrain(int(map(signalIn[MouseChan[1]][tmpind]+Calibration[MouseChan[1]]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+      line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+      if (tmp<plotheight/2+30) {
+        text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
+      }
+      else {
+        text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
+      }
+
+      String mouse_msg = "";
+      mouse_msg += "Input > high => mouse moves up/right\nInput < low => mouse moves down/left\nlow<Input<high => mouse does not move\n";
+      mouse_msg += "\n";
+      mouse_msg += "To Set Thresholds:\n";
+      mouse_msg += " Left/Right arrows select threshold (yellow)\n";
+      // mouse_msg += " (Selected threshold turns yellow)\n";
+      mouse_msg += " Up/Down arrows move selected threshold\n";
+      // mouse_msg += " (Threshold will move\n";
+      mouse_msg += "\n";
+      mouse_msg += "Adjust thresholds so the green bar is below low when completely relaxed, between low and high when slightly flexed, and above high when fully flexed.";
+      textSize(labelsizexs);
+      fill(0);
+      textAlign(LEFT, CENTER);
+      text(mouse_msg, xStep+plotwidth*5/16+3, yTitle+plotheight/2, plotwidth*5/8-12, plotheight);
+      textAlign(CENTER, CENTER);
+
+
+      if (!PauseFlag) {
+        moveMouse(tmpind);
+      }
+    }
+    else if (!MouseTuneFlag) {
+      if (!PauseFlag) {//MouseGame
+        int tmpind = 0;
+        tmpind = signalindex-datacounter;
+        datacounter = 0;
+        while (tmpind < 0) {
+          tmpind+=MaxSignalLength;
+        }
+        moveMouse(tmpind);
+        drawcrosshair(MouseX, MouseY);
+        if (iswinner()) {
+          print("Winner");
+          GameScore ++;
+          // delayTime -= delayTimeIncrement;
+          // if (delayTime < delayTimeMin){delayTime = delayTimeMin;}
+          GamenextStep = second()+GamedelayTime;
+          println(GamenextStep);
+          drawTarget();
+        }
+        if (second() > GamenextStep) {
+          GamedelayTime += GamedelayTimeIncrement;
+          if (GamedelayTime > GamedelayTimeMax) {
+            GamedelayTime = GamedelayTimeMax;
+          }
+          drawTarget();
+          GamenextStep = second()+GamedelayTime;
+          print("Out Of Time!");
+          println(GamenextStep);
+        }
+      }
+      else {
+        //blankplot();
+        stroke(0);
+        fill(255, 69, 0);
+        ellipse(xStep+GameTargetX, ytmp-GameTargetY, Gametargetsize, Gametargetsize);
+        drawcrosshair(MouseX, MouseY);
+        GamenextStep = second()+GamedelayTime;
+      }
+    }
+  }
+
+  void moveMouse(int tmpind) {
+    int tmp = 0;
+    int MouseMoveX = 0, MouseMoveY = 0;
+    int MouseOffset = 40;
+    // if (MouseAxis == 'X'){
+    tmp = int(signalIn[MouseChan[0]][tmpind]+Calibration[MouseChan[0]]);
+    //print("tmp = ");print(tmp);print(". Thresh = ");println(MouseThresh[0]);
+    if (tmp < MouseThresh[0]) {
+      MouseMoveX = -1*MouseSpeed;//(MouseThresh[0] - tmp)*XMouseFactor1;
+    }
+    else if (tmp < MouseThresh[1]) {
+      MouseMoveX = 0;
+    }
+    else {
+      MouseMoveX = 1*MouseSpeed;//(tmp - MouseThresh[1])*XMouseFactor3;
+    }
+    if (!MouseXAxisFlip) {
+      MouseX += MouseMoveX;
+    }
+    else {
+      MouseX -= MouseMoveX;
+    }
+
+    tmp = int(signalIn[MouseChan[1]][tmpind]+Calibration[MouseChan[1]]);
+    if (tmp < MouseThresh[2]) {
+      MouseMoveY = 1*MouseSpeed;//(MouseThresh[2] - tmp)*YMouseFactor1;
+    }
+    else if (tmp < MouseThresh[3]) {
+      MouseMoveY = 0;//(MouseThresh[3] - tmp)*YMouseFactor2;
+    }
+    else {
+      MouseMoveY = -1*MouseSpeed;//(tmp - MouseThresh[3])*YMouseFactor3;
+    }
+    if (!MouseYAxisFlip) {
+      MouseY += MouseMoveY;
+    }
+    else {
+      MouseY -= MouseMoveY;
+    }
+    // }
+
+    // println("MouseMoveX = "+MouseMoveX+". MouseMoveY = "+MouseMoveY);
+    MouseX = constrain(MouseX, xStep+MouseOffset, xStep+plotwidth-MouseOffset);
+    MouseY = constrain(MouseY, yTitle+MouseOffset, yTitle+plotheight-MouseOffset);
+    robot.mouseMove(MouseX+xx, MouseY+yy);
+  }
+
+  void drawcrosshair(int hx, int hy) {
+    fill(255);
+    stroke(255, 0, 0);
+    int CHs = 15;
+    if (hx < xStep+CHs) {
+      hx=xStep+CHs;
+    }
+    if (hx > xStep+plotwidth-CHs) {
+      hx=xStep+plotwidth-CHs;
+    }
+    if (hy < yTitle+CHs) {
+      hy=yTitle+CHs;
+    }
+    if (hy > yTitle+plotheight-CHs) {
+      hy=yTitle+plotheight-CHs;
+    }
+    rectMode(CENTER);
+    rect(hx, hy, 2*CHs, 2*CHs);
+  }
+
+  void drawTarget() {
+    blankplot();
+    stroke(0);
+    fill(255, 69, 0);
+    GameTargetX = int(random(0+Gametargetsize, plotwidth-Gametargetsize));
+    GameTargetY = int(random(0+Gametargetsize, plotheight-Gametargetsize));
+    // ellipseMode(RADIUS);
+    ellipse(xStep+GameTargetX, ytmp-GameTargetY, Gametargetsize, Gametargetsize);
+    drawScore();
+  }
+
+  void drawScore() {
+    textSize(32);
+    textAlign(CENTER, CENTER);
+    stroke(0, 0, 0);
+    fill(0, 255, 0);
+    text("SCORE = ", 180, 120);
+    text(nf(GameScore, 5, 0), 320, 120);
+  }
+
+  boolean iswinner() {
+    int rx = ((mouseX-xStep)-GameTargetX);
+    rx = rx*rx;
+    int ry = ((ytmp-mouseY)-GameTargetY);
+    ry = ry*ry;
+    float r = sqrt(float(rx+ry));
+    if (r < Gametargetsize) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
 }
-
-void GetPageButtons() {
-  if (CurrentDomain == TimeDomain) {
-    GuiButton[] obj = buttonsTDP;
-    obj[BTDPsmooth].BOn = SmoothFilterFlag;
-    obj[BTDPoffset].BOn = OffSetFlag;
-    obj[BTDPpause].BOn = PauseFlag;
-  }
-  else if (CurrentDomain == FreqDomain) {
-    GuiButton[] obj = buttonsFDP;
-    obj[BFDPoffset].BOn = OffSetFlag;
-    obj[BFDPpause].BOn = PauseFlag;
-  }
-  else if (CurrentDomain == TrainingDomain) {
-    GuiButton[] obj = buttonsTP;
-    // obj[BTPpause].BOn = PauseFlag;
-  }
-  else if (CurrentDomain == MouseDomain) {
-    GuiButton[] obj = buttonsMP;
-    obj[BMPpause].BOn = PauseFlag;
-  }
-  labelaxes();
-}
+/************************* END TARGET PRACTICE PAGE ***********************/
 
 
-void GetChannelButtons(GuiButton[] obj) {
-  if (CurrentDomain == TimeDomain) {
-    obj[BTDPchan1].BOn = ChannelOn[0];
-    obj[BTDPchan2].BOn = ChannelOn[1];
-    obj[BTDPchan3].BOn = ChannelOn[2];
-    obj[BTDPchan4].BOn = ChannelOn[3];
-    obj[BTDPchan5].BOn = ChannelOn[4];
-    obj[BTDPchan6].BOn = ChannelOn[5];
-    obj[BTDPchan7].BOn = ChannelOn[6];
-    obj[BTDPchan8].BOn = ChannelOn[7];
-    obj[BTDPsmooth].BOn = SmoothFilterFlag;
-    obj[BTDPoffset].BOn = OffSetFlag;
-    obj[BTDPpause].BOn = PauseFlag;
-  }
-  else if (CurrentDomain == FreqDomain) {
-    obj[BFDPchan1].BOn = ChannelOn[0];
-    obj[BFDPchan2].BOn = ChannelOn[1];
-    obj[BFDPchan3].BOn = ChannelOn[2];
-    obj[BFDPchan4].BOn = ChannelOn[3];
-    obj[BFDPchan5].BOn = ChannelOn[4];
-    obj[BFDPchan6].BOn = ChannelOn[5];
-    obj[BFDPchan7].BOn = ChannelOn[6];
-    obj[BFDPchan8].BOn = ChannelOn[7];
-    // obj[BFDPsmooth].BOn = SmoothFilterFlag;
-    obj[BFDPoffset].BOn = OffSetFlag;
-    obj[BFDPpause].BOn = PauseFlag;
-  }
-  else if (CurrentDomain == TrainingDomain) {
-    ChannelOn[TrainChan[0]] = true;
-    ChannelOn[TrainChan[1]] = true;
-    ;
-    obj[BTPchan1].BOn = ChannelOn[TrainChan[0]];
-    obj[BTPchan2].BOn = ChannelOn[TrainChan[1]];
-    // obj[BTPpause].BOn = PauseFlag;
-  }
-  else if (CurrentDomain == MouseDomain) {
-    obj[BMPpause].BOn = PauseFlag;
-  }
-}
-
-int Bheight = 25; // button height
-int Bheights = 20; // button height
-
-void InitializeButtons() {
-  // Time Domain (start page) Buttons
-  buttonsTDP = new GuiButton[ButtonNumTDP];
-  int buttony = yTitle+195;
-  int controlsy = yTitle+30;
-  buttonsTDP[BTDPsettings] = new GuiButton("Settings", xStep+plotwidth+45, yTitle+plotheight+yStep/2, 80, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
-  buttonsTDP[BTDPhelp] = new GuiButton("Help", xStep+plotwidth-35, yTitle-30, 50, 40, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
-  buttonsTDP[BTDPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
-  buttonsTDP[BTDPpause] = new GuiButton("Pause", xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
-  buttonsTDP[BTDPclear] = new GuiButton("Clear", xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
-  buttonsTDP[BTDPoffset] = new GuiButton("OffSet", xStep+plotwidth+45, controlsy+70, 60, Bheight, color(BIdleColor), color(0), "OffSet", Bonoff, false);
-  buttonsTDP[BTDPsmooth] = new GuiButton("Smooth", xStep+plotwidth+45, controlsy+100, 60, Bheight, color(BIdleColor), color(0), "Filter", Bonoff, false);
-  buttonsTDP[BTDPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsTDP[BTDPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
-  buttonsTDP[BTDPfreqdomain] = new GuiButton("FreqDomain", xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), "Switch to Frequency", Bonoff, false);
-  buttonsTDP[BTDPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
-  buttonsTDP[BTDPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
-  buttonsTDP[BTDPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
-  buttonsTDP[BTDPchan1] = new GuiButton("Chan1", xStep+plotwidth+25, buttony, 30, Bheight, color(BIdleColor), Sig1Color, "1", Bonoff, true);
-  buttonsTDP[BTDPchan2] = new GuiButton("Chan2", xStep+plotwidth+25, buttony+30, 30, Bheight, color(BIdleColor), Sig2Color, "2", Bonoff, true);
-  buttonsTDP[BTDPchan3] = new GuiButton("Chan3", xStep+plotwidth+25, buttony+60, 30, Bheight, color(BIdleColor), Sig3Color, "3", Bonoff, true);
-  buttonsTDP[BTDPchan4] = new GuiButton("Chan4", xStep+plotwidth+25, buttony+90, 30, Bheight, color(BIdleColor), Sig4Color, "4", Bonoff, true);
-  buttonsTDP[BTDPchan5] = new GuiButton("Chan5", xStep+plotwidth+65, buttony, 30, Bheight, color(BIdleColor), Sig5Color, "5", Bonoff, false);
-  buttonsTDP[BTDPchan6] = new GuiButton("Chan6", xStep+plotwidth+65, buttony+30, 30, Bheight, color(BIdleColor), Sig6Color, "6", Bonoff, false);
-  buttonsTDP[BTDPchan7] = new GuiButton("Chan7", xStep+plotwidth+65, buttony+60, 30, Bheight, color(BIdleColor), Sig7Color, "7", Bonoff, false);
-  buttonsTDP[BTDPchan8] = new GuiButton("Chan8", xStep+plotwidth+65, buttony+90, 30, Bheight, color(BIdleColor), Sig8Color, "8", Bonoff, false);
-
-
-  // Frequency Domain buttons (Same as time Domain!)
-  buttonsFDP = new GuiButton[ButtonNumFDP];
-  buttonsFDP[BFDPsettings] = new GuiButton("Settings", xStep+plotwidth+45, yTitle+plotheight+yStep/2, 80, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
-  buttonsFDP[BFDPhelp] = new GuiButton("Help", xStep+plotwidth-35, yTitle-30, 50, 40, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
-  buttonsFDP[BFDPpause]= new GuiButton("Pause", xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
-  buttonsFDP[BFDPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
-  buttonsFDP[BFDPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsFDP[BFDPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
-  buttonsFDP[BFDPfreqdomain] = new GuiButton("FreqDomain", xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), "Switch to Frequency", Bonoff, false);
-  buttonsFDP[BFDPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
-  buttonsFDP[BFDPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
-  buttonsFDP[BFDPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
-  buttonsFDP[BFDPoffset] = new GuiButton("OffSet", xStep+plotwidth+45, controlsy+70, 60, Bheight, color(BIdleColor), color(0), "OffSet", Bonoff, false);
-  buttonsFDP[BFDPchan1] = new GuiButton("Chan1", xStep+plotwidth+25, buttony, 30, Bheight, color(BIdleColor), Sig1Color, "1", Bonoff, true);
-  buttonsFDP[BFDPchan2] = new GuiButton("Chan2", xStep+plotwidth+25, buttony+30, 30, Bheight, color(BIdleColor), Sig2Color, "2", Bonoff, true);
-  buttonsFDP[BFDPchan3] = new GuiButton("Chan3", xStep+plotwidth+25, buttony+60, 30, Bheight, color(BIdleColor), Sig3Color, "3", Bonoff, true);
-  buttonsFDP[BFDPchan4] = new GuiButton("Chan4", xStep+plotwidth+25, buttony+90, 30, Bheight, color(BIdleColor), Sig4Color, "4", Bonoff, true);
-  buttonsFDP[BFDPchan5] = new GuiButton("Chan5", xStep+plotwidth+65, buttony, 30, Bheight, color(BIdleColor), Sig5Color, "5", Bonoff, false);
-  buttonsFDP[BFDPchan6] = new GuiButton("Chan6", xStep+plotwidth+65, buttony+30, 30, Bheight, color(BIdleColor), Sig6Color, "6", Bonoff, false);
-  buttonsFDP[BFDPchan7] = new GuiButton("Chan7", xStep+plotwidth+65, buttony+60, 30, Bheight, color(BIdleColor), Sig7Color, "7", Bonoff, false);
-  buttonsFDP[BFDPchan8] = new GuiButton("Chan8", xStep+plotwidth+65, buttony+90, 30, Bheight, color(BIdleColor), Sig8Color, "8", Bonoff, false);
-
-  // Mouse Page Buttons
-  buttonsMP = new GuiButton[ButtonNumMP];
-  buttonsMP[BMPsettings] = new GuiButton("Settings", xStep+plotwidth+45, yTitle+plotheight+yStep/2, 80, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
-  buttonsMP[BMPhelp] = new GuiButton("Help", xStep+plotwidth-35, yTitle-30, 50, 40, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
-  buttonsMP[BMPpause]= new GuiButton("Pause", xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
-  buttonsMP[BMPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
-  buttonsMP[BMPclear] = new GuiButton("Clear", xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
-  buttonsMP[BMPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsMP[BMPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
-  buttonsMP[BMPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
-  buttonsMP[BMPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
-  buttonsMP[BMPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
-  buttonsMP[BMPchan1up] = new GuiButton("MChan1up", xStep+plotwidth+80, yTitle+200, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
-  buttonsMP[BMPchan1down] = new GuiButton("MChan1down", xStep+plotwidth+16, yTitle+200, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
-  buttonsMP[BMPchan1] = new GuiButton("MChan1", xStep+plotwidth+50, yTitle+200, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[0]], ""+(MouseChan[0]+1), Bonoff, true);
-  buttonsMP[BMPchan2up] = new GuiButton("MChan2up", xStep+plotwidth+80, yTitle+260, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
-  buttonsMP[BMPchan2down] = new GuiButton("MChan2down", xStep+plotwidth+16, yTitle+260, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
-  buttonsMP[BMPchan2] = new GuiButton("MChan2", xStep+plotwidth+50, yTitle+260, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[1]], ""+(MouseChan[1]+1), Bonoff, true);
-
-  // Training Page Buttons
-  buttonsTP = new GuiButton[ButtonNumTP];
-  buttonsTP[BTPsettings] = new GuiButton("Settings", xStep+FullPlotWidth+45, yTitle+plotheight+yStep/2, 80, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
-  buttonsTP[BTPhelp] = new GuiButton("Help", xStep+FullPlotWidth-35, yTitle-30, 50, 40, color(BIdleColor), color(0), "Help,?", Bmomentary, false);
-  // buttonsTP[BTPpause]= new GuiButton("Pause", xStep+FullPlotWidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
-  buttonsTP[BTPsave] = new GuiButton("Store", xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
-  buttonsTP[BTPrecordnextdata] = new GuiButton("SaveRecord", xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsTP[BTPtimedomain] = new GuiButton("TimeDomain", xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
-  buttonsTP[BTPfreqdomain] = new GuiButton("FreqDomain", xStep+FullPlotWidth/2-40, 80, 70, 20, color(BIdleColor), color(0), "FFT", Bonoff, false);
-  buttonsTP[BTPtraindomain] = new GuiButton("TrainDomain", xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
-  buttonsTP[BTPmousedomain] = new GuiButton("MouseDomain", xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
-  buttonsTP[BTPserialreset] = new GuiButton("SerialReset", xStep+FullPlotWidth+55, yTitle-25, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
-  buttonsTP[BTPreset] = new GuiButton("TReset", xStep+HalfPlotWidth+65, yTitle+plotheight/2+5, 120, Bheights, color(BIdleColor), color(0), "Reset Workout", Bmomentary, false);
-  // buttonsTP[BTPWork] = new GuiButton("TWorkOutpuwt", 1025, 150, 80, 60, color(BIdleColor), color(0), "Work Output", Bonoff, false);
-  buttonsTP[BTPsetReps1] = new GuiButton("TSetReps1", xStep+HalfPlotWidth+30, yTitle+70, 50, Bheights, color(BIdleColor), color(0), ""+RepsTarget[0], Bonoff, false);
-  buttonsTP[BTPsetReps2] = new GuiButton("TSetReps2", xStep+HalfPlotWidth+30, yTitle+plotheight/2+90, 50, Bheights, color(BIdleColor), color(0), ""+RepsTarget[1], Bonoff, false);
-  // buttonsTP[BTPReps] = new GuiButton("TReps", xStep+FullPlotWidth+60, 150, 80, 60, color(BIdleColor), color(0), "Reps", Bonoff, false);
-  buttonsTP[BTPthresh1up] = new GuiButton("Trepthresh1up", xStep+HalfPlotWidth+20, yTitle+plotheight/2-50, 30, Bheights, color(BIdleColor), color(0), "up", Bmomentary, false);
-  buttonsTP[BTPthresh1down] = new GuiButton("Trepthresh1dn", xStep+HalfPlotWidth+20, yTitle+plotheight/2-26, 30, Bheights, color(BIdleColor), color(0), "dn", Bmomentary, false);
-  buttonsTP[BTPthresh2up] = new GuiButton("Trepthresh2up", xStep+HalfPlotWidth+20, yTitle+plotheight-29, 30, Bheights, color(BIdleColor), color(0), "up", Bmomentary, false);
-  buttonsTP[BTPthresh2down] = new GuiButton("Trepthresh2dn", xStep+HalfPlotWidth+20, yTitle+plotheight-5, 30, Bheights, color(BIdleColor), color(0), "dn", Bmomentary, false);
-  buttonsTP[BTPchan1] = new GuiButton("TChan1", xStep+HalfPlotWidth+65, yTitle+40, 30, Bheights, color(BIdleColor), SigColorM[TrainChan[0]], ""+(TrainChan[0]+1), Bonoff, true);
-  buttonsTP[BTPchan1name] = new GuiButton("TName1", xStep+HalfPlotWidth+65, yTitle+15, 120, Bheights, color(BIdleColor), color(0), "name1", Bonoff, false);
-  buttonsTP[BTPchan1up] = new GuiButton("TName1", xStep+HalfPlotWidth+105, yTitle+40, Bheights, Bheights, color(BIdleColor), color(0), ">", Bmomentary, false);
-  buttonsTP[BTPchan1down] = new GuiButton("TName1", xStep+HalfPlotWidth+25, yTitle+40, Bheights, Bheights, color(BIdleColor), color(0), "<", Bmomentary, false);
-  buttonsTP[BTPchan2] = new GuiButton("TChan2", xStep+HalfPlotWidth+65, yTitle+plotheight/2+60, 30, Bheights, color(BIdleColor), SigColorM[TrainChan[1]], ""+(TrainChan[1]+1), Bonoff, false);
-  buttonsTP[BTPchan2name] = new GuiButton("TName2", xStep+HalfPlotWidth+65, yTitle+plotheight/2+35, 120, Bheights, color(BIdleColor), color(0), "name2", Bonoff, false);
-  buttonsTP[BTPchan2up] = new GuiButton("TChan2", xStep+HalfPlotWidth+105, yTitle+plotheight/2+60, Bheights, Bheights, color(BIdleColor), color(0), ">", Bmomentary, false);
-  buttonsTP[BTPchan2down] = new GuiButton("TChan2", xStep+HalfPlotWidth+25, yTitle+plotheight/2+60, Bheights, Bheights, color(BIdleColor), color(0), "<", Bmomentary, false);
-
-  // Settings Page Buttons
-  buttonsSP = new GuiButton[ButtonNumSP];
-  buttonsSP[BSPfolder] = new GuiButton("Folder", width/2-200, height/2-110, 80, Bheights, color(BIdleColor), color(0), "change", Bmomentary, false);
-  buttonsSP[BSPfiltup] = new GuiButton("FilterUp", width/2+115, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPfiltdown] = new GuiButton("FilterDown", width/2+65, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSPfrequp] = new GuiButton("FreqUp", width/2-160, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPfreqdown] = new GuiButton("FreqDown", width/2-230, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSPrecordtimeup] = new GuiButton("RecordTimeUp", width/2+200, height/2-70, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPrecordtimedown] = new GuiButton("RecordTimeDown", width/2+130, height/2-70, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSP1chan] = new GuiButton("1chanmodel", width/2-105, height/2+10, 30, Bheights, color(BIdleColor), color(0), "1", Bonoff, false);
-  buttonsSP[BSP2chan] = new GuiButton("2chanmodel", width/2-70, height/2+10, 30, Bheights, color(BIdleColor), color(0), "2", Bonoff, false);
-  buttonsSP[BSP4chan] = new GuiButton("4chanmodel", width/2-35, height/2+10, 30, Bheights, color(BIdleColor), color(0), "4", Bonoff, true);
-  buttonsSP[BSP8chan] = new GuiButton("8chanmodel", width/2+0, height/2+10, 30, Bheights, color(BIdleColor), color(0), "8", Bonoff, false);
-  buttonsSP[BSPdownsampleup] = new GuiButton("DownSampleUp", width/2+220, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPdownsampledown] = new GuiButton("DownSampleDown", width/2+170, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSPtimeradjustup] = new GuiButton("TimerAdjustUp", width/2-70, height/2+80, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPtimeradjustdown] = new GuiButton("TimerAdjustDown", width/2-130, height/2+80, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSPprescalerup] = new GuiButton("PrescalerUp", width/2+60, height/2+80, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-  buttonsSP[BSPprescalerdown] = new GuiButton("PrescalerDown", width/2+0, height/2+80, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-  buttonsSP[BSPsave] = new GuiButton("Save", width/2-160, height/2+130, 140, 30, color(BIdleColor), color(0), "Save & Exit (s)", Bonoff, false);
-  buttonsSP[BSPdefaults] = new GuiButton("Defaults", width/2+160, height/2+130, 140, 30, color(BIdleColor), color(0), "Restore Defaults", Bonoff, false);
-  buttonsSP[BSPcancel] = new GuiButton("Exit", width/2, height/2+130, 120, 30, color(BIdleColor), color(0), "Cancel (c)", Bonoff, false);
-}
-
-//####################################################################################
-
-
-//######################Begin SnakeGame Object#######################################
+//######################Begin SnakeGame Page#######################################
 // snake game class/object. constructor looks like:
 //SnakeGame mySnakeGame;
 //mySnakeGame = new SnakeGame(this,xStep+plotwidth/2,yTitle+plotheight/2,plotwidth,plotheight,foodsize,gamespeed);
 
 // mySnakeGame.drawSnakeGame()
-public class SnakeGame {
+public class SnakeGamePage implements pagesClass {
   PApplet parent;
+
+  GuiButton[] buttons;
+  int ButtonNum = 0;
+  int
+    Bclear = ButtonNum++, 
+  Bpause = ButtonNum++, 
+  Bchan1 = ButtonNum++, 
+  Bchan2 = ButtonNum++, 
+  Bchan1up = ButtonNum++, 
+  Bchan2up = ButtonNum++, 
+  Bchan1down = ButtonNum++, 
+  Bchan2down = ButtonNum++;
 
   color snakecolor;
   color foodcolor;
@@ -3756,30 +3890,35 @@ public class SnakeGame {
   boolean gameOver;
   boolean freeBoundaries;
   boolean foodflag;
+  boolean ButtonPressedFlag = false;
 
-  SnakeGame(PApplet parent, int x, int y, int w, int h, int fsize, int gamespeed) {
+  String pageName = "FlexVolt Snake Game";
+
+  SnakeGamePage(PApplet parent) {
     this.parent = parent;
+
+    initializeButtons();
 
     snakecolor = color(250, 220, 180);
     foodcolor = color(255, 0, 0);
     backgroundcolor = color(0, 0, 0);
     textcolor = color(240, 240, 240);
 
-    gamex = x;
-    gamey = y;
-    gamewidth = w;
-    gameheight = h;
+    gamex = plotwidth/2;
+    gamey = plotheight/2;
+    gamewidth = plotwidth;
+    gameheight = plotheight;
 
-    foodSize = fsize;
+    foodSize = 30;
     drawFood();
     gridX = gamewidth/(foodSize);
     gridY = gameheight/(foodSize);
-    gridXstart = x - ((gridX-1)*foodSize)/2;
-    gridYstart = y - ((gridY-1)*foodSize)/2;
-    println("x = "+x+". y = "+y+". w = "+w+". h = "+h);
+    gridXstart = gamex - ((gridX-1)*foodSize)/2;
+    gridYstart = gamey - ((gridY-1)*foodSize)/2;
+    println("x = "+gamex+". y = "+gamey+". w = "+plotwidth+". h = "+plotheight);
     println("gridX = "+gridX+". GridY = "+gridY+". xstart = "+gridXstart+". ystart = "+gridYstart);
 
-    speed = gamespeed; // moves/second
+    speed = 2; // moves/second
     movewhen = (int)frameRate/speed;
     movecounter = 0;
     movestep = 1;
@@ -3798,20 +3937,139 @@ public class SnakeGame {
     foodflag = true;
   }
 
-  void clearGameScreen() {
-    fill(backgroundcolor);
-    stroke(backgroundcolor);
-    rectMode(CENTER);
-    rect(gamex, gamey, gamewidth, gameheight);
+  void initializeButtons() {
+    int buttony = yTitle+195;
+    int controlsy = yTitle+30;
+    buttons = new GuiButton[ButtonNum];
+    buttons[Bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+    buttons[Bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
+    buttons[Bchan1up]  = new GuiButton("MCh1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
+    buttons[Bchan1down]= new GuiButton("MCh1dn", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
+    buttons[Bchan1]    = new GuiButton("MChan1", ' ', dummypage, xStep+plotwidth+50, yTitle+200, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[0]], ""+(MouseChan[0]+1), Bonoff, true);
+    buttons[Bchan2up]  = new GuiButton("MCh2up", ' ', dummypage, xStep+plotwidth+80, yTitle+260, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
+    buttons[Bchan2down]= new GuiButton("MCh2dn", ' ', dummypage, xStep+plotwidth+16, yTitle+260, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
+    buttons[Bchan2]    = new GuiButton("MChan2", ' ', dummypage, xStep+plotwidth+50, yTitle+260, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[1]], ""+(MouseChan[1]+1), Bonoff, true);
   }
 
-  void drawSnakeGame() {
+  void switchToPage() {
+    clearGameScreen();
+  }
+
+  void drawPage() {
+    if (ButtonPressedFlag) {
+      if (millis() > ButtonColorTimer) {
+        ButtonPressedFlag = false;
+        println("Current Button = " + currentbutton);
+        if (buttons[currentbutton] != null && currentbutton < buttons.length) {
+          buttons[currentbutton].ChangeColorUnpressed();
+        }
+      }
+    }
+
     movecounter++;
     if (movecounter > movewhen) {
       movecounter = 0;
       clearGameScreen();
       runSnakeGame();
     }
+  }
+
+  String getPageName() {
+    return pageName;
+  }
+
+  void useSerialEvent() {
+  }
+
+  boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
+    boolean outflag = false;
+
+    if (keyCode == UP) {
+      if (stepY != -movestep) {
+        stepY = -movestep; 
+        stepX = 0;
+      }
+      outflag = true;
+    }
+    if (keyCode == DOWN) {
+      if (stepY != movestep) {
+        stepY = movestep; 
+        stepX = 0;
+      }
+      outflag = true;
+    }
+    if (keyCode == LEFT) {
+      if (stepX != -movestep) {
+        stepX = -movestep; 
+        stepY = 0;
+      }
+      outflag = true;
+    }
+    if (keyCode == RIGHT) {
+      if (stepX != movestep) {
+        stepX = movestep; 
+        stepY = 0;
+      }
+      outflag = true;
+    }
+    if (key == 'N' || key == 'n') {
+      resetSnakeGame();
+      outflag = true;
+    }
+    // if(keyCode == '+'){
+    // increasedifficulty();
+    // }
+    // if(keyCode == '-'){
+    // decreasedifficulty();
+    // }
+
+    currentbutton = -1;
+    for (int i = 0; i < buttons.length; i++) {
+      if (buttons[i] != null) {
+        if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
+          outflag = true;
+          buttons[i].BOn = !buttons[i].BOn;
+          buttons[i].ChangeColorPressed();
+          ButtonColorTimer = millis()+ButtonColorDelay;
+          ButtonPressedFlag = true;
+          currentbutton = i;
+
+          if (currentbutton == Bclear) {
+            blankplot();
+            labelaxes();
+            println("Plot Cleared");
+          }
+          if (currentbutton == Bpause) {
+            PauseFlag = !PauseFlag;
+            if (!PauseFlag) {
+              buttons[currentbutton].label = "Pause";
+              buttons[currentbutton].drawButton();
+            }
+            else if (PauseFlag) {
+              buttons[currentbutton].label = "Play";
+              buttons[currentbutton].drawButton();
+            }
+            println("Pause Toggled");
+          }
+
+          labelaxes();
+        }
+      }
+    }
+    return outflag;
+  }
+
+  void labelaxes() {
+  }
+
+  void drawHelp() {
+  }
+
+  void clearGameScreen() {
+    fill(backgroundcolor);
+    stroke(backgroundcolor);
+    rectMode(CENTER);
+    rect(gamex, gamey, gamewidth, gameheight);
   }
 
   void resetSnakeGame() {
@@ -3879,43 +4137,6 @@ public class SnakeGame {
     rect(fX, fY, foodSize, foodSize);
   }
 
-  void keyInput(char pkey, int pkeyCode) {
-    println("key = "+pkey+", keyCode = "+pkeyCode);
-    if (pkeyCode == UP) {
-      if (stepY != -movestep) {
-        stepY = -movestep; 
-        stepX = 0;
-      }
-    }
-    if (pkeyCode == DOWN) {
-      if (stepY != movestep) {
-        stepY = movestep; 
-        stepX = 0;
-      }
-    }
-    if (pkeyCode == LEFT) {
-      if (stepX != -movestep) {
-        stepX = -movestep; 
-        stepY = 0;
-      }
-    }
-    if (pkeyCode == RIGHT) {
-      if (stepX != movestep) {
-        stepX = movestep; 
-        stepY = 0;
-      }
-    }
-    if (pkey == 'N' || pkey == 'n') {
-      resetSnakeGame();
-    }
-    // if(keyCode == '+'){
-    // increasedifficulty();
-    // }
-    // if(keyCode == '-'){
-    // decreasedifficulty();
-    // }
-  }
-
   void drawSnake() {
     fill(snakecolor);
     int sX;
@@ -3962,6 +4183,130 @@ public class SnakeGame {
 }
 
 //#######################End WormGame Object#########################################
+
+//######################Begin MuscleMusic Page#######################################
+
+public class MuscleMusicPage implements pagesClass {
+  String pageName = "Muscle Music";
+
+  GuiButton[] buttons;
+  int ButtonNum = 0;
+  int
+    Bclear = ButtonNum++, 
+  Bpause = ButtonNum++;
+
+  MuscleMusicPage() {
+    initializeButtons();
+  }
+
+  void initializeButtons() {
+    int buttony = yTitle+195;
+    int controlsy = yTitle+30;
+    buttons = new GuiButton[ButtonNum];
+    buttons[Bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+    buttons[Bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
+  }
+
+  void switchToPage() {
+  }
+
+  void drawPage() {
+  }
+
+  String getPageName() {
+    return pageName;
+  }
+
+  void useSerialEvent() {
+  }
+
+  void useMousePressed() {
+  }
+
+  boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
+    boolean outflag = false;
+
+    if (keyCode == UP) {
+      outflag = true;
+    }
+    if (keyCode == DOWN) {
+      outflag = true;
+    }
+    if (keyCode == LEFT) {
+      outflag = true;
+    }
+    if (keyCode == RIGHT) {
+      outflag = true;
+    }
+    if (key == 'N' || key == 'n') {
+      outflag = true;
+    }
+
+    currentbutton = -1;
+    for (int i = 0; i < buttons.length; i++) {
+      if (buttons[i] != null) {
+        if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
+          outflag = true;
+          buttons[i].BOn = !buttons[i].BOn;
+          buttons[i].ChangeColorPressed();
+          ButtonColorTimer = millis()+ButtonColorDelay;
+          ButtonPressedFlag = true;
+          currentbutton = i;
+
+          if (currentbutton == Bclear) {
+            blankplot();
+            labelaxes();
+            println("Plot Cleared");
+          }
+          if (currentbutton == Bpause) {
+            PauseFlag = !PauseFlag;
+            if (!PauseFlag) {
+              buttons[currentbutton].label = "Pause";
+              buttons[currentbutton].drawButton();
+            }
+            else if (PauseFlag) {
+              buttons[currentbutton].label = "Play";
+              buttons[currentbutton].drawButton();
+            }
+            println("Pause Toggled");
+          }
+
+          labelaxes();
+        }
+      }
+    }
+    return outflag;
+  }
+
+  void labelaxes() {
+  }
+
+  boolean useKeyPressed() {
+    boolean outflag = false;
+    println("key = "+key+", keyCode = "+keyCode);
+    if (keyCode == UP) {
+      outflag = true;
+    }
+    if (keyCode == DOWN) {
+      outflag = true;
+    }
+    if (keyCode == LEFT) {
+      outflag = true;
+    }
+    if (keyCode == RIGHT) {
+      outflag = true;
+    }
+    if (key == 'N' || key == 'n') {
+      outflag = true;
+    }
+    return outflag;
+  }
+
+  void drawHelp() {
+  }
+}
+
+//#######################End MuscleMusic Object#########################################
 
 
 //######################Begin SerialPort Object#######################################
@@ -4017,9 +4362,13 @@ public class SerialPortObj {
   int indicator_noconnection;
   int indicator_connecting;
   int indicator_connected;
+  int connectionAtimer = 0;
+  int connectionAdelay = 500;
+  long CheckSerialTimer = 0;
 
-  public SerialPortObj(PApplet parent) {
-    this.parent = parent;
+
+  public SerialPortObj(PApplet parent_) {
+    this.parent = parent_;
     USBPORTs = new String[0];
     BluetoothPORTs = new String[0];
     foundPorts = false;
@@ -4042,13 +4391,91 @@ public class SerialPortObj {
     indicator_connected = 2;
   }
 
+  boolean manageConnection(boolean dataflag, boolean serialreceivedflag) {
+    if (connectingflag) {
+      TryPort(); // handles all connecting attempts. monitors timeout for each attempt, increments port to try, etc.
+    }
+
+    if (!flexvoltconnected) {
+      if (millis()>connectionAtimer) {
+        connectionAtimer = millis()+connectionAdelay;
+        if (!flexvoltfound) {
+          if (myPort != null) {
+            println("Wrote 'X' to myport = "+myPort);
+            try {  
+              myPort.write('X');
+            }
+            catch (RuntimeException e) {
+              println("couldn't connect to that one");
+              portopenflag = false;
+              if (e.getMessage().contains("Port not opened")) {
+                println("Error = "+e.getMessage());
+              }
+            }
+          } 
+          else {
+            println("No Ports to Write X To!");
+          }
+        } 
+        else if (flexvoltfound) {
+          if (myPort != null) {
+            println("Wrote 'A' to myport = "+myPort);
+            myPort.write('A');
+          } 
+          else {
+            println("No Ports to Write To!");
+          }
+        }
+      }
+    }
+
+    if (dataflag) {
+      if (CheckSerialTimer == 0) {
+        CheckSerialTimer = millis()+CheckSerialDelay;
+        println("addon");
+      }
+      if (millis()>CheckSerialTimer) {
+        CheckSerialTimer = millis()+CheckSerialDelay;
+        if (!serialreceivedflag) {
+          flexvoltconnected = false;
+          communicationsflag = false;
+          dataflag = false;
+          println("Serial Timeout");
+          connectionindicator = FVserial.indicator_noconnection;
+          drawConnectionIndicator();
+          display_error("FlexVolt Connection Lost");
+        }
+      }
+    }
+    return dataflag;
+  }
+
   void connectserial() {
     reset();
     FVserial.PollSerialDevices();
     if (foundPorts) {
       connectionindicator = indicator_connecting;
       connectingflag = true;
+      connectionAtimer = millis()+connectionAdelay;
     }
+  }
+
+  void drawConnectionIndicator() {
+    fill(150);
+    strokeWeight(2);
+    stroke(0);
+    ellipse(xStep+FullPlotWidth+10, yTitle/2, 24, 24);
+    if (connectionindicator == indicator_connected) {
+      fill(color(0, 255, 0));
+    }
+    else if (connectionindicator == indicator_connecting) {
+      fill(color(255, 200, 0));
+    }
+    else if (connectionindicator == indicator_noconnection) {
+      fill(color(255, 0, 0));
+    }
+    stroke(0);
+    ellipse(xStep+FullPlotWidth+10, yTitle/2, 14, 14);
   }
 
   void TryPort() {
@@ -4248,21 +4675,25 @@ class GuiButton {
   color cbox;
   color ctext;
   String label;
+  char hotKey;
+  int pageRef;
   boolean MouseOver;
   boolean BOn;
   boolean Bmomentary;
 
-  GuiButton(String tname, int txpos, int typos, int txsize, int tysize, color tcbox, color tctext, String tlabel, boolean tBmomentary, boolean tBOn) {
-    name = tname;
-    xpos = txpos;
-    ypos = typos;
-    xsize = txsize;
-    ysize = tysize;
-    cbox = tcbox;
-    ctext = tctext;
-    label = tlabel;
-    Bmomentary = tBmomentary;
-    BOn = tBOn;
+  GuiButton(String name_, char hotKey_, int pageRef_, int xpos_, int ypos_, int xsize_, int ysize_, color cbox_, color ctext_, String label_, boolean Bmomentary_, boolean BOn_) {
+    name  = name_;
+    hotKey = hotKey_;
+    pageRef = pageRef_;
+    xpos  = xpos_;
+    ypos  = ypos_;
+    xsize = xsize_;
+    ysize = ysize_;
+    cbox  = cbox_;
+    ctext = ctext_;
+    label = label_;
+    Bmomentary = Bmomentary_;
+    BOn = BOn_;
   }
 
   boolean IsMouseOver(int x, int y) {
@@ -4275,7 +4706,7 @@ class GuiButton {
     }
   }
 
-  void DrawButton() {
+  void drawButton() {
     color ctext_tmp = color(0);
     int rectradius = 0;
     if (!Bmomentary) {
@@ -4314,12 +4745,12 @@ class GuiButton {
 
   void ChangeColorUnpressed() {
     cbox = BIdleColor;
-    DrawButton();
+    drawButton();
   }
 
   void ChangeColorPressed() {
     cbox = BPressedColor;
-    DrawButton();
+    drawButton();
   }
 }
 
