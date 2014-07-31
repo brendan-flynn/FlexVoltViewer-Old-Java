@@ -183,7 +183,6 @@ BCsettings = ButtonNumCommon++,
 BChelp = ButtonNumCommon++, 
 BCrecordnextdata = ButtonNumCommon++, 
 BCtimedomain = ButtonNumCommon++, 
-BCfreqdomain = ButtonNumCommon++, 
 BCtraindomain = ButtonNumCommon++, 
 BCmousedomain = ButtonNumCommon++, 
 BCsnakedomain = ButtonNumCommon++, 
@@ -394,8 +393,6 @@ void setup () {
   settingspage = tmpindex++;
   FVpages.add(new TimeDomainPlotPage()); 
   timedomainpage = tmpindex++;
-  FVpages.add(new FreqDomainPlotPage()); 
-  frequencydomainpage = tmpindex++;
   FVpages.add(new WorkoutPage());        
   workoutpage = tmpindex++;
   FVpages.add(new TargetPracticePage()); 
@@ -538,7 +535,6 @@ void initializeButtons() {
   buttonsCommon[BCsave]           = new GuiButton("Store", 'i', dummypage, xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
   buttonsCommon[BCrecordnextdata] = new GuiButton("SaveRecord", 'd', dummypage, xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
   buttonsCommon[BCtimedomain]     = new GuiButton("TimePage", 't', timedomainpage, xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
-  buttonsCommon[BCfreqdomain]     = new GuiButton("FreqPage", 't', frequencydomainpage, xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), "Switch to Frequency", Bonoff, false);
   buttonsCommon[BCtraindomain]    = new GuiButton("WorkoutPage", 'w', workoutpage, xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
   buttonsCommon[BCmousedomain]    = new GuiButton("MousePage", 'm', targetpracticepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
   buttonsCommon[BCsnakedomain]    = new GuiButton("SnakeGame", 'n', snakegamepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
@@ -1109,18 +1105,6 @@ void EstablishDataLink() {
   }
   if (commentflag)println("SignalBuffer = "+SerialBufferN);
 
-  // if (BitDepth10){
-  // if (SignalNumber > 4){
-  // SerialBufferN = SignalNumber+2;
-  // }
-  // else if(SignalNumber <= 4){
-  // SerialBufferN = SignalNumber+1;
-  // }
-  // }
-  // else if(!BitDepth10){
-  // SerialBufferN = SignalNumber;
-  // }
-
   myPort.buffer((SerialBufferN+1)*SerialBurstN);
 }
 
@@ -1388,15 +1372,6 @@ void changePage(int newPage) {
   currentpage = newPage;
   println("oldpage = "+oldpage+", newpage = "+currentpage);
 
-  if (currentpage == oldpage) {
-    if (oldpage == timedomainpage) {
-      currentpage = frequencydomainpage;
-    } 
-    else if (oldpage == frequencydomainpage) {
-      currentpage = timedomainpage;
-    }
-  }
-
   if (newPage != settingspage) {
     background(backgroundcolor);
   }
@@ -1404,7 +1379,6 @@ void changePage(int newPage) {
   buttonsCommon[BCsettings].ChangeColorUnpressed();
   buttonsCommon[BChelp].ChangeColorUnpressed();
   buttonsCommon[BCtimedomain].BOn = false;
-  buttonsCommon[BCfreqdomain].BOn = false;
   buttonsCommon[BCtraindomain].BOn = false;
   buttonsCommon[BCmousedomain].BOn = false;
 
@@ -1828,7 +1802,8 @@ public class TimeDomainPlotPage implements pagesClass {
   Bchan5 = ButtonNum++, 
   Bchan6 = ButtonNum++, 
   Bchan7 = ButtonNum++, 
-  Bchan8 = ButtonNum++;
+  Bchan8 = ButtonNum++,
+  Bdomain = ButtonNum++;
 
   String pageName = "Muscle Voltage";
   int xPos = 0;
@@ -1841,12 +1816,25 @@ public class TimeDomainPlotPage implements pagesClass {
   int[] OffSet4 = {    
     +plotheight*7/8, +plotheight*5/8, +plotheight*3/8, +plotheight*1/8
   };
+  
+  float FreqMax = 500;//Hz for fft dilay window
+  float FreqAmpMin = 0;
+  float FreqAmpMax = 1;
+  int FFTscale = 80; // multiplying fft amplitude
+  //  int FreqFactor = FullPlotWidth/250;
+  int FFTstep = 2;
+  float FreqFactor = (float)plotwidth/FrequencyMax;
 
   boolean ButtonPressedFlag = false;
+  boolean flagTimeDomain = true;
+  boolean flagFreqDomain = false;
+  
+  String domainStr;
 
   // constructor
   TimeDomainPlotPage() {
     // set input variables
+    domainStr = "Switch to Frequency";
     initializeButtons();
   }
 
@@ -1856,40 +1844,62 @@ public class TimeDomainPlotPage implements pagesClass {
     int controlsy = yTitle+30;
 
     buttons[Boffset] =new GuiButton("OffSet", 'o', dummypage, xStep+plotwidth+45, controlsy+70, 60, Bheight, color(BIdleColor), color(0), "OffSet", Bonoff, false);
-    buttons[Bpause] = new GuiButton("Pause", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
+    buttons[Bpause] = new GuiButton("Pause",  'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
     buttons[Bsmooth] =new GuiButton("Smooth", 'f', dummypage, xStep+plotwidth+45, controlsy+100, 60, Bheight, color(BIdleColor), color(0), "Filter", Bonoff, false);
-    buttons[Bclear] = new GuiButton("Clear", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
-    buttons[Bchan1] = new GuiButton("Chan1", '1', dummypage, xStep+plotwidth+25, buttony, 30, Bheight, color(BIdleColor), Sig1Color, "1", Bonoff, true);
-    buttons[Bchan2] = new GuiButton("Chan2", '2', dummypage, xStep+plotwidth+25, buttony+30, 30, Bheight, color(BIdleColor), Sig2Color, "2", Bonoff, true);
-    buttons[Bchan3] = new GuiButton("Chan3", '3', dummypage, xStep+plotwidth+25, buttony+60, 30, Bheight, color(BIdleColor), Sig3Color, "3", Bonoff, true);
-    buttons[Bchan4] = new GuiButton("Chan4", '4', dummypage, xStep+plotwidth+25, buttony+90, 30, Bheight, color(BIdleColor), Sig4Color, "4", Bonoff, true);
-    buttons[Bchan5] = new GuiButton("Chan5", '5', dummypage, xStep+plotwidth+65, buttony, 30, Bheight, color(BIdleColor), Sig5Color, "5", Bonoff, false);
-    buttons[Bchan6] = new GuiButton("Chan6", '6', dummypage, xStep+plotwidth+65, buttony+30, 30, Bheight, color(BIdleColor), Sig6Color, "6", Bonoff, false);
-    buttons[Bchan7] = new GuiButton("Chan7", '7', dummypage, xStep+plotwidth+65, buttony+60, 30, Bheight, color(BIdleColor), Sig7Color, "7", Bonoff, false);
-    buttons[Bchan8] = new GuiButton("Chan8", '8', dummypage, xStep+plotwidth+65, buttony+90, 30, Bheight, color(BIdleColor), Sig8Color, "8", Bonoff, false);
+    buttons[Bclear] = new GuiButton("Clear",  'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
+    buttons[Bchan1] = new GuiButton("Chan1",  '1', dummypage, xStep+plotwidth+25, buttony, 30, Bheight, color(BIdleColor), Sig1Color, "1", Bonoff, true);
+    buttons[Bchan2] = new GuiButton("Chan2",  '2', dummypage, xStep+plotwidth+25, buttony+30, 30, Bheight, color(BIdleColor), Sig2Color, "2", Bonoff, true);
+    buttons[Bchan3] = new GuiButton("Chan3",  '3', dummypage, xStep+plotwidth+25, buttony+60, 30, Bheight, color(BIdleColor), Sig3Color, "3", Bonoff, true);
+    buttons[Bchan4] = new GuiButton("Chan4",  '4', dummypage, xStep+plotwidth+25, buttony+90, 30, Bheight, color(BIdleColor), Sig4Color, "4", Bonoff, true);
+    buttons[Bchan5] = new GuiButton("Chan5",  '5', dummypage, xStep+plotwidth+65, buttony, 30, Bheight, color(BIdleColor), Sig5Color, "5", Bonoff, false);
+    buttons[Bchan6] = new GuiButton("Chan6",  '6', dummypage, xStep+plotwidth+65, buttony+30, 30, Bheight, color(BIdleColor), Sig6Color, "6", Bonoff, false);
+    buttons[Bchan7] = new GuiButton("Chan7",  '7', dummypage, xStep+plotwidth+65, buttony+60, 30, Bheight, color(BIdleColor), Sig7Color, "7", Bonoff, false);
+    buttons[Bchan8] = new GuiButton("Chan8",  '8', dummypage, xStep+plotwidth+65, buttony+90, 30, Bheight, color(BIdleColor), Sig8Color, "8", Bonoff, false);
+    buttons[Bdomain]= new GuiButton("Domain", 'd', dummypage, xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), domainStr, Bmomentary, false);
 
-    OffSet2[0] = plotheight*3/4;
-    OffSet2[1] = plotheight*1/4;
-
-    OffSet4[0] = plotheight*7/8;
-    OffSet4[1] = plotheight*5/8;
-    OffSet4[2] = plotheight*3/8;
-    OffSet4[3] = plotheight*1/8;
-
-    OffSet8[0] = plotheight*7/8;
-    OffSet8[1] = plotheight*5/8;
-    OffSet8[2] = plotheight*3/8;
-    OffSet8[3] = plotheight*1/8;
-    OffSet8[4] = plotheight*7/8;
-    OffSet8[5] = plotheight*5/8;
-    OffSet8[6] = plotheight*3/8;
-    OffSet8[7] = plotheight*1/8;
+    if (flagTimeDomain){
+      OffSet2[0] = plotheight*3/4;
+      OffSet2[1] = plotheight*1/4;
+  
+      OffSet4[0] = plotheight*7/8;
+      OffSet4[1] = plotheight*5/8;
+      OffSet4[2] = plotheight*3/8;
+      OffSet4[3] = plotheight*1/8;
+  
+      OffSet8[0] = plotheight*7/8;
+      OffSet8[1] = plotheight*5/8;
+      OffSet8[2] = plotheight*3/8;
+      OffSet8[3] = plotheight*1/8;
+      OffSet8[4] = plotheight*7/8;
+      OffSet8[5] = plotheight*5/8;
+      OffSet8[6] = plotheight*3/8;
+      OffSet8[7] = plotheight*1/8;
+    } else if(flagFreqDomain){
+      OffSet2[0] = 0;
+      OffSet2[1] = plotheight/2;
+  
+      OffSet4[0] = 0;
+      OffSet4[1] = plotheight/4;
+      OffSet4[2] = plotheight/2;
+      OffSet4[3] = plotheight*3/4;
+  
+      OffSet8[0] = 0;
+      OffSet8[1] = plotheight/8;
+      OffSet8[2] = plotheight/4;
+      OffSet8[3] = plotheight*3/8;
+      OffSet8[4] = plotheight/2;
+      OffSet8[5] = plotheight*5/8;
+      OffSet8[6] = plotheight*3/4;
+      OffSet8[7] = plotheight*7/8;
+      
+      FreqFactor = (float)plotwidth/FrequencyMax;
+    }
   }
 
   void switchToPage() {
     //    SmoothFilterFlag = false; //todo make this stay as it was for this page
     //    OffSetFlag = false;
-    PauseFlag = false;
+    //PauseFlag = false;
     for (int i = 0; i < MaxSignalNumber; i++) {
       buttons[Bchan1+i].BOn = ChannelOn[i];
     }
@@ -1901,7 +1911,7 @@ public class TimeDomainPlotPage implements pagesClass {
     plotwidth = FullPlotWidth;
     xPos = 0;
     //    background(backgroundcolor);
-    labelaxes();
+    labelAxes();
     blankplot();
     println("TimeDomain");
   }
@@ -1920,7 +1930,12 @@ public class TimeDomainPlotPage implements pagesClass {
 
     if (!(xPos == plotwidth && PauseFlag)) {
       // startTime = System.nanoTime()/1000;
-      drawTrace();
+      if(flagTimeDomain){
+        drawTrace();
+      }
+      else if(flagFreqDomain){
+        drawFFT();
+      }
       // endTime = System.nanoTime()/1000;
       // println("drawTrace takes "+(endTime-startTime));
     }
@@ -1929,8 +1944,17 @@ public class TimeDomainPlotPage implements pagesClass {
   String getPageName() {
     return pageName;
   }
+  
+  void labelAxes(){
+    if(flagTimeDomain){
+      labelAxesTime();
+    }
+    else if(flagFreqDomain){
+      labelAxesFFT();
+    }
+  }
 
-  void labelaxes() {
+  void labelAxesTime() {
     fill(labelcolor);
     stroke(labelcolor);
     strokeWeight(2);
@@ -2001,6 +2025,48 @@ public class TimeDomainPlotPage implements pagesClass {
       buttons[i].drawButton();
     }
   }
+  
+  void labelAxesFFT() {
+    fill(labelcolor);
+    stroke(labelcolor);
+    strokeWeight(2);
+    textAlign(CENTER, CENTER);
+
+    // title
+    textSize(titlesize);
+    text("Signal Frequency", xStep+FullPlotWidth/2+20, yTitle-45);
+
+    // x-axis
+    textSize(axisnumbersize);
+    float val = 0;
+    //    println("MSL = "+MaxSignalLength+", plotwidth = "+plotwidth+", freqfac = "+FreqFactor);
+    //    float tmp = (float)MaxSignalLength/plotwidth;
+    //    tmp = max(tmp,1);
+    //    FreqMax = (int)(float(UserFrequency)/(tmp)/float(FreqFactor));
+    //    println("fm = "+FreqMax);
+    for (int i = 0; i < Nxticks+1; i++) {
+      text(nf(val, 1, 0), xStep+int(map(val, 0, FrequencyMax, 0, plotwidth)), height-yStep+10);
+      val += FrequencyMax/Nxticks;
+    }
+
+    // axis labels
+    textSize(labelsizes);
+    translate(40, height/2);
+    rotate(-PI/2);
+    text("Intensity, a.u.", 0, 0);
+    rotate(PI/2);
+    translate(-40, -height/2);
+    text("Frequency, Hz", xStep + plotwidth/2, height-15);
+
+    textSize(labelsize);
+    text("Channel", xStep+FullPlotWidth+45, yTitle+165);
+    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
+    textSize(labelsizes);
+
+    for (int i = 0; i < buttons.length; i++) {
+      buttons[i].drawButton();
+    }
+  }
 
   boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
     boolean outflag = false;
@@ -2015,6 +2081,34 @@ public class TimeDomainPlotPage implements pagesClass {
           ButtonPressedFlag = true;
           currentbutton = i;
 
+          if (currentbutton == Bdomain){
+            if (flagTimeDomain){
+              flagTimeDomain = false;
+              flagFreqDomain = true;
+              domainStr = "Switch to Time";
+              buttons[i].label = "Switch to Time";
+              buttons[i].ChangeColorUnpressed();
+              ButtonPressedFlag = false;
+              background(backgroundcolor);
+              labelGUI();
+              initializeButtons();
+              switchToPage();
+              return outflag;
+            }
+            else if (flagFreqDomain){
+              flagTimeDomain = true;
+              flagFreqDomain = false;
+              domainStr = "Switch to Frequency";
+              buttons[i].label = "Switch to Frequency";
+              buttons[i].ChangeColorUnpressed();
+              ButtonPressedFlag = false;
+              background(backgroundcolor);
+              labelGUI();
+              initializeButtons();
+              switchToPage();
+              return outflag;
+            }
+          }
           if (currentbutton == Boffset) {
             OffSetFlag = !OffSetFlag;
             ClearYAxis();
@@ -2072,7 +2166,7 @@ public class TimeDomainPlotPage implements pagesClass {
             ChannelOn[7] = !ChannelOn[7];
           }
 
-          labelaxes();
+          labelAxes();
         }
       }
     }
@@ -2136,249 +2230,12 @@ public class TimeDomainPlotPage implements pagesClass {
     }
     updatePixels();
   }
-}
-/************************* END TimeDomainPlot PAGE ***********************/
-
-
-/************************* BEGIN FreqDomainPlot Page ***********************/
-public class FreqDomainPlotPage implements pagesClass {
-  // variables
-  GuiButton[] buttons;
-  int ButtonNum = 0;
-  int
-    Boffset = ButtonNum++, 
-  Bpause = ButtonNum++, 
-  Bclear = ButtonNum++, 
-  Bchan1 = ButtonNum++, 
-  Bchan2 = ButtonNum++, 
-  Bchan3 = ButtonNum++, 
-  Bchan4 = ButtonNum++, 
-  Bchan5 = ButtonNum++, 
-  Bchan6 = ButtonNum++, 
-  Bchan7 = ButtonNum++, 
-  Bchan8 = ButtonNum++;
-  int xPos = 0;
-  float FreqMax = 500;//Hz for fft dilay window
-  float FreqAmpMin = 0;
-  float FreqAmpMax = 1;
-  int FFTscale = 80; // multiplying fft amplitude
-  int OffSet2[] = {    
-    0, plotheight/2
-  };
-  int OffSet4[] = {    
-    0, plotheight/4, plotheight/2, plotheight*3/4
-  };
-  int OffSet8[] = {    
-    0, plotheight/8, plotheight/4, plotheight*3/8, plotheight/2, plotheight*5/8, plotheight*3/4, plotheight*7/8
-  };
-  boolean ButtonPressedFlag = false;
-  String pageName = "Muscle Signal Frequency";
-
-  //  int FreqFactor = FullPlotWidth/250;
-  int FFTstep = 2;
-  float FreqFactor = (float)plotwidth/FrequencyMax;
-
-  // constructor
-  FreqDomainPlotPage() {
-    // set input variables
-    initializeButtons();
-  }
-
-  void initializeButtons() {
-    int buttony = yTitle+195;
-    int controlsy = yTitle+30;
-    buttons = new GuiButton[ButtonNum];
-    buttons[Boffset]= new GuiButton("OffSet", 'o', dummypage, xStep+plotwidth+45, controlsy+70, 60, Bheight, color(BIdleColor), color(0), "OffSet", Bonoff, false);
-    buttons[Bpause] = new GuiButton("Pause", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
-    buttons[Bclear] = new GuiButton("Clear", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
-    buttons[Bchan1] = new GuiButton("Chan1", '1', dummypage, xStep+plotwidth+25, buttony, 30, Bheight, color(BIdleColor), Sig1Color, "1", Bonoff, true);
-    buttons[Bchan2] = new GuiButton("Chan2", '2', dummypage, xStep+plotwidth+25, buttony+30, 30, Bheight, color(BIdleColor), Sig2Color, "2", Bonoff, true);
-    buttons[Bchan3] = new GuiButton("Chan3", '3', dummypage, xStep+plotwidth+25, buttony+60, 30, Bheight, color(BIdleColor), Sig3Color, "3", Bonoff, true);
-    buttons[Bchan4] = new GuiButton("Chan4", '4', dummypage, xStep+plotwidth+25, buttony+90, 30, Bheight, color(BIdleColor), Sig4Color, "4", Bonoff, true);
-    buttons[Bchan5] = new GuiButton("Chan5", '5', dummypage, xStep+plotwidth+65, buttony, 30, Bheight, color(BIdleColor), Sig5Color, "5", Bonoff, false);
-    buttons[Bchan6] = new GuiButton("Chan6", '6', dummypage, xStep+plotwidth+65, buttony+30, 30, Bheight, color(BIdleColor), Sig6Color, "6", Bonoff, false);
-    buttons[Bchan7] = new GuiButton("Chan7", '7', dummypage, xStep+plotwidth+65, buttony+60, 30, Bheight, color(BIdleColor), Sig7Color, "7", Bonoff, false);
-    buttons[Bchan8] = new GuiButton("Chan8", '8', dummypage, xStep+plotwidth+65, buttony+90, 30, Bheight, color(BIdleColor), Sig8Color, "8", Bonoff, false);
-
-    OffSet2[0] = 0;
-    OffSet2[1] = plotheight/2;
-
-    OffSet4[0] = 0;
-    OffSet4[1] = plotheight/4;
-    OffSet4[2] = plotheight/2;
-    OffSet4[3] = plotheight*3/4;
-
-    OffSet8[0] = 0;
-    OffSet8[1] = plotheight/8;
-    OffSet8[2] = plotheight/4;
-    OffSet8[3] = plotheight*3/8;
-    OffSet8[4] = plotheight/2;
-    OffSet8[5] = plotheight*5/8;
-    OffSet8[6] = plotheight*3/4;
-    OffSet8[7] = plotheight*7/8;
-
-    FreqFactor = (float)plotwidth/FrequencyMax;
-  }
-
-  void switchToPage() {
-    //    OffSetFlag = false;
-    PauseFlag = false;
-    for (int i = 0; i < MaxSignalNumber; i++) {
-      buttons[Bchan1+i].BOn = ChannelOn[i];
-    }
-    buttons[Boffset].BOn = OffSetFlag;
-    buttons[Bpause].BOn = PauseFlag;
-
-    plotwidth = FullPlotWidth;
-    //    background(backgroundcolor);
-    labelaxes();
-    blankplot();
-    println("FreqDomain");
-  }
-
-  void drawPage() {
-    // draw subfunctions
-    if (ButtonPressedFlag) {
-      if (millis() > ButtonColorTimer) {
-        ButtonPressedFlag = false;
-        println("Current Button = " + currentbutton);
-        if (buttons[currentbutton] != null && currentbutton < buttons.length) {
-          buttons[currentbutton].ChangeColorUnpressed();
-        }
-      }
-    }
-
-    if (!PauseFlag) {
-      drawFFT();
-    }
-  }
-
-  String getPageName() {
-    return pageName;
-  }
-
-  void labelaxes() {
-    fill(labelcolor);
-    stroke(labelcolor);
-    strokeWeight(2);
-    textAlign(CENTER, CENTER);
-
-    // title
-    textSize(titlesize);
-    text("Signal Frequency", xStep+FullPlotWidth/2+20, yTitle-45);
-
-    // x-axis
-    textSize(axisnumbersize);
-    float val = 0;
-    //    println("MSL = "+MaxSignalLength+", plotwidth = "+plotwidth+", freqfac = "+FreqFactor);
-    //    float tmp = (float)MaxSignalLength/plotwidth;
-    //    tmp = max(tmp,1);
-    //    FreqMax = (int)(float(UserFrequency)/(tmp)/float(FreqFactor));
-    //    println("fm = "+FreqMax);
-    for (int i = 0; i < Nxticks+1; i++) {
-      text(nf(val, 1, 0), xStep+int(map(val, 0, FrequencyMax, 0, plotwidth)), height-yStep+10);
-      val += FrequencyMax/Nxticks;
-    }
-
-    // axis labels
-    textSize(labelsizes);
-    translate(40, height/2);
-    rotate(-PI/2);
-    text("Intensity, a.u.", 0, 0);
-    rotate(PI/2);
-    translate(-40, -height/2);
-    text("Frequency, Hz", xStep + plotwidth/2, height-15);
-
-    textSize(labelsize);
-    text("Channel", xStep+FullPlotWidth+45, yTitle+165);
-    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
-    textSize(labelsizes);
-
-    for (int i = 0; i < buttons.length; i++) {
-      buttons[i].drawButton();
-    }
-  }
-
-  boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
-    boolean outflag = false;
-    currentbutton = -1;
-    for (int i = 0; i < buttons.length; i++) {
-      if (buttons[i] != null) {
-        if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
-          outflag = true;
-          buttons[i].BOn = !buttons[i].BOn;
-          buttons[i].ChangeColorPressed();
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
-          currentbutton = i;
-
-          if (currentbutton == Boffset) {
-            OffSetFlag = !OffSetFlag;
-            ClearYAxis();
-            labelaxes();
-            println("OffSet Changed");
-          }
-          if (currentbutton == Bclear) {
-            datacounter = 0;
-            xPos = 0;
-            blankplot();
-            labelaxes();
-            println("Plot Cleared");
-          }
-          if (currentbutton == Bpause) {
-            PauseFlag = !PauseFlag;
-            if (!PauseFlag) { 
-              buttons[currentbutton].label = "Pause";
-            }
-            else if (PauseFlag) { 
-              buttons[currentbutton].label = "Play";
-            }
-          }
-          if (currentbutton == Bchan1) {  
-            ChannelOn[0] = !ChannelOn[0];
-          }
-          if (currentbutton == Bchan2) {  
-            ChannelOn[1] = !ChannelOn[1];
-          }
-          if (currentbutton == Bchan3) {  
-            ChannelOn[2] = !ChannelOn[2];
-          }
-          if (currentbutton == Bchan4) {  
-            ChannelOn[3] = !ChannelOn[3];
-          }
-          if (currentbutton == Bchan5) {  
-            ChannelOn[4] = !ChannelOn[4];
-          }
-          if (currentbutton == Bchan6) {  
-            ChannelOn[5] = !ChannelOn[5];
-          }
-          if (currentbutton == Bchan7) {  
-            ChannelOn[6] = !ChannelOn[6];
-          }
-          if (currentbutton == Bchan8) {  
-            ChannelOn[7] = !ChannelOn[7];
-          }
-
-          labelaxes();
-        }
-      }
-    }
-    return outflag;
-  }
-
-  void useSerialEvent() {
-  }
-
-  void drawHelp() {
-    // help text
-  }
-
+  
   void drawFFT() {
     blankplot();
     stroke(FFTcolor);
     // filtered=filter1.apply(signalIn);
     // filtered = signalIn1;
-
 
     for (int j = 0; j < SignalNumber; j++) {
       System.arraycopy(fft.computeFFT(FFTsignalIn[j]), 0, fft_result[j], 0, FFTSignalLength/2);
@@ -2414,7 +2271,8 @@ public class FreqDomainPlotPage implements pagesClass {
     }
   }
 }
-/************************* END FrequencyDomainPlot PAGE ***********************/
+/************************* END TimeDomainPlot PAGE ***********************/
+
 
 
 /************************* BEGIN WORKOUT PAGE ***********************/
