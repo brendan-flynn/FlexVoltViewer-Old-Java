@@ -186,6 +186,7 @@ BCtimedomain = ButtonNumCommon++,
 BCtraindomain = ButtonNumCommon++, 
 BCmousedomain = ButtonNumCommon++, 
 BCsnakedomain = ButtonNumCommon++, 
+BCmusicdomain = ButtonNumCommon++, 
 BCserialreset = ButtonNumCommon++, 
 BCsave = ButtonNumCommon++;
 
@@ -532,14 +533,40 @@ void initializeButtons() {
   buttonsCommon = new GuiButton[ButtonNumCommon];
   buttonsCommon[BCsettings]       = new GuiButton("Settings", 's', settingspage, xStep+plotwidth+55, yTitle+plotheight+yStep/2, 70, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
   buttonsCommon[BChelp]           = new GuiButton("Help", 'h', dummypage, xStep+plotwidth-35, 30, 25, 25, color(BIdleColor), color(0), "?", Bmomentary, false);
-  buttonsCommon[BCsave]           = new GuiButton("Store", 'i', dummypage, xStep+50, yTitle-45, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
-  buttonsCommon[BCrecordnextdata] = new GuiButton("SaveRecord", 'd', dummypage, xStep+50, yTitle-20, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsCommon[BCtimedomain]     = new GuiButton("TimePage", 't', timedomainpage, xStep+FullPlotWidth/2-73, yTitle-10, 100, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
+  buttonsCommon[BCsave]           = new GuiButton("Store", 'i', dummypage, xStep+50, 12, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
+  buttonsCommon[BCrecordnextdata] = new GuiButton("SaveRecord", 'd', dummypage, xStep+50, 36, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
+  buttonsCommon[BCtimedomain]     = new GuiButton("TimePage", 't', timedomainpage, xStep+FullPlotWidth/2-73, yTitle-10, 60, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
   buttonsCommon[BCtraindomain]    = new GuiButton("WorkoutPage", 'w', workoutpage, xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
-  buttonsCommon[BCmousedomain]    = new GuiButton("MousePage", 'm', targetpracticepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
-  buttonsCommon[BCsnakedomain]    = new GuiButton("SnakeGame", 'n', snakegamepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "MouseGames", Bonoff, false);
+  buttonsCommon[BCmousedomain]    = new GuiButton("MousePage", 'm', targetpracticepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "Mouse Games", Bonoff, false);
+  buttonsCommon[BCsnakedomain]    = new GuiButton("SnakeGame", 'n', snakegamepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "Snake Game", Bonoff, false);
+  buttonsCommon[BCmusicdomain]    = new GuiButton("MuscleMusic", 'u', musclemusicpage, xStep+FullPlotWidth/2+155, yTitle-10, 110, 20, color(BIdleColor), color(0), "Muscle Music", Bonoff, false);
   buttonsCommon[BCserialreset]    = new GuiButton("SerialReset", 'r', dummypage, xStep+FullPlotWidth+55, yTitle/2, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
+  println(FullPlotWidth);
+  textSize(buttontextsize);
+  int tabpad = 6;
+  int tabspace = 5;
+  int lengthtotal = 0;
+  for (int i = BCtimedomain; i<=BCmusicdomain; i++){
+    int tmplength = int(textWidth(buttonsCommon[i].label));
+    buttonsCommon[i].xsize = tmplength + tabpad;
+    println("bsize = "+buttonsCommon[i].xsize);
+    lengthtotal += tmplength+tabpad+tabspace;
+  }
+  lengthtotal -= tabspace;
+  lengthtotal /= 2;
+  int tmpxpos = xStep + FullPlotWidth/2 - lengthtotal;
+  int oldxsize = 0;
+  for (int i = BCtimedomain; i<=BCmusicdomain; i++){
+    int tmplength = int(textWidth(buttonsCommon[i].label));
+    tmplength = (tmplength+tabpad)/2;
+    tmpxpos +=  tmplength + oldxsize;
+    oldxsize = tmplength + tabspace;
+    buttonsCommon[i].xpos = tmpxpos;
+  }
+  
+    
 }
+
 
 void draw () {
   if (InitFlag) {
@@ -1698,7 +1725,7 @@ public class SettingsPage implements pagesClass {
     selectFolder("Select a folder to process:", "folderSelected");
     while (tmpfolder == null) delay(200);
 
-    // labelaxes();
+    // labelAxes();
     // for (String csv: filenames = folder.list(csvFilter)) println(csv);
   }
 
@@ -2379,7 +2406,7 @@ public class WorkoutPage implements pagesClass {
     buttons[Bchan2].BOn = ChannelOn[TrainChan[1]];
     plotwidth = HalfPlotWidth;
     //    background(backgroundcolor);
-    labelaxes();
+    labelAxes();
     blankplot();
     UpdateSettings();
     println("Workout Turned ON");
@@ -2408,7 +2435,7 @@ public class WorkoutPage implements pagesClass {
     return pageName;
   }
 
-  void labelaxes() {
+  void labelAxes() {
     fill(labelcolor);
     stroke(labelcolor);
     strokeWeight(2);
@@ -2647,7 +2674,7 @@ public class WorkoutPage implements pagesClass {
               }
             }
 
-            labelaxes();
+            labelAxes();
           }
         }
       }
@@ -3183,7 +3210,7 @@ public class TargetPracticePage implements pagesClass {
 
     UpdateSettings();
     //    background(backgroundcolor);
-    labelaxes();
+    labelAxes();
     blankplot();
     drawTarget();
     GamenextStep = second()+GamedelayTime;
@@ -3215,7 +3242,7 @@ public class TargetPracticePage implements pagesClass {
     return pageName;
   }
 
-  void labelaxes() {
+  void labelAxes() {
     fill(labelcolor);
     stroke(labelcolor);
     strokeWeight(2);
@@ -3330,7 +3357,7 @@ public class TargetPracticePage implements pagesClass {
 
           if (currentbutton == Bclear) {
             blankplot();
-            labelaxes();
+            labelAxes();
             println("Plot Cleared");
           }
           if (currentbutton == Bpause) {
@@ -3410,7 +3437,7 @@ public class TargetPracticePage implements pagesClass {
             ChannelOn[MouseChan[1]] = buttons[Bchan2].BOn;
           }
 
-          labelaxes();
+          labelAxes();
         }
       }
     }
@@ -3706,7 +3733,7 @@ public class SnakeGamePage implements pagesClass {
   GuiButton[] buttons;
   int ButtonNum = 0;
   int
-    Bclear = ButtonNum++, 
+  Bclear = ButtonNum++, 
   Bpause = ButtonNum++, 
   Bchan1 = ButtonNum++, 
   Bchan2 = ButtonNum++, 
@@ -3762,13 +3789,12 @@ public class SnakeGamePage implements pagesClass {
     backgroundcolor = color(0, 0, 0);
     textcolor = color(240, 240, 240);
 
-    gamex = plotwidth/2;
-    gamey = plotheight/2;
-    gamewidth = plotwidth;
+    gamex = xStep+FullPlotWidth/2;
+    gamey = yTitle+plotheight/2;
+    gamewidth = FullPlotWidth;
     gameheight = plotheight;
 
     foodSize = 30;
-    drawFood();
     gridX = gamewidth/(foodSize);
     gridY = gameheight/(foodSize);
     gridXstart = gamex - ((gridX-1)*foodSize)/2;
@@ -3796,6 +3822,17 @@ public class SnakeGamePage implements pagesClass {
   }
 
   void initializeButtons() {
+    gamex = xStep+FullPlotWidth/2;
+    gamey = yTitle+plotheight/2;
+    gamewidth = FullPlotWidth;
+    gameheight = plotheight;
+
+    foodSize = 30*FullPlotWidth/500;
+    gridX = gamewidth/(foodSize);
+    gridY = gameheight/(foodSize);
+    gridXstart = gamex - ((gridX-1)*foodSize)/2;
+    gridYstart = gamey - ((gridY-1)*foodSize)/2;
+    
     int buttony = yTitle+195;
     int controlsy = yTitle+30;
     buttons = new GuiButton[ButtonNum];
@@ -3810,7 +3847,15 @@ public class SnakeGamePage implements pagesClass {
   }
 
   void switchToPage() {
+
+    PauseFlag = true;
+
+    buttons[Bpause].BOn = PauseFlag;
+
+    plotwidth = FullPlotWidth;
+    labelAxes();
     clearGameScreen();
+    println("SnakeDomain");
   }
 
   void drawPage() {
@@ -3894,7 +3939,7 @@ public class SnakeGamePage implements pagesClass {
 
           if (currentbutton == Bclear) {
             blankplot();
-            labelaxes();
+            labelAxes();
             println("Plot Cleared");
           }
           if (currentbutton == Bpause) {
@@ -3910,14 +3955,14 @@ public class SnakeGamePage implements pagesClass {
             println("Pause Toggled");
           }
 
-          labelaxes();
+          labelAxes();
         }
       }
     }
     return outflag;
   }
 
-  void labelaxes() {
+  void labelAxes() {
   }
 
   void drawHelp() {
@@ -4113,7 +4158,7 @@ public class MuscleMusicPage implements pagesClass {
 
           if (currentbutton == Bclear) {
             blankplot();
-            labelaxes();
+            labelAxes();
             println("Plot Cleared");
           }
           if (currentbutton == Bpause) {
@@ -4129,14 +4174,14 @@ public class MuscleMusicPage implements pagesClass {
             println("Pause Toggled");
           }
 
-          labelaxes();
+          labelAxes();
         }
       }
     }
     return outflag;
   }
 
-  void labelaxes() {
+  void labelAxes() {
   }
 
   boolean useKeyPressed() {
