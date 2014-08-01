@@ -118,7 +118,7 @@ int xx, yy;
 int xStep = 60;
 int yStep = 40;
 int yTitle = 70;
-int barwidth = 100;
+int barWidth = 100;
 
 int serialBufferN = 5;
 int serialBurstN = 2;
@@ -280,12 +280,20 @@ int recordDataTimeMin = 1;
 // any page variables that require access for saving and loading should go here
 
 // MouseVariables
-int xLow = 0, xHigh = 1, yLow = 2, yHigh = 3;
-int mouseThresh[] = {    
-  maxSignalVal*5/4, maxSignalVal*6/4, maxSignalVal*5/4, maxSignalVal*6/4
-};// xlow, xhigh, ylow, yhigh
+int thresh2chxLow = 0, thresh2chxHigh = 1, thresh2chyLow = 2, thresh2chyHigh = 3,
+    thresh2chaux1Low = 4, thresh2chaux1High = 5, thresh2chaux2Low = 6, thresh2chaux2High = 7,
+    thresh2chaux3Low = 8, thresh2chaux3High = 9, thresh2chaux4Low = 10, thresh2chaux4High = 11,
+    thresh2chaux5Low = 12, thresh2chaux5High = 13, thresh2chaux6Low = 14, thresh2chaux6High = 15;
+int thresh4chLeft = 0, thresh4chRight = 1, thresh4chDown = 2, thresh4chUp = 3, thresh4chaux1 = 4, thresh4chaux2 = 5, thresh4chaux3 = 6, thresh4chaux4 = 7;
+int tmpL = maxSignalVal*5/4, tmpH = maxSignalVal * 6/4;
+int mouseThresh2Ch[] = {    
+  tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH
+};// xlow, xhigh, ylow, yhigh, aux1low, aux1high, aux2low, aux2high, aux3low, aux3high, aux4low, aux4high, aux5low, aux5high, aux6low, aux6high
+int mouseThresh4Ch[] = {    
+  tmpH, tmpH, tmpH, tmpH, tmpH, tmpH, tmpH, tmpH
+};// left, right, up, down, aux1, aux2, aux3, aux4
 int[] mouseChan = {    
-  0, 1
+  0, 1, 2, 3, 4, 5, 6, 7
 };
 
 // Frequency variables
@@ -313,6 +321,8 @@ boolean dataRegWriteFlag = false;
 boolean snakeGameFlag = false;
 boolean commentflag = true;
 boolean communicationsflag = false;
+boolean hideButton = true;
+boolean showButton = false;
 
 int plugTestDelay = 0;
 int testcounter = 0;
@@ -422,8 +432,8 @@ void initializeEverything() {
 
   halfPlotWidth = fullPlotWidth/2;
   // set the window size TODO get window size, modify
-  // size(fullPlotWidth+barwidth+xStep, plotheight+yStep+yTitle, P2D);
-  size(fullPlotWidth+barwidth+xStep, plotheight+yStep+yTitle);
+  // size(fullPlotWidth+barWidth+xStep, plotheight+yStep+yTitle, P2D);
+  size(fullPlotWidth+barWidth+xStep, plotheight+yStep+yTitle);
   currentWidth = width;
   currentHeight = height;
   ytmp = height - yStep;
@@ -457,8 +467,8 @@ void checkResize() {
     xStep = 60;
     yStep = 40;
     yTitle = 70;
-    barwidth = 100;
-    fullPlotWidth = width - xStep - barwidth;
+    barWidth = 100;
+    fullPlotWidth = width - xStep - barWidth;
     plotheight = height - yTitle - yStep;
     plotwidth = fullPlotWidth;
     halfPlotWidth = fullPlotWidth/2;
@@ -490,16 +500,16 @@ void checkResize() {
 
 void initializeButtons() {
   buttonsCommon = new GuiButton[buttonNumberCommon];
-  buttonsCommon[bcsettings]       = new GuiButton("Settings", 's', settingspage, xStep+plotwidth+55, yTitle+plotheight+yStep/2, 70, bheight, color(colorBIdle), color(0), "Settings", bMomentary, false);
-  buttonsCommon[bchelp]           = new GuiButton("Help", 'h', dummypage, xStep+plotwidth-35, 30, 25, 25, color(colorBIdle), color(0), "?", bMomentary, false);
-  buttonsCommon[bcsave]           = new GuiButton("Store", 'i', dummypage, xStep+50, 12, 100, 20, color(colorBIdle), color(0), "Save Image", bMomentary, false);
-  buttonsCommon[bcrecordnextdata] = new GuiButton("SaveRecord", 'd', dummypage, xStep+50, 36, 100, 20, color(colorBIdle), color(0), "Record "+recordDataTime+"s", bMomentary, false);
-  buttonsCommon[bcplotdomain]     = new GuiButton("TimePage", 't', timedomainpage, xStep+fullPlotWidth/2-73, yTitle-10, 60, 20, color(colorBIdle), color(0), "Plot Signals", bOnOff, true);
-  buttonsCommon[bctraindomain]    = new GuiButton("workoutPage", 'w', workoutpage, xStep+fullPlotWidth/2+19, yTitle-10, 75, 20, color(colorBIdle), color(0), "workout", bOnOff, false);
-  buttonsCommon[bcmousedomain]    = new GuiButton("MousePage", 'm', targetpracticepage, xStep+fullPlotWidth/2+115, yTitle-10, 110, 20, color(colorBIdle), color(0), "Mouse Games", bOnOff, false);
-  buttonsCommon[bcsnakedomain]    = new GuiButton("SnakeGame", 'n', snakegamepage, xStep+fullPlotWidth/2+115, yTitle-10, 110, 20, color(colorBIdle), color(0), "Snake Game", bOnOff, false);
-  buttonsCommon[bcmusicdomain]    = new GuiButton("MuscleMusic", 'u', musclemusicpage, xStep+fullPlotWidth/2+155, yTitle-10, 110, 20, color(colorBIdle), color(0), "Muscle Music", bOnOff, false);
-  buttonsCommon[bcserialreset]    = new GuiButton("SerialReset", 'r', dummypage, xStep+fullPlotWidth+55, yTitle/2, 60, 20, color(colorBIdle), color(0), "Reset", bMomentary, false);
+  buttonsCommon[bcsettings]       = new GuiButton("Settings", 's', settingspage, xStep+plotwidth+55, yTitle+plotheight+yStep/2, 70, bheight, color(colorBIdle), color(0), "Settings", bMomentary, false, showButton);
+  buttonsCommon[bchelp]           = new GuiButton("Help", 'h', dummypage, xStep+plotwidth-35, 30, 25, 25, color(colorBIdle), color(0), "?", bMomentary, false, showButton);
+  buttonsCommon[bcsave]           = new GuiButton("Store", 'i', dummypage, xStep+50, 12, 100, 20, color(colorBIdle), color(0), "Save Image", bMomentary, false, showButton);
+  buttonsCommon[bcrecordnextdata] = new GuiButton("SaveRecord", 'd', dummypage, xStep+50, 36, 100, 20, color(colorBIdle), color(0), "Record "+recordDataTime+"s", bMomentary, false, showButton);
+  buttonsCommon[bcplotdomain]     = new GuiButton("TimePage", 't', timedomainpage, xStep+fullPlotWidth/2-73, yTitle-10, 60, 20, color(colorBIdle), color(0), "Plot Signals", bOnOff, true, showButton);
+  buttonsCommon[bctraindomain]    = new GuiButton("workoutPage", 'w', workoutpage, xStep+fullPlotWidth/2+19, yTitle-10, 75, 20, color(colorBIdle), color(0), "workout", bOnOff, false, showButton);
+  buttonsCommon[bcmousedomain]    = new GuiButton("MousePage", 'm', targetpracticepage, xStep+fullPlotWidth/2+115, yTitle-10, 110, 20, color(colorBIdle), color(0), "Mouse Games", bOnOff, false, showButton);
+  buttonsCommon[bcsnakedomain]    = new GuiButton("SnakeGame", 'n', snakegamepage, xStep+fullPlotWidth/2+115, yTitle-10, 110, 20, color(colorBIdle), color(0), "Snake Game", bOnOff, false, showButton);
+  buttonsCommon[bcmusicdomain]    = new GuiButton("MuscleMusic", 'u', musclemusicpage, xStep+fullPlotWidth/2+155, yTitle-10, 110, 20, color(colorBIdle), color(0), "Muscle Music", bOnOff, false, showButton);
+  buttonsCommon[bcserialreset]    = new GuiButton("SerialReset", 'r', dummypage, xStep+fullPlotWidth+55, yTitle/2, 60, 20, color(colorBIdle), color(0), "Reset", bMomentary, false, showButton);
   println(fullPlotWidth);
   textSize(buttontextsize);
   int tabpad = 6;
@@ -893,6 +903,14 @@ void clearYAxis() {
   rect(xStep/2, yTitle+plotheight/2, xStep, plotheight);
 }
 
+void clearRightBar(){
+  fill(colorBackground);
+  stroke(colorBackground);
+  strokeWeight(0);
+  rectMode(CENTER);
+  rect(xStep+plotwidth+barWidth/2,yTitle+plotheight/2,barWidth-6,plotheight);
+}
+
 
 void blankPlot() {
   fill(colorPlotBackground);
@@ -1128,23 +1146,24 @@ void importSettings() {
 
     // mouse calibration values
     m = match(loadedsettings[4], "null");
-    if (m == null) {
-      mouseThresh[xLow] = int(loadedsettings[4]);
-    }
+    if (m == null) {      mouseThresh2Ch[thresh2chxLow] = int(loadedsettings[4]);    }
     m = match(loadedsettings[5], "null");
-    if (m == null) {
-      mouseThresh[xHigh] = int(loadedsettings[5]);
-    }
+    if (m == null) {      mouseThresh2Ch[thresh2chxHigh] = int(loadedsettings[5]);    }
     m = match(loadedsettings[6], "null");
-    if (m == null) {
-      mouseThresh[yLow] = int(loadedsettings[6]);
-    }
+    if (m == null) {      mouseThresh2Ch[thresh2chyLow] = int(loadedsettings[6]);    }
     m = match(loadedsettings[7], "null");
-    if (m == null) {
-      mouseThresh[yHigh] = int(loadedsettings[7]);
-    }
+    if (m == null) {      mouseThresh2Ch[thresh2chyHigh] = int(loadedsettings[7]);    }
+    println(mouseThresh2Ch);
 
-    println(mouseThresh);
+    m = match(loadedsettings[8], "null");
+    if (m == null) {      mouseThresh4Ch[thresh4chxLeft] = int(loadedsettings[4]);    }
+    m = match(loadedsettings[9], "null");
+    if (m == null) {      mouseThresh4Ch[thresh4chRight] = int(loadedsettings[5]);    }
+    m = match(loadedsettings[10], "null");
+    if (m == null) {      mouseThresh4Ch[thresh4chDown] = int(loadedsettings[6]);    }
+    m = match(loadedsettings[11], "null");
+    if (m == null) {      mouseThresh4Ch[thresh4chUp] = int(loadedsettings[7]);    }
+    println(mouseThresh4Ch);
   }
 }
 
@@ -1416,26 +1435,26 @@ public class SettingsPage implements pagesClass {
   void initializeButtons() {
     buttons = new GuiButton[buttonNumber];
     println("width here = "+width);
-    buttons[bfolder]         = new GuiButton("Folder", ' ', dummypage, width/2-200, height/2-110, 80, bheights, color(colorBIdle), color(0), "change", bMomentary, false);
-    buttons[bfiltup]         = new GuiButton("FilterUp", ' ', dummypage, width/2+115, height/2+10, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false);
-    buttons[bfiltdown]       = new GuiButton("FilterDn", ' ', dummypage, width/2+65, height/2+10, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false);
-    buttons[bfrequp]         = new GuiButton("FreqUp", ' ', dummypage, width/2-160, height/2+10, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false);
-    buttons[bfreqdown]       = new GuiButton("FreqDn", ' ', dummypage, width/2-230, height/2+10, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false);
-    buttons[brecordtimeup]   = new GuiButton("RecordTimeUp", ' ', dummypage, width/2+200, height/2-70, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false);
-    buttons[brecordtimedown] = new GuiButton("RecordTimeDn", ' ', dummypage, width/2+130, height/2-70, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false);
-    buttons[b1chan]          = new GuiButton("1chanmodel", ' ', dummypage, width/2-105, height/2+10, 30, bheights, color(colorBIdle), color(0), "1", bOnOff, false);
-    buttons[b2chan]          = new GuiButton("2chanmodel", ' ', dummypage, width/2-70, height/2+10, 30, bheights, color(colorBIdle), color(0), "2", bOnOff, false);
-    buttons[b4chan]          = new GuiButton("4chanmodel", ' ', dummypage, width/2-35, height/2+10, 30, bheights, color(colorBIdle), color(0), "4", bOnOff, true);
-    buttons[b8chan]          = new GuiButton("8chanmodel", ' ', dummypage, width/2+0, height/2+10, 30, bheights, color(colorBIdle), color(0), "8", bOnOff, false);
-    buttons[bdownsampleup]   = new GuiButton("downSampleUp", ' ', dummypage, width/2+220, height/2+10, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false);
-    buttons[bdownsampledown] = new GuiButton("downSampleDn", ' ', dummypage, width/2+170, height/2+10, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false);
-    buttons[btimeradjustup]  = new GuiButton("TimerAdjustUp", ' ', dummypage, width/2-70, height/2+80, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false);
-    buttons[btimeradjustdown]= new GuiButton("TimerAdjustDn", ' ', dummypage, width/2-130, height/2+80, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false);
-    buttons[bprescalerup]    = new GuiButton("prescalerPicUp", ' ', dummypage, width/2+60, height/2+80, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false);
-    buttons[bprescalerdown]  = new GuiButton("prescalerPicDn", ' ', dummypage, width/2+0, height/2+80, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false);
-    buttons[bsave]           = new GuiButton("Save", 's', dummypage, width/2-160, height/2+130, 140, 30, color(colorBIdle), color(0), "Save & Exit (s)", bOnOff, false);
-    buttons[bdefaults]       = new GuiButton("Defaults", 'd', dummypage, width/2+160, height/2+130, 140, 30, color(colorBIdle), color(0), "Restore Defaults", bOnOff, false);
-    buttons[bcancel]         = new GuiButton("Exit", 'c', dummypage, width/2, height/2+130, 120, 30, color(colorBIdle), color(0), "Cancel (c)", bOnOff, false);
+    buttons[bfolder]         = new GuiButton("Folder", ' ', dummypage, width/2-200, height/2-110, 80, bheights, color(colorBIdle), color(0), "change", bMomentary, false, showButton);
+    buttons[bfiltup]         = new GuiButton("FilterUp", ' ', dummypage, width/2+115, height/2+10, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[bfiltdown]       = new GuiButton("FilterDn", ' ', dummypage, width/2+65, height/2+10, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[bfrequp]         = new GuiButton("FreqUp", ' ', dummypage, width/2-160, height/2+10, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[bfreqdown]       = new GuiButton("FreqDn", ' ', dummypage, width/2-230, height/2+10, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[brecordtimeup]   = new GuiButton("RecordTimeUp", ' ', dummypage, width/2+200, height/2-70, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[brecordtimedown] = new GuiButton("RecordTimeDn", ' ', dummypage, width/2+130, height/2-70, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[b1chan]          = new GuiButton("1chanmodel", ' ', dummypage, width/2-105, height/2+10, 30, bheights, color(colorBIdle), color(0), "1", bOnOff, false, showButton);
+    buttons[b2chan]          = new GuiButton("2chanmodel", ' ', dummypage, width/2-70, height/2+10, 30, bheights, color(colorBIdle), color(0), "2", bOnOff, false, showButton);
+    buttons[b4chan]          = new GuiButton("4chanmodel", ' ', dummypage, width/2-35, height/2+10, 30, bheights, color(colorBIdle), color(0), "4", bOnOff, true, showButton);
+    buttons[b8chan]          = new GuiButton("8chanmodel", ' ', dummypage, width/2+0, height/2+10, 30, bheights, color(colorBIdle), color(0), "8", bOnOff, false, showButton);
+    buttons[bdownsampleup]   = new GuiButton("downSampleUp", ' ', dummypage, width/2+220, height/2+10, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[bdownsampledown] = new GuiButton("downSampleDn", ' ', dummypage, width/2+170, height/2+10, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[btimeradjustup]  = new GuiButton("TimerAdjustUp", ' ', dummypage, width/2-70, height/2+80, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[btimeradjustdown]= new GuiButton("TimerAdjustDn", ' ', dummypage, width/2-130, height/2+80, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[bprescalerup]    = new GuiButton("prescalerPicUp", ' ', dummypage, width/2+60, height/2+80, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[bprescalerdown]  = new GuiButton("prescalerPicDn", ' ', dummypage, width/2+0, height/2+80, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[bsave]           = new GuiButton("Save", 's', dummypage, width/2-160, height/2+130, 140, 30, color(colorBIdle), color(0), "Save & Exit (s)", bOnOff, false, showButton);
+    buttons[bdefaults]       = new GuiButton("Defaults", 'd', dummypage, width/2+160, height/2+130, 140, 30, color(colorBIdle), color(0), "Restore Defaults", bOnOff, false, showButton);
+    buttons[bcancel]         = new GuiButton("Exit", 'c', dummypage, width/2, height/2+130, 120, 30, color(colorBIdle), color(0), "Cancel (c)", bOnOff, false, showButton);
   }
 
   void switchToPage() {
@@ -1509,10 +1528,14 @@ public class SettingsPage implements pagesClass {
     settingString[1] = folder;
     settingString[2] = str(userFreqIndex);
     settingString[3] = str(smoothFilterVal);
-    settingString[4] = str(mouseThresh[xLow]);
-    settingString[5] = str(mouseThresh[xHigh]);
-    settingString[6] = str(mouseThresh[yLow]);
-    settingString[7] = str(mouseThresh[yHigh]);
+    settingString[4] = str(mouseThresh2Ch[thresh2chxLow]);
+    settingString[5] = str(mouseThresh2Ch[thresh2chxHigh]);
+    settingString[6] = str(mouseThresh2Ch[thresh2chyLow]);
+    settingString[7] = str(mouseThresh2Ch[thresh2chyHigh]);
+    settingString[8]  = str(mouseThresh4Ch[thresh4chLeft]);
+    settingString[9]  = str(mouseThresh4Ch[thresh4chRight]);
+    settingString[10] = str(mouseThresh4Ch[thresh4chDown]);
+    settingString[11] = str(mouseThresh4Ch[thresh4chUp]);
 
     saveStrings(homePath+"/FlexVoltViewerSettings.txt", settingString);
     updateSettings();
@@ -1839,19 +1862,19 @@ public class TimeDomainPlotPage implements pagesClass {
     int buttony = yTitle+195;
     int controlsy = yTitle+30;
 
-    buttons[boffset] =new GuiButton("OffSet", 'o', dummypage, xStep+plotwidth+45, controlsy+70, 60, bheight, color(colorBIdle), color(0), "OffSet", bOnOff, false);
-    buttons[bpause] = new GuiButton("Pause",  'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false);
-    buttons[bsmooth] =new GuiButton("Smooth", 'f', dummypage, xStep+plotwidth+45, controlsy+100, 60, bheight, color(colorBIdle), color(0), "Filter", bOnOff, false);
-    buttons[bclear] = new GuiButton("Clear",  'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false);
-    buttons[bchan1] = new GuiButton("Chan1",  '1', dummypage, xStep+plotwidth+25, buttony, 30, bheight, color(colorBIdle), colorSig1, "1", bOnOff, true);
-    buttons[bchan2] = new GuiButton("Chan2",  '2', dummypage, xStep+plotwidth+25, buttony+30, 30, bheight, color(colorBIdle), colorSig2, "2", bOnOff, true);
-    buttons[bchan3] = new GuiButton("Chan3",  '3', dummypage, xStep+plotwidth+25, buttony+60, 30, bheight, color(colorBIdle), colorSig3, "3", bOnOff, true);
-    buttons[bchan4] = new GuiButton("Chan4",  '4', dummypage, xStep+plotwidth+25, buttony+90, 30, bheight, color(colorBIdle), colorSig4, "4", bOnOff, true);
-    buttons[bchan5] = new GuiButton("Chan5",  '5', dummypage, xStep+plotwidth+65, buttony, 30, bheight, color(colorBIdle), colorSig5, "5", bOnOff, false);
-    buttons[bchan6] = new GuiButton("Chan6",  '6', dummypage, xStep+plotwidth+65, buttony+30, 30, bheight, color(colorBIdle), colorSig6, "6", bOnOff, false);
-    buttons[bchan7] = new GuiButton("Chan7",  '7', dummypage, xStep+plotwidth+65, buttony+60, 30, bheight, color(colorBIdle), colorSig7, "7", bOnOff, false);
-    buttons[bchan8] = new GuiButton("Chan8",  '8', dummypage, xStep+plotwidth+65, buttony+90, 30, bheight, color(colorBIdle), colorSig8, "8", bOnOff, false);
-    buttons[bdomain]= new GuiButton("Domain", 'd', dummypage, xStep+80, yTitle+plotheight+30, 160, 18, color(colorBIdle), color(0), domainStr, bMomentary, false);
+    buttons[boffset] =new GuiButton("OffSet", 'o', dummypage, xStep+plotwidth+45, controlsy+70, 60, bheight, color(colorBIdle), color(0), "OffSet", bOnOff, false, showButton);
+    buttons[bpause] = new GuiButton("Pause",  'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false, showButton);
+    buttons[bsmooth] =new GuiButton("Smooth", 'f', dummypage, xStep+plotwidth+45, controlsy+100, 60, bheight, color(colorBIdle), color(0), "Filter", bOnOff, false, showButton);
+    buttons[bclear] = new GuiButton("Clear",  'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false, showButton);
+    buttons[bchan1] = new GuiButton("Chan1",  '1', dummypage, xStep+plotwidth+25, buttony, 30, bheight, color(colorBIdle), colorSig1, "1", bOnOff, true, showButton);
+    buttons[bchan2] = new GuiButton("Chan2",  '2', dummypage, xStep+plotwidth+25, buttony+30, 30, bheight, color(colorBIdle), colorSig2, "2", bOnOff, true, showButton);
+    buttons[bchan3] = new GuiButton("Chan3",  '3', dummypage, xStep+plotwidth+25, buttony+60, 30, bheight, color(colorBIdle), colorSig3, "3", bOnOff, true, showButton);
+    buttons[bchan4] = new GuiButton("Chan4",  '4', dummypage, xStep+plotwidth+25, buttony+90, 30, bheight, color(colorBIdle), colorSig4, "4", bOnOff, true, showButton);
+    buttons[bchan5] = new GuiButton("Chan5",  '5', dummypage, xStep+plotwidth+65, buttony, 30, bheight, color(colorBIdle), colorSig5, "5", bOnOff, false, showButton);
+    buttons[bchan6] = new GuiButton("Chan6",  '6', dummypage, xStep+plotwidth+65, buttony+30, 30, bheight, color(colorBIdle), colorSig6, "6", bOnOff, false, showButton);
+    buttons[bchan7] = new GuiButton("Chan7",  '7', dummypage, xStep+plotwidth+65, buttony+60, 30, bheight, color(colorBIdle), colorSig7, "7", bOnOff, false, showButton);
+    buttons[bchan8] = new GuiButton("Chan8",  '8', dummypage, xStep+plotwidth+65, buttony+90, 30, bheight, color(colorBIdle), colorSig8, "8", bOnOff, false, showButton);
+    buttons[bdomain]= new GuiButton("Domain", 'd', dummypage, xStep+80, yTitle+plotheight+30, 160, 18, color(colorBIdle), color(0), domainStr, bMomentary, false, showButton);
 
     if (flagTimeDomain){
       offSet2[0] = plotheight*3/4;
@@ -2378,21 +2401,21 @@ public class workoutPage implements pagesClass {
 
   void initializeButtons() {
     buttons = new GuiButton[buttonNumber];
-    buttons[breset]       = new GuiButton("Reset", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+plotheight/2+5, 120, bheights, color(colorBIdle), color(0), "Reset workout", bMomentary, false);
-    buttons[bsetreps1]    = new GuiButton("Setreps1", ' ', dummypage, xStep+halfPlotWidth+30, yTitle+70, 50, bheights, color(colorBIdle), color(0), str(repsTarget[0]), bOnOff, false);
-    buttons[bsetreps2]    = new GuiButton("Setreps2", ' ', dummypage, xStep+halfPlotWidth+30, yTitle+plotheight/2+90, 50, bheights, color(colorBIdle), color(0), str(repsTarget[1]), bOnOff, false);
-    buttons[bthresh1up]   = new GuiButton("repthresh1up", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight/2-50, 30, bheights, color(colorBIdle), color(0), "up", bMomentary, false);
-    buttons[bthresh1down] = new GuiButton("repthresh1dn", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight/2-26, 30, bheights, color(colorBIdle), color(0), "dn", bMomentary, false);
-    buttons[bthresh2up]   = new GuiButton("repthresh2up", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight-29, 30, bheights, color(colorBIdle), color(0), "up", bMomentary, false);
-    buttons[bthresh2down] = new GuiButton("repthresh2dn", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight-5, 30, bheights, color(colorBIdle), color(0), "dn", bMomentary, false);
-    buttons[bchan1]       = new GuiButton("Chan1", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+40, 30, bheights, color(colorBIdle), colorSigM[trainChan[0]], str(trainChan[0]+1), bOnOff, true);
-    buttons[bchan1name]   = new GuiButton("Name1", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+15, 120, bheights, color(colorBIdle), color(0), "name1", bOnOff, false);
-    buttons[bchan1up]     = new GuiButton("Ch1up", ' ', dummypage, xStep+halfPlotWidth+105, yTitle+40, bheights, bheights, color(colorBIdle), color(0), ">", bMomentary, false);
-    buttons[bchan1down]   = new GuiButton("Ch1dn", ' ', dummypage, xStep+halfPlotWidth+25, yTitle+40, bheights, bheights, color(colorBIdle), color(0), "<", bMomentary, false);
-    buttons[bchan2]       = new GuiButton("Chan2", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+plotheight/2+60, 30, bheights, color(colorBIdle), colorSigM[trainChan[1]], str(trainChan[1]+1), bOnOff, false);
-    buttons[bchan2name]   = new GuiButton("Name2", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+plotheight/2+35, 120, bheights, color(colorBIdle), color(0), "name2", bOnOff, false);
-    buttons[bchan2up]     = new GuiButton("Ch2up", ' ', dummypage, xStep+halfPlotWidth+105, yTitle+plotheight/2+60, bheights, bheights, color(colorBIdle), color(0), ">", bMomentary, false);
-    buttons[bchan2down]   = new GuiButton("Ch2dn", ' ', dummypage, xStep+halfPlotWidth+25, yTitle+plotheight/2+60, bheights, bheights, color(colorBIdle), color(0), "<", bMomentary, false);
+    buttons[breset]       = new GuiButton("Reset", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+plotheight/2+5, 120, bheights, color(colorBIdle), color(0), "Reset workout", bMomentary, false, showButton);
+    buttons[bsetreps1]    = new GuiButton("Setreps1", ' ', dummypage, xStep+halfPlotWidth+30, yTitle+70, 50, bheights, color(colorBIdle), color(0), str(repsTarget[0]), bOnOff, false, showButton);
+    buttons[bsetreps2]    = new GuiButton("Setreps2", ' ', dummypage, xStep+halfPlotWidth+30, yTitle+plotheight/2+90, 50, bheights, color(colorBIdle), color(0), str(repsTarget[1]), bOnOff, false, showButton);
+    buttons[bthresh1up]   = new GuiButton("repthresh1up", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight/2-50, 30, bheights, color(colorBIdle), color(0), "up", bMomentary, false, showButton);
+    buttons[bthresh1down] = new GuiButton("repthresh1dn", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight/2-26, 30, bheights, color(colorBIdle), color(0), "dn", bMomentary, false, showButton);
+    buttons[bthresh2up]   = new GuiButton("repthresh2up", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight-29, 30, bheights, color(colorBIdle), color(0), "up", bMomentary, false, showButton);
+    buttons[bthresh2down] = new GuiButton("repthresh2dn", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight-5, 30, bheights, color(colorBIdle), color(0), "dn", bMomentary, false, showButton);
+    buttons[bchan1]       = new GuiButton("Chan1", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+40, 30, bheights, color(colorBIdle), colorSigM[trainChan[0]], str(trainChan[0]+1), bOnOff, true, showButton);
+    buttons[bchan1name]   = new GuiButton("Name1", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+15, 120, bheights, color(colorBIdle), color(0), "name1", bOnOff, false, showButton);
+    buttons[bchan1up]     = new GuiButton("Ch1up", ' ', dummypage, xStep+halfPlotWidth+105, yTitle+40, bheights, bheights, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+    buttons[bchan1down]   = new GuiButton("Ch1dn", ' ', dummypage, xStep+halfPlotWidth+25, yTitle+40, bheights, bheights, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+    buttons[bchan2]       = new GuiButton("Chan2", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+plotheight/2+60, 30, bheights, color(colorBIdle), colorSigM[trainChan[1]], str(trainChan[1]+1), bOnOff, false, showButton);
+    buttons[bchan2name]   = new GuiButton("Name2", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+plotheight/2+35, 120, bheights, color(colorBIdle), color(0), "name2", bOnOff, false, showButton);
+    buttons[bchan2up]     = new GuiButton("Ch2up", ' ', dummypage, xStep+halfPlotWidth+105, yTitle+plotheight/2+60, bheights, bheights, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+    buttons[bchan2down]   = new GuiButton("Ch2dn", ' ', dummypage, xStep+halfPlotWidth+25, yTitle+plotheight/2+60, bheights, bheights, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
   }
 
   void switchToPage() {
@@ -3175,12 +3198,19 @@ public class TargetPracticePage implements pagesClass {
   int
     bclear = buttonNumber++, 
   bpause = buttonNumber++, 
-  bchan1 = buttonNumber++, 
-  bchan2 = buttonNumber++, 
-  bchan1up = buttonNumber++, 
-  bchan2up = buttonNumber++, 
-  bchan1down = buttonNumber++, 
-  bchan2down = buttonNumber++;
+//  bchan1 = buttonNumber++, 
+//  bchan2 = buttonNumber++, 
+  b2chctrl = buttonNumber++,
+  b4chctrl = buttonNumber++,
+  badjustthresh = buttonNumber++;
+//  bchan1up = buttonNumber++, 
+//  bchan2up = buttonNumber++, 
+//  bchan3up = buttonNumber++, 
+//  bchan4up = buttonNumber++, 
+//  bchan1down = buttonNumber++, 
+//  bchan2down = buttonNumber++, 
+//  bchan3down = buttonNumber++, 
+//  bchan4down = buttonNumber++;
 
   // MouseGame
   int gameTargetX;
@@ -3197,7 +3227,7 @@ public class TargetPracticePage implements pagesClass {
   boolean mouseXAxisFlip = false;
   boolean mouseYAxisFlip = false;
 
-
+  int threshStep = 4;
   int mouseThreshStandOff = 5;
   int mouseThreshInd = 0;
   int xMouseFactor1 = 2;
@@ -3222,14 +3252,21 @@ public class TargetPracticePage implements pagesClass {
     buttons = new GuiButton[buttonNumber];
     int buttony = yTitle+195;
     int controlsy = yTitle+30;
-    buttons[bpause]    = new GuiButton("Pause", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false);
-    buttons[bclear]    = new GuiButton("Clear", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false);
-    buttons[bchan1up]  = new GuiButton("MChan1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false);
-    buttons[bchan1down]= new GuiButton("MChan1down", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false);
-    buttons[bchan1]    = new GuiButton("MChan1", ' ', dummypage, xStep+plotwidth+50, yTitle+200, 30, bheight, color(colorBIdle), colorSigM[mouseChan[0]], ""+(mouseChan[0]+1), bOnOff, true);
-    buttons[bchan2up]  = new GuiButton("MChan2up", ' ', dummypage, xStep+plotwidth+80, yTitle+260, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false);
-    buttons[bchan2down]= new GuiButton("MChan2down", ' ', dummypage, xStep+plotwidth+16, yTitle+260, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false);
-    buttons[bchan2]    = new GuiButton("MChan2", ' ', dummypage, xStep+plotwidth+50, yTitle+260, 30, bheight, color(colorBIdle), colorSigM[mouseChan[1]], ""+(mouseChan[1]+1), bOnOff, true);
+    buttons[bpause]        = new GuiButton("Pause",    'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Play", bOnOff, false, showButton);
+    buttons[bclear]        = new GuiButton("Clear",    'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false, showButton);
+    buttons[b2chctrl]      = new GuiButton("M2chCtrl", '2', dummypage, xStep+plotwidth+27, yTitle+150, 36, bheight, color(colorBIdle), color(0), "2Ch", bOnOff, true, showButton);
+    buttons[b4chctrl]      = new GuiButton("M4chCtrl", '4', dummypage, xStep+plotwidth+63, yTitle+150, 36, bheight, color(colorBIdle), color(0), "4Ch", bOnOff, false, showButton);
+    buttons[badjustthresh] = new GuiButton("Adjthresh",'a', dummypage, xStep+80, yTitle+plotheight+20, 150, bheight, color(colorBIdle), color(0), "Adjust Thresholds", bOnOff, false, showButton);
+
+//    buttons[bchan1up]  = new GuiButton("MChan1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+//    buttons[bchan1down]= new GuiButton("MChan1down", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+//    buttons[bchan2up]  = new GuiButton("MChan2up", ' ', dummypage, xStep+plotwidth+80, yTitle+250, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+//    buttons[bchan2down]= new GuiButton("MChan2down", ' ', dummypage, xStep+plotwidth+16, yTitle+250, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+//    buttons[bchan3up]  = new GuiButton("MChan3up", ' ', dummypage, xStep+plotwidth+80, yTitle+300, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, hideButton);
+//    buttons[bchan3down]= new GuiButton("MChan3down", ' ', dummypage, xStep+plotwidth+16, yTitle+300, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, hideButton);
+//    buttons[bchan4up]  = new GuiButton("MChan4up", ' ', dummypage, xStep+plotwidth+80, yTitle+350, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, hideButton);
+//    buttons[bchan4down]= new GuiButton("MChan5down", ' ', dummypage, xStep+plotwidth+16, yTitle+350, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, hideButton);
+
   }
 
   void switchToPage() {
@@ -3245,8 +3282,8 @@ public class TargetPracticePage implements pagesClass {
     bitDepth10 = false;
     channelsOn[mouseChan[0]] = true;
     channelsOn[mouseChan[1]] = true;
-    buttons[bchan1].bOn = channelsOn[mouseChan[0]];
-    buttons[bchan2].bOn = channelsOn[mouseChan[1]];
+//    buttons[bchan1].bOn = channelsOn[mouseChan[0]];
+//    buttons[bchan2].bOn = channelsOn[mouseChan[1]];
     buttons[bpause].bOn = pauseFlag;
 
     updateSettings();
@@ -3293,22 +3330,59 @@ public class TargetPracticePage implements pagesClass {
     textSize(titlesize);
     text("Flex Mouse", xStep+fullPlotWidth/2+20, yTitle-45);
 
-    textSize(labelsizes);
-    text("'p' or pause/play = toggle control of your mouse pointer.", xStep+plotwidth/2, yTitle+plotheight+9);
-    text("'k' = set sensitivity for mouse control.", xStep+plotwidth/2, yTitle+plotheight+26);
-    text("x=left/right", xStep+plotwidth+barwidth/2, yTitle+120);
-    text("y=up/down", xStep+plotwidth+barwidth/2, yTitle+140);
-    // text("Select which input channel controls X (left/right) and Y(up/down) axes.",width/2,yTitle+plotheight+25);
-
 
     // blankPlot();
     for (int i = 0; i < buttons.length; i++) {
       buttons[i].drawButton();
     }
+    
     textSize(labelsize);
-    text("X-Axis", xStep+fullPlotWidth+50, yTitle+170);
-    text("Y-Axis", xStep+fullPlotWidth+50, yTitle+230);
     text("Plotting", xStep+fullPlotWidth+45, yTitle+10);
+    text("Control", xStep+fullPlotWidth+45,yTitle+100);
+    text("Mode", xStep+fullPlotWidth+45,yTitle+120);
+    
+    textSize(labelsizes);
+    text("'p' (pause) to get your mouse back!", xStep+plotwidth/2+60, yTitle+plotheight+12);
+//    text("'k' = set sensitivity for mouse control.", xStep+plotwidth/2, yTitle+plotheight+26);
+//    text("x=left/right", xStep+plotwidth+barWidth/2, yTitle+120);
+//    text("y=up/down", xStep+plotwidth+barWidth/2, yTitle+140);
+    
+    
+    if (buttons[b2chctrl].bOn){
+      textSize(labelsizexs);
+      text("X-Axis", xStep+fullPlotWidth+30, yTitle+190);
+      text("Y-Axis", xStep+fullPlotWidth+30, yTitle+220);
+      
+      
+      fill(colorPlotBackground);
+      rect(xStep+plotwidth+70, yTitle+190, 25, bheight);
+      rect(xStep+plotwidth+70, yTitle+220, 25, bheight);
+      fill(colorSigM[mouseChan[0]]);
+      text(""+(mouseChan[0]+1),xStep+plotwidth+70, yTitle+190-2);
+      fill(colorSigM[mouseChan[1]]);
+      text(""+(mouseChan[1]+1),xStep+plotwidth+70, yTitle+220-2);
+    } else if (buttons[b4chctrl].bOn){
+      textSize(labelsizexs);
+      text("Left",  xStep+fullPlotWidth+30, yTitle+190);
+      text("Right", xStep+fullPlotWidth+30, yTitle+220);
+      text("Up",    xStep+fullPlotWidth+30, yTitle+250);
+      text("Down",  xStep+fullPlotWidth+30, yTitle+280);
+      
+      
+      fill(colorPlotBackground);
+      rect(xStep+plotwidth+70, yTitle+190, 25, bheight);
+      rect(xStep+plotwidth+70, yTitle+220, 25, bheight);
+      rect(xStep+plotwidth+70, yTitle+250, 25, bheight);
+      rect(xStep+plotwidth+70, yTitle+280, 25, bheight);
+      fill(colorSigM[mouseChan[0]]);
+      text(""+(mouseChan[0]+1),xStep+plotwidth+70, yTitle+190-2);
+      fill(colorSigM[mouseChan[1]]);
+      text(""+(mouseChan[1]+1),xStep+plotwidth+70, yTitle+220-2);
+      fill(colorSigM[mouseChan[2]]);
+      text(""+(mouseChan[2]+1),xStep+plotwidth+70, yTitle+250-2);
+      fill(colorSigM[mouseChan[3]]);
+      text(""+(mouseChan[3]+1),xStep+plotwidth+70, yTitle+280-2);
+    }
   }
 
   boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
@@ -3355,33 +3429,44 @@ public class TargetPracticePage implements pagesClass {
           outflag = true;
         }
         else if (keyCode == UP) {
-
-          if (mouseThreshInd == yLow && mouseThresh[yLow] > (mouseThresh[yHigh]-mouseThreshStandOff)) {
-            // do nothing - can't have low >= high!
+          if (buttons[b2chctrl].bOn){
+            if (mouseThreshInd == thresh2chyLow && mouseThresh2Ch[thresh2chyLow] > (mouseThresh2Ch[thresh2chyHigh]-mouseThreshStandOff)) {
+              // do nothing - can't have low >= high!
+            }
+            else if (mouseThreshInd == thresh2chxLow && mouseThresh2Ch[thresh2chxLow] > (mouseThresh2Ch[thresh2chxHigh]-mouseThreshStandOff)) {
+              // do nothing - can't have low >= high!
+            }
+            else {
+              mouseThresh2Ch[mouseThreshInd] = constrain(mouseThresh2Ch[mouseThreshInd]+threshStep, maxSignalVal, maxSignalVal*2);
+            }
+            println("New mouseThresh = "+mouseThresh2Ch[mouseThreshInd]);
           }
-          else if (mouseThreshInd == xLow && mouseThresh[xLow] > (mouseThresh[xHigh]-mouseThreshStandOff)) {
-            // do nothing - can't have low >= high!
-          }
-          else {
-            mouseThresh[mouseThreshInd]+=2;
-            mouseThresh[mouseThreshInd] = constrain(mouseThresh[mouseThreshInd], maxSignalVal, maxSignalVal*2);
+          else if (buttons[b4chctrl].bOn){
+            mouseThresh4Ch[mouseThreshInd] = constrain(mouseThresh4Ch[mouseThreshInd]+threshStep, maxSignalVal, maxSignalVal*2);
+            println("ind = "+mouseThreshInd+", New mouseThresh = "+mouseThresh4Ch[mouseThreshInd]);
           }
           outflag = true;
         }
         else if (keyCode == DOWN) {
-          if (mouseThreshInd == yHigh && mouseThresh[yLow] > (mouseThresh[yHigh]-mouseThreshStandOff)) {
-            // do nothing - can't have low >= high!
+          if (buttons[b2chctrl].bOn){
+            if (mouseThreshInd == thresh2chyHigh && mouseThresh2Ch[thresh2chyLow] > (mouseThresh2Ch[thresh2chyHigh]-mouseThreshStandOff)) {
+              // do nothing - can't have low >= high!
+            }
+            else if (mouseThreshInd == thresh2chxHigh && mouseThresh2Ch[thresh2chxLow] > (mouseThresh2Ch[thresh2chxHigh]-mouseThreshStandOff)) {
+              // do nothing - can't have low >= high!
+            }
+            else {
+              mouseThresh2Ch[mouseThreshInd] = constrain(mouseThresh2Ch[mouseThreshInd]-threshStep, maxSignalVal, maxSignalVal*2);
+            }
+            println("New mouseThresh = "+mouseThresh2Ch[mouseThreshInd]);
           }
-          else if (mouseThreshInd == xHigh && mouseThresh[xLow] > (mouseThresh[xHigh]-mouseThreshStandOff)) {
-            // do nothing - can't have low >= high!
-          }
-          else {
-            mouseThresh[mouseThreshInd]-=2;
-            mouseThresh[mouseThreshInd] = constrain(mouseThresh[mouseThreshInd], maxSignalVal, maxSignalVal*2);
+          else if (buttons[b4chctrl].bOn){
+            mouseThresh4Ch[mouseThreshInd] = constrain(mouseThresh4Ch[mouseThreshInd]-threshStep, maxSignalVal, maxSignalVal*2);
+            println("ind = "+mouseThreshInd+", New mouseThresh = "+mouseThresh4Ch[mouseThreshInd]);
           }
           outflag = true;
         }
-        println("New mouseThresh = "+mouseThresh[mouseThreshInd]);
+        
       }
     }
 
@@ -3390,12 +3475,24 @@ public class TargetPracticePage implements pagesClass {
       if (buttons[i] != null) {
         if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
           outflag = true;
-          buttons[i].bOn = !buttons[i].bOn;
-          buttons[i].changeColorPressed();
-          buttonColorTimer = millis()+buttonColorDelay;
-          buttonPressedFlag = true;
+//          buttons[i].bOn = !buttons[i].bOn;
+          if (buttons[i].bMomentary){
+            buttons[i].changeColorPressed();
+            buttonColorTimer = millis()+buttonColorDelay;
+            buttonPressedFlag = true;
+          }
           currentbutton = i;
 
+          if (currentbutton == badjustthresh){
+            mouseTuneFlag = !mouseTuneFlag;
+            buttons[i].bOn = !buttons[i].bOn;
+            if (!mouseTuneFlag) {
+              drawTarget();
+              gamenextStep = second()+gamedelayTime;
+              println(gamenextStep);
+              gameScore = 0;
+            }
+          }
           if (currentbutton == bclear) {
             blankPlot();
             labelAxes();
@@ -3403,6 +3500,7 @@ public class TargetPracticePage implements pagesClass {
           }
           if (currentbutton == bpause) {
             pauseFlag = !pauseFlag;
+            buttons[i].bOn = !buttons[i].bOn;
             if (!pauseFlag) {
               buttons[currentbutton].label = "Pause";
               buttons[currentbutton].drawButton();
@@ -3413,70 +3511,104 @@ public class TargetPracticePage implements pagesClass {
             }
             println("Pause Toggled");
           }
-          if (currentbutton == bchan1up) {
-            mouseChan[0]++;
-            if (mouseChan[0]>=currentSignalNumber) {
-              mouseChan[0]=currentSignalNumber-1;
+          if (currentbutton == b2chctrl){
+            if (!buttons[currentbutton].bOn){
+              buttons[currentbutton].bOn = true;
+              buttons[b4chctrl].bOn = false;
+              clearRightBar();
+              
+//              buttons[bchan3up].bHidden = hideButton;
+//              buttons[bchan3down].bHidden = hideButton;
+//              buttons[bchan4up].bHidden = hideButton;
+//              buttons[bchan4down].bHidden = hideButton;
+              
+//              background(colorBackground);
+//              labelGUI();
+//              switchToPage();
             }
-            if (mouseChan[0] == mouseChan[1]) {
-              mouseChan[0]++;
-              if (mouseChan[0]>=currentSignalNumber) {
-                mouseChan[0]=mouseChan[1]-1;
-              }
-            }
-            buttons[bchan1].ctext = colorSigM[mouseChan[0]];
-            buttons[bchan1].label = str(mouseChan[0]+1);
-            buttons[bchan1].drawButton();
-            channelsOn[mouseChan[0]] = buttons[bchan1].bOn;
           }
-          if (currentbutton == bchan1down) {
-            mouseChan[0]--;
-            if (mouseChan[0]<0) {
-              mouseChan[0]=0;
+          if (currentbutton == b4chctrl){
+            if (!buttons[currentbutton].bOn){
+              buttons[currentbutton].bOn = true;
+              buttons[b2chctrl].bOn = false;
+              clearRightBar();
+              
+//              buttons[bchan3up].bHidden = showButton;
+//              buttons[bchan3down].bHidden = showButton;
+//              buttons[bchan4up].bHidden = showButton;
+//              buttons[bchan4down].bHidden = showButton;
+              
+//              background(colorBackground);
+//              labelGUI();
+//              switchToPage();
+              
+              
             }
-            if (mouseChan[0] == mouseChan[1]) {
-              mouseChan[0]--;
-              if (mouseChan[0]<0) {
-                mouseChan[0]=mouseChan[1]+1;
-              }
-            }
-            buttons[bchan1].ctext = colorSigM[mouseChan[0]];
-            buttons[bchan1].label = str(mouseChan[0]+1);
-            buttons[bchan1].drawButton();
-            channelsOn[mouseChan[0]] = buttons[bchan1].bOn;
           }
-          if (currentbutton == bchan2up) {
-            mouseChan[1]++;
-            if (mouseChan[1]>=currentSignalNumber) {
-              mouseChan[1]=currentSignalNumber-1;
-            }
-            if (mouseChan[1] == mouseChan[0]) {
-              mouseChan[1]++;
-              if (mouseChan[1]>=currentSignalNumber) {
-                mouseChan[1]=mouseChan[0]-1;
-              }
-            }
-            buttons[bchan2].ctext = colorSigM[mouseChan[1]];
-            buttons[bchan2].label = str(mouseChan[1]+1);
-            buttons[bchan2].drawButton();
-            channelsOn[mouseChan[1]] = buttons[bchan2].bOn;
-          }
-          if (currentbutton == bchan2down) {
-            mouseChan[1]--;
-            if (mouseChan[1]<0) {
-              mouseChan[1]=0;
-            }
-            if (mouseChan[1] == mouseChan[0]) {
-              mouseChan[1]--;
-              if (mouseChan[1]<0) {
-                mouseChan[1]=mouseChan[0]+1;
-              }
-            }
-            buttons[bchan2].ctext = colorSigM[mouseChan[1]];
-            buttons[bchan2].label = str(mouseChan[1]+1);
-            buttons[bchan2].drawButton();
-            channelsOn[mouseChan[1]] = buttons[bchan2].bOn;
-          }
+//          if (currentbutton == bchan1up) {
+//            mouseChan[0]++;
+//            if (mouseChan[0]>=currentSignalNumber) {
+//              mouseChan[0]=currentSignalNumber-1;
+//            }
+//            if (mouseChan[0] == mouseChan[1]) {
+//              mouseChan[0]++;
+//              if (mouseChan[0]>=currentSignalNumber) {
+//                mouseChan[0]=mouseChan[1]-1;
+//              }
+//            }
+////            buttons[bchan1].ctext = colorSigM[mouseChan[0]];
+////            buttons[bchan1].label = str(mouseChan[0]+1);
+////            buttons[bchan1].drawButton();
+////            channelsOn[mouseChan[0]] = buttons[bchan1].bOn;
+//          }
+//          if (currentbutton == bchan1down) {
+//            mouseChan[0]--;
+//            if (mouseChan[0]<0) {
+//              mouseChan[0]=0;
+//            }
+//            if (mouseChan[0] == mouseChan[1]) {
+//              mouseChan[0]--;
+//              if (mouseChan[0]<0) {
+//                mouseChan[0]=mouseChan[1]+1;
+//              }
+//            }
+////            buttons[bchan1].ctext = colorSigM[mouseChan[0]];
+////            buttons[bchan1].label = str(mouseChan[0]+1);
+////            buttons[bchan1].drawButton();
+////            channelsOn[mouseChan[0]] = buttons[bchan1].bOn;
+//          }
+//          if (currentbutton == bchan2up) {
+//            mouseChan[1]++;
+//            if (mouseChan[1]>=currentSignalNumber) {
+//              mouseChan[1]=currentSignalNumber-1;
+//            }
+//            if (mouseChan[1] == mouseChan[0]) {
+//              mouseChan[1]++;
+//              if (mouseChan[1]>=currentSignalNumber) {
+//                mouseChan[1]=mouseChan[0]-1;
+//              }
+//            }
+////            buttons[bchan2].ctext = colorSigM[mouseChan[1]];
+////            buttons[bchan2].label = str(mouseChan[1]+1);
+////            buttons[bchan2].drawButton();
+////            channelsOn[mouseChan[1]] = buttons[bchan2].bOn;
+//          }
+//          if (currentbutton == bchan2down) {
+//            mouseChan[1]--;
+//            if (mouseChan[1]<0) {
+//              mouseChan[1]=0;
+//            }
+//            if (mouseChan[1] == mouseChan[0]) {
+//              mouseChan[1]--;
+//              if (mouseChan[1]<0) {
+//                mouseChan[1]=mouseChan[0]+1;
+//              }
+//            }
+////            buttons[bchan2].ctext = colorSigM[mouseChan[1]];
+////            buttons[bchan2].label = str(mouseChan[1]+1);
+////            buttons[bchan2].drawButton();
+////            channelsOn[mouseChan[1]] = buttons[bchan2].bOn;
+//          }
 
           labelAxes();
         }
@@ -3537,115 +3669,143 @@ public class TargetPracticePage implements pagesClass {
       textAlign(CENTER, CENTER);
       fill(colorBackground);
       rectMode(CENTER);
-      rect(xStep+plotwidth*5/16, yTitle+plotheight/2, plotwidth*5/8-2, plotheight-2);
+      rect(xStep+125, yTitle+plotheight/2, 250-2, plotheight-2);
       fill(0);
-      text("Mouse calibration", xStep+plotwidth*1/4, yTitle+12);
+      text("Mouse calibration", xStep+125, yTitle+12);
       textSize(labelsizes);
-
-      // // arrows indicating axis directions
-      // // x-axis
-      // int addtmp = -140;
-      // line(xStep+plotwidth/4+50+addtmp,yTitle+80,xStep+plotwidth/4+100+addtmp,yTitle+80);
-      // line(xStep+plotwidth/4+90+addtmp,yTitle+70,xStep+plotwidth/4+100+addtmp,yTitle+80);
-      // line(xStep+plotwidth/4+90+addtmp,yTitle+90,xStep+plotwidth/4+100+addtmp,yTitle+80);
-      // line(xStep+plotwidth/4+60+addtmp,yTitle+70,xStep+plotwidth/4+50+addtmp,yTitle+80);
-      // line(xStep+plotwidth/4+60+addtmp,yTitle+90,xStep+plotwidth/4+50+addtmp,yTitle+80);
-      // // y-axis
-      // addtmp = 100;
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+75+addtmp,yTitle+110);
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+65+addtmp,yTitle+70);
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+85+addtmp,yTitle+70);
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+65+addtmp,yTitle+100);
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+85+addtmp,yTitle+100);
-
-
-      // x-low
-      tmp = constrain(int(map(mouseThresh[xLow]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
-      stroke(255, 255, 0);
-      fill(0);
-      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-      if (mouseThreshInd == xLow) {
-        fill(255, 255, 0);
-      }
-      if (ytmp-tmp +20 > yTitle+plotheight-20) {
-        text("X Low", xStep+plotwidth*11/16, ytmp-tmp-20);
-      }
-      else {    
-        text("X Low", xStep+plotwidth*11/16, ytmp-tmp+20);
-      }
-      // y-low
-      tmp = constrain(int(map(mouseThresh[yLow]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
-      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-      fill(0);
-      if (mouseThreshInd == yLow) {
-        fill(255, 255, 0);
-      }
-      text("Y Low", xStep+plotwidth*11/16, ytmp-tmp+20);
-      // x-high
-      stroke(255, 0, 0);
-      tmp = constrain(int(map(mouseThresh[xHigh]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
-      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-      fill(0);
-      if (mouseThreshInd == xHigh) {
-        fill(255, 255, 0);
-      }
-      if (ytmp-tmp +20 > yTitle+plotheight-20) {
-        text("X High", xStep+plotwidth*15/16, ytmp-tmp-20);
-      }
-      else {    
-        text("X High", xStep+plotwidth*15/16, ytmp-tmp+20);
-      }
-      // y-high
-      tmp = constrain(int(map(mouseThresh[yHigh]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
-      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-      fill(0);
-      if (mouseThreshInd == yHigh) {
-        fill(255, 255, 0);
-      }
-      text("Y High", xStep+plotwidth*15/16, ytmp-tmp+20);
-
-      // actual signals
-      stroke(0, 255, 0);
-      fill(0, 255, 0);
-      int tmpind = 0;
-      tmpind = signalindex-datacounter;
+      
+      int tmpind = signalindex-datacounter;
       datacounter = 0;
       while (tmpind < 0) {
         tmpind+=maxSignalLength;
       }
-      tmp = constrain(int(map(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
-      line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
-      if (tmp < 50) {
-        text("X-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
-      }
-      else {
-        text("X-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
-      }
+      
+      if (buttons[b2chctrl].bOn){
+        // x-low
+        tmp = constrain(int(map(mouseThresh2Ch[thresh2chxLow]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        stroke(255, 255, 0);
+        fill(0);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        if (mouseThreshInd == thresh2chxLow) {          fill(255, 255, 0);        }
+        text("X Low", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
 
-      tmp = constrain(int(map(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
-      line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
-      if (tmp<plotheight/2+30) {
-        text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
-      }
-      else {
-        text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
-      }
+        // y-low
+        tmp = constrain(int(map(mouseThresh2Ch[thresh2chyLow]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh2chyLow) {          fill(255, 255, 0);        }
+        text("Y Low", xStep+plotwidth*11/16, ytmp-tmp+20);
+        
+        // x-high
+        stroke(255, 0, 0);
+        tmp = constrain(int(map(mouseThresh2Ch[thresh2chxHigh]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh2chxHigh) {          fill(255, 255, 0);        }
+        text("X High", xStep+plotwidth*15/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
 
-      String mouse_msg = "";
-      mouse_msg += "Input > high => mouse moves up/right\nInput < low => mouse moves down/left\nlow<Input<high => mouse does not move\n";
-      mouse_msg += "\n";
-      mouse_msg += "To Set Thresholds:\n";
-      mouse_msg += " Left/Right arrows select threshold (yellow)\n";
-      // mouse_msg += " (Selected threshold turns yellow)\n";
-      mouse_msg += " Up/Down arrows move selected threshold\n";
-      // mouse_msg += " (Threshold will move\n";
-      mouse_msg += "\n";
-      mouse_msg += "Adjust thresholds so the green bar is below low when completely relaxed, between low and high when slightly flexed, and above high when fully flexed.";
-      textSize(labelsizexs);
-      fill(0);
-      textAlign(LEFT, CENTER);
-      text(mouse_msg, xStep+plotwidth*5/16+3, yTitle+plotheight/2, plotwidth*5/8-12, plotheight);
-      textAlign(CENTER, CENTER);
+        // y-high
+        tmp = constrain(int(map(mouseThresh2Ch[thresh2chyHigh]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh2chyHigh) {          fill(255, 255, 0);        }
+        text("Y High", xStep+plotwidth*15/16, ytmp-tmp+20);
+  
+        // actual signals
+        stroke(0, 255, 0);
+        fill(0, 255, 0);
+        
+        tmp = constrain(int(map(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("X-axis", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        tmp = constrain(int(map(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Y-axis", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        String mouse_msg = "";
+        mouse_msg += "In > high => move up/right\nIn < low => move down/left\nlow<In<high => hold position\n";
+        mouse_msg += "\n";
+        mouse_msg += "To Set Thresholds:\n";
+        mouse_msg += " Left/Right = select threshold\n";
+        // mouse_msg += " (Selected threshold turns yellow)\n";
+        mouse_msg += " Up/Down = change threshold\n";
+        // mouse_msg += " (Threshold will move\n";
+        mouse_msg += "\n";
+        mouse_msg += "Adjust green bar below low when completely relaxed, between low and high when slightly flexed, above high when fully flexed.";
+        textSize(labelsizexs);
+        fill(0);
+        textAlign(LEFT, CENTER);
+        text(mouse_msg, xStep+125+3, yTitle+plotheight/2, 250-12, plotheight);
+        textAlign(CENTER, CENTER);
+      } 
+      else if (buttons[b4chctrl].bOn){
+        // Left
+        tmp = constrain(int(map(mouseThresh4Ch[thresh4chLeft]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        stroke(255, 255, 0);
+        fill(0);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        if (mouseThreshInd == thresh4chLeft) {          fill(255, 255, 0);        }
+        text("Left", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+
+        // Right
+        tmp = constrain(int(map(mouseThresh4Ch[thresh4chRight]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh4chRight) {          fill(255, 255, 0);        }
+        text("Right", xStep+plotwidth*11/16, ytmp-tmp+20);
+        
+        // Down
+        stroke(255, 0, 0);
+        tmp = constrain(int(map(mouseThresh4Ch[thresh4chDown]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh4chDown) {          fill(255, 255, 0);        }
+        text("Down", xStep+plotwidth*15/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+
+        // Up
+        tmp = constrain(int(map(mouseThresh4Ch[thresh4chUp]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh4chUp) {          fill(255, 255, 0);        }
+        text("Up", xStep+plotwidth*15/16, ytmp-tmp+20);
+  
+        // actual signals
+        stroke(0, 255, 0);
+        fill(0, 255, 0);
+        
+        tmp = constrain(int(map(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Left", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        tmp = constrain(int(map(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Right", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+        
+        tmp = constrain(int(map(signalIn[mouseChan[2]][tmpind]+calibration[mouseChan[0]]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Down", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        tmp = constrain(int(map(signalIn[mouseChan[3]][tmpind]+calibration[mouseChan[1]]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Up", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        String mouse_msg = "";
+        mouse_msg += "In > threshold => move\nIn < threshold => hold position\n";
+        mouse_msg += "\n";
+        mouse_msg += "To Set Thresholds:\n";
+        mouse_msg += " Left/Right = select threshold\n";
+        // mouse_msg += " (Selected threshold turns yellow)\n";
+        mouse_msg += " Up/Down = change threshold\n";
+        // mouse_msg += " (Threshold will move\n";
+        mouse_msg += "\n";
+        mouse_msg += "Adjust so green bar is below threshold when relaxed, above threshold when flexed.";
+        textSize(labelsizexs);
+        fill(0);
+        textAlign(LEFT, CENTER);
+        text(mouse_msg, xStep+125+3, yTitle+plotheight/2, 250-12, plotheight);
+        textAlign(CENTER, CENTER);
+      }
 
 
       if (!pauseFlag) {
@@ -3697,42 +3857,52 @@ public class TargetPracticePage implements pagesClass {
     int tmp = 0;
     int mouseMoveX = 0, mouseMoveY = 0;
     int mouseOffset = 40;
-    // if (MouseAxis == 'X'){
-    tmp = int(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]);
-    //print("tmp = ");print(tmp);print(". Thresh = ");println(mouseThresh[0]);
-    if (tmp < mouseThresh[0]) {
-      mouseMoveX = -1*mouseSpeed;//(mouseThresh[0] - tmp)*xMouseFactor1;
+    if (buttons[b2chctrl].bOn){
+      tmp = int(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]);
+      //print("tmp = ");print(tmp);print(". Thresh = ");println(mouseThresh[0]);
+      if      (tmp < mouseThresh2Ch[0]) {      mouseMoveX = -1*mouseSpeed;}
+      else if (tmp < mouseThresh2Ch[1]) {      mouseMoveX = 0;    }
+      else                              {      mouseMoveX = 1*mouseSpeed;}
+      
+      if (!mouseXAxisFlip) {      xMouse += mouseMoveX;    }
+      else                 {      xMouse -= mouseMoveX;    }
+  
+      tmp = int(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]);
+      if      (tmp < mouseThresh2Ch[2]) {      mouseMoveY = 1*mouseSpeed;}//(mouseThresh[2] - tmp)*yMouseFactor1;    }
+      else if (tmp < mouseThresh2Ch[3]) {      mouseMoveY = 0;}//(mouseThresh[3] - tmp)*yMouseFactor2;    }
+      else                              {      mouseMoveY = -1*mouseSpeed;}//(tmp - mouseThresh[3])*yMouseFactor3;    }
+      
+      if (!mouseYAxisFlip) {      yMouse += mouseMoveY;    }
+      else                 {      yMouse -= mouseMoveY;    }
     }
-    else if (tmp < mouseThresh[1]) {
-      mouseMoveX = 0;
+    else if (buttons[b4chctrl].bOn){
+      int tmp1 = int(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]);
+      int tmp2 = int(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]);
+      
+      if      (tmp1 > mouseThresh4Ch[0] && tmp2 > mouseThresh4Ch[1]) {
+        if       (tmp1 > tmp2)  {mouseMoveX = -1*mouseSpeed;}
+        else {mouseMoveX = +1*mouseSpeed;}
+      }
+      else if (tmp1 > mouseThresh4Ch[0]) { mouseMoveX = -1*mouseSpeed;}
+      else if (tmp2 > mouseThresh4Ch[1]) { mouseMoveX = 1*mouseSpeed;}
+      else {mouseMoveX = 0;}
+      
+      if (!mouseXAxisFlip) {      xMouse += mouseMoveX;    }
+      else                 {      xMouse -= mouseMoveX;    }
+  
+      tmp1 = int(signalIn[mouseChan[2]][tmpind]+calibration[mouseChan[2]]);
+      tmp2 = int(signalIn[mouseChan[3]][tmpind]+calibration[mouseChan[3]]);
+      if      (tmp1 > mouseThresh4Ch[2] && tmp2 > mouseThresh4Ch[3]) {
+        if       (tmp1 > tmp2) {mouseMoveY = -1*mouseSpeed;}
+        else                   {mouseMoveY = +1*mouseSpeed;}
+      }
+      else if (tmp1 > mouseThresh4Ch[2]) { mouseMoveY = 1*mouseSpeed;}
+      else if (tmp2 > mouseThresh4Ch[3]) { mouseMoveY = -1*mouseSpeed;}
+      else {mouseMoveY = 0;}
+      
+      if (!mouseYAxisFlip) {      yMouse += mouseMoveY;    }
+      else                 {      yMouse -= mouseMoveY;    }
     }
-    else {
-      mouseMoveX = 1*mouseSpeed;//(tmp - mouseThresh[1])*xMouseFactor3;
-    }
-    if (!mouseXAxisFlip) {
-      xMouse += mouseMoveX;
-    }
-    else {
-      xMouse -= mouseMoveX;
-    }
-
-    tmp = int(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]);
-    if (tmp < mouseThresh[2]) {
-      mouseMoveY = 1*mouseSpeed;//(mouseThresh[2] - tmp)*yMouseFactor1;
-    }
-    else if (tmp < mouseThresh[3]) {
-      mouseMoveY = 0;//(mouseThresh[3] - tmp)*yMouseFactor2;
-    }
-    else {
-      mouseMoveY = -1*mouseSpeed;//(tmp - mouseThresh[3])*yMouseFactor3;
-    }
-    if (!mouseYAxisFlip) {
-      yMouse += mouseMoveY;
-    }
-    else {
-      yMouse -= mouseMoveY;
-    }
-    // }
 
     // println("MouseMoveX = "+MouseMoveX+". MouseMoveY = "+MouseMoveY);
     xMouse = constrain(xMouse, xStep+mouseOffset, xStep+plotwidth-mouseOffset);
@@ -3912,14 +4082,14 @@ public class SnakeGamePage implements pagesClass {
     int buttony = yTitle+195;
     int controlsy = yTitle+30;
     buttons = new GuiButton[buttonNumber];
-    buttons[bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false);
-    buttons[bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false);
-    buttons[bchan1up]  = new GuiButton("MCh1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false);
-    buttons[bchan1down]= new GuiButton("MCh1dn", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false);
-    buttons[bchan1]    = new GuiButton("MChan1", ' ', dummypage, xStep+plotwidth+50, yTitle+200, 30, bheight, color(colorBIdle), colorSigM[mouseChan[0]], ""+(mouseChan[0]+1), bOnOff, true);
-    buttons[bchan2up]  = new GuiButton("MCh2up", ' ', dummypage, xStep+plotwidth+80, yTitle+260, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false);
-    buttons[bchan2down]= new GuiButton("MCh2dn", ' ', dummypage, xStep+plotwidth+16, yTitle+260, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false);
-    buttons[bchan2]    = new GuiButton("MChan2", ' ', dummypage, xStep+plotwidth+50, yTitle+260, 30, bheight, color(colorBIdle), colorSigM[mouseChan[1]], ""+(mouseChan[1]+1), bOnOff, true);
+    buttons[bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false, showButton);
+    buttons[bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false, showButton);
+    buttons[bchan1up]  = new GuiButton("MCh1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+    buttons[bchan1down]= new GuiButton("MCh1dn", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+    buttons[bchan1]    = new GuiButton("MChan1", ' ', dummypage, xStep+plotwidth+50, yTitle+200, 30, bheight, color(colorBIdle), colorSigM[mouseChan[0]], ""+(mouseChan[0]+1), bOnOff, true, showButton);
+    buttons[bchan2up]  = new GuiButton("MCh2up", ' ', dummypage, xStep+plotwidth+80, yTitle+260, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+    buttons[bchan2down]= new GuiButton("MCh2dn", ' ', dummypage, xStep+plotwidth+16, yTitle+260, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+    buttons[bchan2]    = new GuiButton("MChan2", ' ', dummypage, xStep+plotwidth+50, yTitle+260, 30, bheight, color(colorBIdle), colorSigM[mouseChan[1]], ""+(mouseChan[1]+1), bOnOff, true, showButton);
   }
 
   void switchToPage() {
@@ -4218,8 +4388,8 @@ public class MuscleMusicPage implements pagesClass {
     int buttony = yTitle+195;
     int controlsy = yTitle+30;
     buttons = new GuiButton[buttonNumber];
-    buttons[bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false);
-    buttons[bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false);
+    buttons[bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false, showButton);
+    buttons[bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false, showButton);
   }
 
   void switchToPage() {
@@ -4731,8 +4901,9 @@ class GuiButton {
   boolean mouseOver;
   boolean bOn;
   boolean bMomentary;
+  boolean bHidden;
 
-  GuiButton(String name_, char hotKey_, int pageRef_, int xpos_, int ypos_, int xsize_, int ysize_, color cbox_, color ctext_, String label_, boolean bMomentary_, boolean bOn_) {
+  GuiButton(String name_, char hotKey_, int pageRef_, int xpos_, int ypos_, int xsize_, int ysize_, color cbox_, color ctext_, String label_, boolean bMomentary_, boolean bOn_, boolean bHidden_) {
     name  = name_;
     hotKey = hotKey_;
     pageRef = pageRef_;
@@ -4745,9 +4916,11 @@ class GuiButton {
     label = label_;
     bMomentary = bMomentary_;
     bOn = bOn_;
+    bHidden = bHidden_;
   }
 
   boolean IsMouseOver(int x, int y) {
+    if (bHidden){return false;}
     if (x >= xpos - xsize/2 && x <= xpos+xsize/2 &&
       y >= ypos - ysize/2 && y <= ypos+ysize/2) {
       return true;
@@ -4758,6 +4931,7 @@ class GuiButton {
   }
 
   void drawButton() {
+    if (bHidden) return;
     color ctext_tmp = color(0);
     int rectradius = 0;
     if (!bMomentary) {
