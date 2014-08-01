@@ -1,1 +1,10 @@
 Once items have been completed, they are moved from todo.txt to done.txt!
+Add your initials if you worked on the fix!
+
+General
+- switch pages/sub-apps to individual objects, all with the same basic layout, to make it easier to add new pages/sub-apps later  - BPF
+
+- automated tab layout (the buttons at the top that switch between pages) to adjust to window resizes and make it easier to add/remove pages  - BPF
+
+Plotting
+- add number hotkeys to turn channels on/off - BPF

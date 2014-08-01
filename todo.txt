@@ -1,8 +1,13 @@
 The list of things to do.  
 
-Plotting
-- add number hotkeys to turn channels on/off
+General
+- Fix the flashing color/fill/stroke glitches during sampling
+- consider a separate thread for incoming data
+- drop-down tabs?
 
+
+Plotting
+- make more modular (the upside down y-axis plus offsets make it complicated)
 
 Snake game
 - add left/right control using 2 muscle signals
