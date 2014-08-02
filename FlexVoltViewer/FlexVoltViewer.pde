@@ -1155,6 +1155,7 @@ void importSettings() {
     if (m == null) {      mouseThresh2Ch[thresh2chyHigh] = int(loadedsettings[7]);    }
     println(mouseThresh2Ch);
 
+    if (loadedsettings.length <= 8)return;
     m = match(loadedsettings[8], "null");
     if (m == null) {      mouseThresh4Ch[thresh4chLeft] = int(loadedsettings[4]);    }
     m = match(loadedsettings[9], "null");
@@ -1523,7 +1524,7 @@ public class SettingsPage implements pagesClass {
     maxPlotTime = float(fullPlotWidth)/float(userFrequency);
 
     // build and save a txt file of settings
-    String[] settingString = new String[8];
+    String[] settingString = new String[12];
     settingString[0] = "FlexVoltViewer User Settings";
     settingString[1] = folder;
     settingString[2] = str(userFreqIndex);
