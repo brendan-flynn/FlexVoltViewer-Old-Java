@@ -8,3 +8,7 @@ General
 
 Plotting
 - add number hotkeys to turn channels on/off - BPF
+
+Target game
+- add left/right/up/down control using 4 muscle signals
+- add toggle between 2 and 4 muscle control
