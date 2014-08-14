@@ -1,5 +1,5 @@
 //  Author:  Brendan Flynn - FlexVolt
-//  Date Modified:    31 July 2014
+//  Date Modified:    08 Aug 2014
 /*  FlexVolt Viewer v1.2
  
  Recent Changes:
@@ -36,7 +36,7 @@ import processing.serial.*;
 import java.awt.AWTException;
 import java.awt.Robot;
 
-// interface to wrap all page objects
+// interface for all page objects
 public interface pagesClass {
   public void switchToPage(); // anything that should be done during switch to this page
   public void drawPage(); // 
@@ -349,6 +349,9 @@ int SERIALNUMBER;
 int MODELNUMBER;
 
 SerialPortObj FVserial;
+//Serial currentMyPort;
+//SerialThread serialThread1;
+boolean serialThreadFinished = false;
 
 ArrayList<pagesClass> FVpages;
 int settingspage, timedomainpage, frequencydomainpage, workoutpage, targetpracticepage, snakegamepage, musclemusicpage;
@@ -356,6 +359,9 @@ int keyInput = 1;
 int mouseInput = 2;
 
 void setup () {
+  thread("processSerialData");
+//  serialThread1 = new SerialThread();
+//  println(serialThreadFinished);
   println("Homepath = "+homePath);
   FVpages = new ArrayList<pagesClass>();
   int tmpindex = 0;
@@ -588,179 +594,190 @@ void draw () {
   if (!helpFlag) {
     FVpages.get(currentpage).drawPage();
   }
-}
-
-void serialEvent (Serial myPort) {
-  int tmpfillColor = g.fillColor;
-  int tmpstrokeColor = g.strokeColor;
-  float tmpstrokeWeight = g.strokeWeight;
-
-  //  println(myPort.available()+"dataflag = "+dataflag+", communicationflag = "+communicationsflag);
-  if (!communicationsflag && !dataflag) {
-    int inChar = myPort.readChar(); // get ASCII
-    if (inChar != -1) {
-      serialReceivedFlag = true;
-      println("handshaking, "+inChar+", count = "+testcounter);
-      testcounter++;
-      if (inChar == 'x') {
-        FVserial.flexvoltfound = true; // this flag tells the SerialPortObj that a flexvolt port has been found. Searching stops, and that port is now connnected
-        FVserial.connectingflag = false;
-        FVserial.connectionindicator = FVserial.indicator_connecting;
-        println("Received the x");
-      }
-      if (inChar == 'a') {
-        FVserial.connectionindicator = FVserial.indicator_connecting;
-        myPort.clear();
-        myPort.write('1');
-        println("1st");
-      }
-      else if (inChar == 'b') {
-        myPort.clear();
-        // ConnectingFlag = true;
-        FVserial.flexvoltconnected = true;
-        FVserial.connectionindicator = FVserial.indicator_connecting;
-        FVserial.drawConnectionIndicator();
-        updateSettings(); //establishDataLink is rolled in
-        println("updated settings");
-        communicationsflag = true;
-      }
-    }
-  } 
-  else if (communicationsflag && !dataflag) {
-    int inChar = myPort.readChar(); // get ASCII
-    if (inChar != -1) {
-      serialReceivedFlag = true;
-      println("handshaking, "+inChar+", count = "+testcounter);
-      if (inChar == 'g') {
-        myPort.clear();
-        println("dataflag = true g");
-        blankPlot();
-        dataflag = true;
-        FVserial.connectionindicator = FVserial.indicator_connected;
-        FVserial.drawConnectionIndicator();
-        myPort.buffer((serialBufferN+1)*serialBurstN);
-      }
-      else if (inChar == 'y') {
-        println("Received 'Y'");
-      }
-      else if (inChar == 'v') {
-        byte[] inBuffer = new byte[nVersionBuffer];
-        myPort.readBytes(inBuffer);
-        VERSION = inBuffer[0];
-        SERIALNUMBER = ((int)inBuffer[1]<<8)+(int)inBuffer[2];
-        MODELNUMBER = inBuffer[3];
-        println("Version = "+VERSION+". SerailNumber = "+SERIALNUMBER+". MODEL = "+MODELNUMBER);
-      }
-    }
-  }
-  else if (dataflag) {
-    // Actual Data Acquisition
-    byte[] inBuffer = new byte[serialBufferN];
-    //    println("avail = "+myPort.available());
-    while (myPort.available () > serialBufferN) {
-      // println((System.nanoTime()-startTime)/1000);
-
-      //      println(myPort.available());
-      int inChar = myPort.readChar(); // get ASCII
-      // print("data, ");println(inChar);
-      if (inChar != -1) {
-        serialReceivedFlag = true;
-
-        if (inChar == 'C' || inChar == 'D' || inChar == 'E' || inChar == 'F') {
-          myPort.readBytes(inBuffer);
-          //          println("Received8bit - "+inChar+", buffer = "+serialBufferN);
-          // println(inBuffer);
-          for (int i = 0; i < currentSignalNumber; i++) {
-            int tmp = inBuffer[i]; // last 2 bits of each signal discarded
-            tmp = tmp&0xFF; // account for translation from unsigned to signed
-            tmp = tmp << 2; // shift to proper position
-            float rawVal = float(tmp);
-
-            if (currentpage == frequencydomainpage) {
-              arrayCopy(SignalInFFT[i], 1, SignalInFFT[i], 0, signalLengthFFT-1);
-              SignalInFFT[i][signalLengthFFT-1]=rawVal;
-            }
-            else {
-              signalIn[i][signalindex]=rawVal;
-            }
-            if (recordDataFlag && recordDataIndex < recordDataLength) {
-              recordData[i][recordDataIndex]=int(rawVal);
-            }
-          }
-          if (recordDataFlag) {
-            recordDataIndex++;
-            if (recordDataIndex >= recordDataLength) {
-              if ((recordDataIndex % 10) == 0) {
-                println("Saving"+str(recordData[1][recordDataIndex-1]));
-              }
-              recordDataedCounter = saveRecordedData(recordDataedCounter);
-              recordDataFlag = false;
-            }
-          }
-          signalindex ++;//= downSampleCount;
-          if (signalindex >= maxSignalLength)signalindex = 0;
-          datacounter++;
-          if (datacounter >= maxSignalLength)datacounter = maxSignalLength;
-        }
-        else if (inChar == 'H' || inChar == 'I' || inChar == 'J' || inChar == 'K') {
-          myPort.readBytes(inBuffer);
-          for (int i = 0; i < currentSignalNumber; i++) {
-            int tmplow = inBuffer[serialBufferN-1]; // last 2 bits of each signal stored here
-            tmplow = tmplow&0xFF; // account for translation from unsigned to signed
-            tmplow = tmplow >> (2*(3-i)); // shift to proper position
-            tmplow = tmplow & (3); //3 (0b00000011) is a mask.
-            int tmphigh = inBuffer[i];
-            tmphigh = tmphigh & 0xFF; // account for translation from unsigned to signed
-            tmphigh = tmphigh << 2; // shift to proper position
-            float rawVal = float(tmphigh+tmplow);
-            if (currentpage == frequencydomainpage) {
-              arrayCopy(SignalInFFT[i], 1, SignalInFFT[i], 0, signalLengthFFT-1);
-              SignalInFFT[i][signalLengthFFT-1]=rawVal;
-            }
-            else {
-              signalIn[i][signalindex]=rawVal;
-            }
-            if (recordDataFlag && (recordDataIndex < recordDataLength)) {
-              // println("Saving Point: "+recordDataIndex);
-              recordData[i][recordDataIndex]=int(rawVal);
-            }
-          }
-          if (recordDataFlag) {
-            recordDataIndex++;
-            if ((recordDataIndex % 10) == 0) {
-              println("Saving"+recordDataIndex);
-            }
-            if (recordDataIndex >= recordDataLength) {
-              recordDataedCounter = saveRecordedData(recordDataedCounter);
-              recordDataFlag = false;
-            }
-          }
-          signalindex ++;//= downSampleCount;
-          if (signalindex >= maxSignalLength)signalindex = 0;
-          datacounter++;
-          if (datacounter >= maxSignalLength)datacounter = maxSignalLength;
-        }
-        else if (inChar == 'p') {
-          inBuffer = new byte[1];
-          myPort.readBytes(inBuffer);
-          int jacks = inBuffer[0] & 0xFF;
-          println("Ports = "+jacks);
-          UpdatePorts(jacks);
-        }
-        else {
-          print("data = ");
-          println(inChar);
-        }
-      }
-    }
-  }
+  
   // endTime = System.nanoTime();
   // long tmp = System.nanoTime() -startTime;
   // println("elapsed = "+tmp);
-  // Restore fill and stroke settings
-  fill(tmpfillColor);
-  stroke(tmpstrokeColor);
-  strokeWeight(tmpstrokeWeight);
+}
+
+void processSerialData(){
+  serialThreadFinished = false;
+  if (myPort != null){
+//    println(myPort.available()+"dataflag = "+dataflag+", communicationflag = "+communicationsflag);
+    if (!communicationsflag && !dataflag) {
+      int inChar = myPort.readChar(); // get ASCII
+      if (inChar != -1) {
+        serialReceivedFlag = true;
+        println("handshaking, "+inChar+", count = "+testcounter);
+        testcounter++;
+        if (inChar == 'x') {
+          FVserial.flexvoltfound = true; // this flag tells the SerialPortObj that a flexvolt port has been found. Searching stops, and that port is now connnected
+          FVserial.connectingflag = false;
+          FVserial.connectionindicator = FVserial.indicator_connecting;
+          println("Received the x");
+        }
+        if (inChar == 'a') {
+          FVserial.connectionindicator = FVserial.indicator_connecting;
+          myPort.clear();
+          myPort.write('1');
+          println("1st");
+        }
+        else if (inChar == 'b') {
+          myPort.clear();
+          // ConnectingFlag = true;
+          FVserial.flexvoltconnected = true;
+          FVserial.connectionindicator = FVserial.indicator_connecting;
+  //        FVserial.drawConnectionIndicator();
+          updateSettings(); //establishDataLink is rolled in
+          println("updated settings");
+          communicationsflag = true;
+        }
+      }
+    } 
+    else if (communicationsflag && !dataflag) {
+      int inChar = myPort.readChar(); // get ASCII
+      if (inChar != -1) {
+        serialReceivedFlag = true;
+        println("handshaking, "+inChar+", count = "+testcounter);
+        if (inChar == 'g') {
+          myPort.clear();
+          println("dataflag = true g");
+          blankPlot();
+          dataflag = true;
+          FVserial.connectionindicator = FVserial.indicator_connected;
+  //        FVserial.drawConnectionIndicator();
+          myPort.buffer((serialBufferN+1)*serialBurstN);
+        }
+        else if (inChar == 'y') {
+          println("Received 'Y'");
+        }
+        else if (inChar == 'v') {
+          byte[] inBuffer = new byte[nVersionBuffer];
+          myPort.readBytes(inBuffer);
+          VERSION = inBuffer[0];
+          SERIALNUMBER = ((int)inBuffer[1]<<8)+(int)inBuffer[2];
+          MODELNUMBER = inBuffer[3];
+          println("Version = "+VERSION+". SerailNumber = "+SERIALNUMBER+". MODEL = "+MODELNUMBER);
+        }
+      }
+    }
+    else if (dataflag) {
+      // Actual Data Acquisition
+      byte[] inBuffer = new byte[serialBufferN];
+      //  println("avail = "+myPort.available());
+      while (myPort.available () > serialBufferN) {
+        // println((System.nanoTime()-startTime)/1000);
+  
+        //      println(myPort.available());
+        int inChar = myPort.readChar(); // get ASCII
+        // print("data, ");println(inChar);
+        if (inChar != -1) {
+          serialReceivedFlag = true;
+  
+          if (inChar == 'C' || inChar == 'D' || inChar == 'E' || inChar == 'F') {
+            inBuffer = new byte[serialBufferN];
+            myPort.readBytes(inBuffer);
+            //          println("Received8bit - "+inChar+", buffer = "+serialBufferN);
+            // println(inBuffer);
+            for (int i = 0; i < currentSignalNumber; i++) {
+              int tmp = inBuffer[i]; // last 2 bits of each signal discarded
+              tmp = tmp&0xFF; // account for translation from unsigned to signed
+              tmp = tmp << 2; // shift to proper position
+              float rawVal = float(tmp);
+  
+              if (currentpage == frequencydomainpage) {
+                arrayCopy(SignalInFFT[i], 1, SignalInFFT[i], 0, signalLengthFFT-1);
+                SignalInFFT[i][signalLengthFFT-1]=rawVal;
+              }
+              else {
+                signalIn[i][signalindex]=rawVal;
+              }
+              if (recordDataFlag && recordDataIndex < recordDataLength) {
+                recordData[i][recordDataIndex]=int(rawVal);
+              }
+            }
+            if (recordDataFlag) {
+              recordDataIndex++;
+              if (recordDataIndex >= recordDataLength) {
+                if ((recordDataIndex % 10) == 0) {
+                  println("Saving"+str(recordData[1][recordDataIndex-1]));
+                }
+                recordDataedCounter = saveRecordedData(recordDataedCounter);
+                recordDataFlag = false;
+              }
+            }
+            signalindex ++;//= downSampleCount;
+            if (signalindex >= maxSignalLength)signalindex = 0;
+            datacounter++;
+            if (datacounter >= maxSignalLength)datacounter = maxSignalLength;
+          }
+          else if (inChar == 'H' || inChar == 'I' || inChar == 'J' || inChar == 'K') {
+            inBuffer = new byte[serialBufferN];
+            myPort.readBytes(inBuffer);
+            for (int i = 0; i < currentSignalNumber; i++) {
+              int tmplow = inBuffer[serialBufferN-1]; // last 2 bits of each signal stored here
+              tmplow = tmplow&0xFF; // account for translation from unsigned to signed
+              tmplow = tmplow >> (2*(3-i)); // shift to proper position
+              tmplow = tmplow & (3); //3 (0b00000011) is a mask.
+              int tmphigh = inBuffer[i];
+              tmphigh = tmphigh & 0xFF; // account for translation from unsigned to signed
+              tmphigh = tmphigh << 2; // shift to proper position
+              float rawVal = float(tmphigh+tmplow);
+              if (currentpage == frequencydomainpage) {
+                arrayCopy(SignalInFFT[i], 1, SignalInFFT[i], 0, signalLengthFFT-1);
+                SignalInFFT[i][signalLengthFFT-1]=rawVal;
+              }
+              else {
+                signalIn[i][signalindex]=rawVal;
+              }
+              if (recordDataFlag && (recordDataIndex < recordDataLength)) {
+                // println("Saving Point: "+recordDataIndex);
+                recordData[i][recordDataIndex]=int(rawVal);
+              }
+            }
+            if (recordDataFlag) {
+              recordDataIndex++;
+              if ((recordDataIndex % 10) == 0) {
+                println("Saving"+recordDataIndex);
+              }
+              if (recordDataIndex >= recordDataLength) {
+                recordDataedCounter = saveRecordedData(recordDataedCounter);
+                recordDataFlag = false;
+              }
+            }
+            signalindex ++;//= downSampleCount;
+            if (signalindex >= maxSignalLength)signalindex = 0;
+            datacounter++;
+            if (datacounter >= maxSignalLength)datacounter = maxSignalLength;
+          }
+          else if (inChar == 'p') {
+            inBuffer = new byte[1];
+            myPort.readBytes(inBuffer);
+            int jacks = inBuffer[0] & 0xFF;
+            println("Ports = "+jacks);
+            UpdatePorts(jacks);
+          }
+          else {
+            print("data = ");
+            println(inChar);
+          }
+        }
+      }
+    }
+    // endTime = System.nanoTime();
+    // long tmp = System.nanoTime() -startTime;
+    // println("elapsed = "+tmp);
+  }
+  serialThreadFinished = true;
+}
+
+void serialEvent (Serial myPort) {
+//  println("finished = "+serialThreadFinished);
+  if (serialThreadFinished){
+//    println("OK");
+//    serialThread1.start();
+    thread("processSerialData");
+  }
 }
 
 void useKeyPressedOrMousePressed(int inputDev) {
