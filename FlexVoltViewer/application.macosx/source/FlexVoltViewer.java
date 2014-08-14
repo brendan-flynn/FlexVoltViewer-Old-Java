@@ -19,15 +19,12 @@ import java.io.IOException;
 public class FlexVoltViewer extends PApplet {
 
 //  Author:  Brendan Flynn - FlexVolt
-//  Date Modified:    31 July 2014
-/*  FlexVolt Viewer v1.2
+//  Date Modified:    14 Aug 2014
+/*  FlexVolt Viewer v1.2.1-bugfix
  
  Recent Changes:
- page objects
-   huge change, now each page/sub-app is it's own object
-   this makes it easier to add pages/mini apps
- 
- app resize - app can now be resized!
+ Add Linux communication
+ Fix data save
  
  
  Description:
@@ -61,9 +58,7 @@ public interface pagesClass {
   public void switchToPage(); // anything that should be done during switch to this page
   public void drawPage(); // 
   public boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev);
-  //  public boolean useKeyPressed(); // don't need to pass key, keyCode
   public void useSerialEvent(); // may not need this one
-  //  public void useMousePressed(); // don't need to pass mouseButton, etc.
   public void drawHelp(); //
   public String getPageName(); // return title
   public void initializeButtons();
@@ -100,52 +95,14 @@ public interface pagesClass {
 //    handle key inputs using key and keyCode
 //  }
 //  }
-//
-//  no longer used
-//  boolean useKeyPressed(){
-//    boolean outflag = false;
-//    if (key == 'a' ) {
-//      //do stuff
-//      outflag = true;
-//    }
-//    if (key == CODED){
-//      if (keyCode == LEFT){
-//        // do stuff
-//        outflag = true;
-//      }
-//    }
-//    return outflag;
-//  }
-//  
-//  no longer used
-//  void useMousePressed(){
-//    for (int i = 0; i < buttons.length; i++) {
-//        if (buttons[i] != null) {
-//          if (buttons[i].IsMouseOver(x, y)) {
-//            buttons[i].BOn = !buttons[i].BOn;
-//            buttons[i].ChangeColorPressed();
-//            currentbutton = i;
-//            ButtonColorTimer = millis()+ButtonColorDelay;
-//            ButtonPressedFlag = true;
-//          }
-//        }
-//      }
-//      if (currentbutton == Bsettings) {
-//        ChangeDomain(SettingsDomain);
-//        println("Settings Menu");
-//      }
-//      else if (currentbutton == Bhelp) {
-//        ChangeDomain(HelpDomain);
-//      }
-//  }
 //  
 //  void useSerialEvent(){
 //    if (dataflag) {
-//    byte[] inBuffer = new byte[SerialBufferN];
-//    while (myPort.available () > SerialBufferN) {
+//    byte[] inBuffer = new byte[serialBufferN];
+//    while (myPort.available () > serialBufferN) {
 //      int inChar = myPort.readChar(); // get ASCII
 //      if (inChar != -1) {
-//        SerialReceivedFlag = true;
+//        serialReceivedFlag = true;
 //        if (inChar == 'C' || inChar == 'D' || inChar == 'E' || inChar == 'F') {
 //          myPort.readBytes(inBuffer);
 //          // do stuff
@@ -158,29 +115,31 @@ public interface pagesClass {
 //    // help text
 //  }
 //}
-///************************* END EXALE PAGE ***********************/
+///************************* END EXAMPLE PAGE ***********************/
 
 
 // Constants
-String ViewerVersion = "v1.1";
-String HomePath = System.getProperty("user.home"); // default path to save settings files
+String viewerVersion = "v1.1";
+String homePath = System.getProperty("user.home"); // default path to save settings files
 String folder = "";
 Serial myPort;
 //String RENDERMODE = "P2D";
-int FullPlotWidth = 500;
-int plotwidth = FullPlotWidth;
-int HalfPlotWidth = FullPlotWidth/2;
-int plotheight = 400;
+int currentWidth;
+int currentHeight;
+int fullPlotWidth = 500;
+int plotwidth = fullPlotWidth;
+int halfPlotWidth = fullPlotWidth/2;
+int plotheight = 300;
 int plot2offset = 5;
 int xx, yy;
 int xStep = 60;
 int yStep = 40;
 int yTitle = 70;
-int barwidth = 100;
+int barWidth = 100;
 
-int SerialBufferN = 5;
-int SerialBurstN = 2;
-int SerialPortSpeed = 230400;
+int serialBufferN = 5;
+int serialBurstN = 2;
+int serialPortSpeed = 230400;
 int serialwritedelay = 50;
 
 // font sizes
@@ -197,100 +156,99 @@ Robot robot;
 // GUi Class Objects //
 // Buttons
 GuiButton[] buttonsCommon;
-int ButtonNumCommon = 0;
+int buttonNumberCommon = 0;
 int
-BCsettings = ButtonNumCommon++, 
-BChelp = ButtonNumCommon++, 
-BCrecordnextdata = ButtonNumCommon++, 
-BCtimedomain = ButtonNumCommon++, 
-BCtraindomain = ButtonNumCommon++, 
-BCmousedomain = ButtonNumCommon++, 
-BCsnakedomain = ButtonNumCommon++, 
-BCmusicdomain = ButtonNumCommon++, 
-BCserialreset = ButtonNumCommon++, 
-BCsave = ButtonNumCommon++;
+bcsettings = buttonNumberCommon++, 
+bchelp = buttonNumberCommon++, 
+bcrecordnextdata = buttonNumberCommon++, 
+bcplotdomain = buttonNumberCommon++, 
+bctraindomain = buttonNumberCommon++, 
+bcmousedomain = buttonNumberCommon++, 
+bcsnakedomain = buttonNumberCommon++, 
+bcmusicdomain = buttonNumberCommon++, 
+bcserialreset = buttonNumberCommon++, 
+bcsave = buttonNumberCommon++;
 
 
-int Bheight = 25; // button height
-int Bheights = 20; // button height
+int bheight = 25; // button height
+int bheights = 20; // button height
 
 float fps = 30;
-int VoltScale = 1;
-float VoltageMax = 10/VoltScale;
-float VoltageMin = -10/VoltScale;
-float AmpGain = 1845; // 495 from Instrumentation Amp, 3.73 from second stage.  1845 total.
-float DynamicRange = 1.355f;//mV.  5V max, split around 2.5.  2.5V/1845 = 1.355mV.
-float Resolution = DynamicRange/1024;// mV, 1.355mV/1024 = 1.3uV.  NOTE - resolution is likely worse than this - most ADCs' botton 2-3 bits are just noise.  10uV is a more reasonable estimate
-int MaxSignalVal = 512;//1024 / 2 (-512 : +512);
-int HalfSignalVal = 512; // same
-int Nxticks = 5;
-int Nyticks = 4;
-int NyticksHalf = 2;
-int MaxSignalLength = 1000;
-int FFTSignalLength = 1024;
+int scaleVoltage = 1;
+float maxVoltage = 10/scaleVoltage;
+float minVoltage = -10/scaleVoltage;
+float signalAmplifierGain = 1845; // 495 from Instrumentation Amp, 3.73 from second stage.  1845 total.
+float signalDynamicRange = 1.355f;//mV.  5V max, split around 2.5.  2.5V/1845 = 1.355mV.
+float signalResolution = signalDynamicRange/1024;// mV, 1.355mV/1024 = 1.3uV.  NOTE - resolution is likely worse than this - most ADCs' botton 2-3 bits are just noise.  10uV is a more reasonable estimate
+int maxSignalVal = 512;//1024 / 2 (-512 : +512);
+int halfSignalVal = 512; // same
+int nXTicks = 5;
+int nYTicks = 4;
+int nYTicksHalf = 2;
+int maxSignalLength = 1000;
+int signalLengthFFT = 1024;
 int pointThickness = 3;
 int ytmp;
-int MedianFiltN = 3;
+int nMedianFilt = 3;
 
 // Register variables and constants
-int[] UserFreqArray = {  
+int[] userFreqArray = {  
   1, 10, 50, 100, 200, 300, 400, 500, 1000, 1500, 2000
 };
-int UserFreqIndexTraining = 7;
-int UserFreqIndexMouse = 7;
-int UserFreqIndexFFT = 8;
-int UserFreqIndexDefault = 7;
-int UserFreqIndex = UserFreqIndexDefault;
-int UserFrequency = UserFreqArray[UserFreqIndex];//40;//1000;
-int UserFreqCustom = 0;
-int UserFreqCustomMax = 4000;
-int UserFreqCustomMin = 0;
-int SmoothFilterVal = 8;
-int SmoothFilterValDefault = 8;
-int SmoothFilterValMin = 0, SmoothFilterValMax = 50;
-int Timer0PartialCount = 0;
-Boolean BitDepth10 = true;
-int Timer0AdjustVal = 2;
-int Timer0AdjustValMin = -5;
-int Timer0AdjustValMax = 248;
-int Prescaler = 2;
-int PrescalerMin = 0;
-int PrescalerMax = 2;
-int DownSampleCount = 1;
-int DownSampleCountMax = 100;
-int DownSampleCountMin = 0;
-int DownSampleCountTraining = 5;
-int DownSampleCountMouse = 5;
+int userFreqIndexTraining = 7;
+int userFreqIndexMouse = 7;
+int userFreqIndexFFT = 8;
+int userFreqIndexDefault = 7;
+int userFreqIndex = userFreqIndexDefault;
+int userFrequency = userFreqArray[userFreqIndex];//40;//1000;
+int userFreqCustom = 0;
+int userFreqCustomMax = 4000;
+int userFreqCustomMin = 0;
+int smoothFilterVal = 8;
+int smoothFilterValDefault = 8;
+int smoothFilterValMin = 0, smoothFilterValMax = 50;
+int timer0PartialCount = 0;
+Boolean bitDepth10 = true;
+int timer0AdjustVal = 2;
+int timer0AdjustValMin = -5;
+int timer0AdjustValMax = 248;
+int prescalerPic = 2;
+int prescalerPicMin = 0;
+int prescalerPicMax = 2;
+int downSampleCount = 1;
+int downSampleCountMax = 100;
+int downSampleCountMin = 0;
+int downSampleCountTraining = 5;
+int downSampleCountMouse = 5;
 
 // Colors
-int BoutlineColor = color(0);
-int BIdleColor = color(160);
-int BOnColor = color(100);
-int BPressedColor = color(70);
-int Sig1Color = color(255, 0, 0);//red
-int Sig2Color = color(0, 255, 0);//green
-int Sig3Color = color(0, 0, 255);//blue
-int Sig4Color = color(255, 128, 0);//orange
-int Sig5Color = color(0, 255, 255);//cyan
-int Sig6Color = color(255, 255, 0);//yellow
-int Sig7Color = color(255, 0, 255);//fushcia
-int Sig8Color = color(255, 255, 255);//white
-int SigColorM[] = {  
-  Sig1Color, Sig2Color, Sig3Color, Sig4Color, Sig5Color, Sig6Color, Sig7Color, Sig8Color
+int colorBOutline = color(0);
+int colorBIdle = color(160);
+int colorbOn = color(100);
+int colorBPressed = color(70);
+int colorSig1 = color(255, 0, 0);//red
+int colorSig2 = color(0, 255, 0);//green
+int colorSig3 = color(0, 0, 255);//blue
+int colorSig4 = color(255, 128, 0);//orange
+int colorSig5 = color(0, 255, 255);//cyan
+int colorSig6 = color(255, 255, 0);//yellow
+int colorSig7 = color(255, 0, 255);//fushcia
+int colorSig8 = color(255, 255, 255);//white
+int colorSigM[] = {  
+  colorSig1, colorSig2, colorSig3, colorSig4, colorSig5, colorSig6, colorSig7, colorSig8
 };
-int Signalcolor = color(255);
-int FFTcolor = color(255, 255, 0);
-int labelcolor = color(0);
-int plotbackground = color(100);
-int plotoutline = color(0);
-int backgroundcolor = color(200);
+int colorFFT = color(255, 255, 0);
+int colorLabel = color(0);
+int colorPlotBackground = color(100);
+int colorPlotOutline = color(0);
+int colorBackground = color(200);
 
 // FFT variables
 FFTutils fft;
 FIRFilter filter1, filter2;
 float[] filtered;
 float[][] fft_result;//1, fft_result2, fft_result3, fft_result4;
-float[][] FFTsignalIn; // longer for FFT calculation
+float[][] SignalInFFT; // longer for FFT calculation
 
 
 //int xPos = 0;
@@ -299,21 +257,21 @@ int[] oldPlotSignal;
 
 
 
-float TimeMax = PApplet.parseFloat(FullPlotWidth)/PApplet.parseFloat(UserFrequency);
+float maxPlotTime = PApplet.parseFloat(fullPlotWidth)/PApplet.parseFloat(userFrequency);
 int datacounter = 0;
 int signalindex = 0;
-int SignalNumber = 4;
-int MaxSignalNumber = 8;
-long[] TimeStamp;
-long ButtonColorTimer = 0;
-long ButtonColorDelay = 100;
+int currentSignalNumber = 4;
+int maxcurrentSignalNumber = 8;
+long[] timeStamp;
+long buttonColorTimer = 0;
+long buttonColorDelay = 100;
 
-int CheckSerialNSamples = 2;
-int CheckSerialMinTime = 250;
-long CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0f/((float)UserFrequency/CheckSerialNSamples) );//2000;//UserFrequency/10; // millis. check at 10Hz
-int CalibrateN = 50;
-int CalibrateCounter = CalibrateN;
-int Calibration[] = {  
+int checkSerialNSamples = 2;
+int checkSerialMinTime = 500;
+long checkSerialDelay = (long)max( checkSerialMinTime, 1000.0f/((float)userFrequency/checkSerialNSamples) );//2000;//userFrequency/10; // millis. check at 10Hz
+int calibrateN = 50;
+int calibrateCounter = calibrateN;
+int calibration[] = {  
   0, 0, 0, 0, 0, 0, 0, 0
 };
 
@@ -326,53 +284,63 @@ int oldpage;
 int imagesavecounter = 1;
 
 // data recording
-int[][] DataRecord;
-int DataRecordCols = 9;
-int DataRecordTime = 10; // seconds
-int DataRecordLength = DataRecordTime*UserFrequency;
-int DataRecordIndex = 0;
-int DataRecordedCounter = 0;
-int DataRecordTimeMax = 50;
-int DataRecordTimeMin = 1;
+int[][] recordData;
+int recordDataCols = 9;
+int recordDataTime = 5; // seconds
+int recordDataLength = recordDataTime*userFrequency;
+int recordDataIndex = 0;
+int recordDataedCounter = 0;
+int recordDatamaxPlotTime = 50;
+int recordDataTimeMin = 1;
 
 /*********** Page Variables ************/
 // any page variables that require access for saving and loading should go here
 
 // MouseVariables
-int XLow = 0, XHigh = 1, YLow = 2, YHigh = 3;
-int MouseThresh[] = {    
-  MaxSignalVal*5/4, MaxSignalVal*6/4, MaxSignalVal*5/4, MaxSignalVal*6/4
-};// xlow, xhigh, ylow, yhigh
-int[] MouseChan = {    
-  0, 1
+int thresh2chxLow = 0, thresh2chxHigh = 1, thresh2chyLow = 2, thresh2chyHigh = 3,
+    thresh2chaux1Low = 4, thresh2chaux1High = 5, thresh2chaux2Low = 6, thresh2chaux2High = 7,
+    thresh2chaux3Low = 8, thresh2chaux3High = 9, thresh2chaux4Low = 10, thresh2chaux4High = 11,
+    thresh2chaux5Low = 12, thresh2chaux5High = 13, thresh2chaux6Low = 14, thresh2chaux6High = 15;
+int thresh4chLeft = 0, thresh4chRight = 1, thresh4chDown = 2, thresh4chUp = 3, thresh4chaux1 = 4, thresh4chaux2 = 5, thresh4chaux3 = 6, thresh4chaux4 = 7;
+int tmpL = maxSignalVal*5/4, tmpH = maxSignalVal * 6/4;
+int mouseThresh2Ch[] = {    
+  tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH, tmpL, tmpH
+};// xlow, xhigh, ylow, yhigh, aux1low, aux1high, aux2low, aux2high, aux3low, aux3high, aux4low, aux4high, aux5low, aux5high, aux6low, aux6high
+int mouseThresh4Ch[] = {    
+  tmpH, tmpH, tmpH, tmpH, tmpH, tmpH, tmpH, tmpH
+};// left, right, up, down, aux1, aux2, aux3, aux4
+int[] mouseChan = {    
+  0, 1, 2, 3, 4, 5, 6, 7
 };
+
 // Frequency variables
-int FrequencyMax = 200;
+int maxPlotFrequency = 200;
 /*********** End Page Variables ************/
 
 // Flags
-boolean InitFlag = true;
-boolean dataflag = false;
 boolean initializeFlag = true;
-boolean MouseReleaseFlag = false;
-boolean PauseFlag = false;
-boolean OffSetFlag = false;
-boolean SmoothFilterFlag = false;
-boolean ButtonPressedFlag = false;
-boolean Bonoff = false;
-boolean Bmomentary = true;
-boolean ChannelOn[]= {  
+boolean dataflag = false;
+boolean pauseFlag = false;
+boolean offsetFlag = false;
+boolean smoothFilterFlag = false;
+boolean buttonPressedFlag = false;
+boolean bOnOff = false;
+boolean bMomentary = true;
+boolean channelsOn[]= {  
   true, true, true, true, false, false, false, false
 };
-boolean DataRecordFlag = false;
-boolean SerialReceivedFlag = false;
-boolean MedianFilter = false;
-boolean PlugTestFlag = false;
+boolean recordDataFlag = false;
+boolean medianFilter = false;
+boolean plugTestFlag = false;
 boolean helpFlag = false;
-boolean DataRegWriteFlag = false;
+boolean dataRegWriteFlag = false;
 boolean snakeGameFlag = false;
+boolean commentflag = true;
+boolean communicationsflag = false;
+boolean hideButton = true;
+boolean showButton = false;
 
-int PlugTestDelay = 0;
+int plugTestDelay = 0;
 int testcounter = 0;
 
 long startTime = System.nanoTime();
@@ -380,18 +348,18 @@ long startTime = System.nanoTime();
 long estimatedTime = System.nanoTime() - startTime;
 long endTime;
 
-int InitCount = 0;
-int XMIN;
-int XMAX;
-int YMIN;
-int YMAX;
+int initializeCounter = 0;
+int xMIN;
+int xMAX;
+int yMIN;
+int yMAX;
 
-String[] USBPORTs = new String[0];
-String[] BluetoothPORTs = new String[0];
+//String[] usbPORTs = new String[0];
+//String[] bluetoothPORTs = new String[0];
 
 PImage img;
 
-int VersionBufferN = 4;
+int nVersionBuffer = 4;
 int VERSION;
 int SERIALNUMBER;
 int MODELNUMBER;
@@ -400,21 +368,18 @@ SerialPortObj FVserial;
 
 ArrayList<pagesClass> FVpages;
 int settingspage, timedomainpage, frequencydomainpage, workoutpage, targetpracticepage, snakegamepage, musclemusicpage;
-
-boolean commentflag = true;
-boolean communicationsflag = false;
-int currentWidth;
-int currentHeight;
+int keyInput = 1;
+int mouseInput = 2;
 
 public void setup () {
-
+  println("Homepath = "+homePath);
   FVpages = new ArrayList<pagesClass>();
   int tmpindex = 0;
   FVpages.add(new SettingsPage(this));       
   settingspage = tmpindex++;
   FVpages.add(new TimeDomainPlotPage()); 
   timedomainpage = tmpindex++;
-  FVpages.add(new WorkoutPage());        
+  FVpages.add(new workoutPage());        
   workoutpage = tmpindex++;
   FVpages.add(new TargetPracticePage()); 
   targetpracticepage = tmpindex++;
@@ -427,7 +392,7 @@ public void setup () {
   initializeEverything();
 
   frame.setResizable(true);
-  frame.setTitle("Hello!");
+  frame.setTitle("FlexVolt Viewer v1.2");
 
   //  registerMethod("pre", this);
   //  frame.addComponentListener(new ComponentAdapter() {
@@ -456,18 +421,18 @@ public void setup () {
   img = loadImage("FlexVolt_Image1.png");
 
   // fft setup
-  fft=new FFTutils(FFTSignalLength);
+  fft=new FFTutils(signalLengthFFT);
   fft.useEqualizer(false);
   fft.useEnvelope(true, 1);
-  fft_result = new float[MaxSignalNumber][FFTSignalLength];
-  signalIn = new float[MaxSignalNumber][MaxSignalLength];
-  FFTsignalIn = new float[MaxSignalNumber][FFTSignalLength];
-  oldPlotSignal = new int[MaxSignalNumber];
+  fft_result = new float[maxcurrentSignalNumber][signalLengthFFT];
+  signalIn = new float[maxcurrentSignalNumber][maxSignalLength];
+  SignalInFFT = new float[maxcurrentSignalNumber][signalLengthFFT];
+  oldPlotSignal = new int[maxcurrentSignalNumber];
 
   filter1=new FIRFilter(FIRFilter.LOW_PASS, 2000f, 0, 1000, 60, 3400);
   filter2=new FIRFilter(FIRFilter.HIGH_PASS, 2000f, 20, 10, 60, 3400);
 
-  TimeStamp = new long[5000];
+  timeStamp = new long[5000];
 
   FVserial = new SerialPortObj(this);
 }
@@ -481,22 +446,22 @@ public void stop() {  // doesn't actually get called on closed, but it should, a
 
 public void initializeEverything() {
 
-  HalfPlotWidth = FullPlotWidth/2;
+  halfPlotWidth = fullPlotWidth/2;
   // set the window size TODO get window size, modify
-  // size(FullPlotWidth+barwidth+xStep, plotheight+yStep+yTitle, P2D);
-  size(FullPlotWidth+barwidth+xStep, plotheight+yStep+yTitle);
+//  size(fullPlotWidth+barWidth+xStep, plotheight+yStep+yTitle, P2D);
+  size(fullPlotWidth+barWidth+xStep, plotheight+yStep+yTitle);
   currentWidth = width;
   currentHeight = height;
   ytmp = height - yStep;
   println("w = "+currentWidth+", h = "+currentHeight+", ytmp = "+ytmp);
 
-  XMIN = xStep+pointThickness;
-  XMAX = xStep+FullPlotWidth-pointThickness;
-  YMIN = yTitle+pointThickness;
-  YMAX = yTitle+plotheight-pointThickness;
+  xMIN = xStep+pointThickness;
+  xMAX = xStep+fullPlotWidth-pointThickness;
+  yMIN = yTitle+pointThickness;
+  yMAX = yTitle+plotheight-pointThickness;
 
-  Bheight = 25; // button height
-  Bheights = 20; // button height
+  bheight = 25; // button height
+  bheights = 20; // button height
 
   initializeButtons();
 
@@ -518,18 +483,18 @@ public void checkResize() {
     xStep = 60;
     yStep = 40;
     yTitle = 70;
-    barwidth = 100;
-    FullPlotWidth = width - xStep - barwidth;
+    barWidth = 100;
+    fullPlotWidth = width - xStep - barWidth;
     plotheight = height - yTitle - yStep;
-    plotwidth = FullPlotWidth;
-    HalfPlotWidth = FullPlotWidth/2;
-    XMIN = xStep+pointThickness;
-    XMAX = xStep+FullPlotWidth-pointThickness;
-    YMIN = yTitle+pointThickness;
-    YMAX = yTitle+plotheight-pointThickness;
+    plotwidth = fullPlotWidth;
+    halfPlotWidth = fullPlotWidth/2;
+    xMIN = xStep+pointThickness;
+    xMAX = xStep+fullPlotWidth-pointThickness;
+    yMIN = yTitle+pointThickness;
+    yMAX = yTitle+plotheight-pointThickness;
 
-    Bheight = 25; // button height
-    Bheights = 20; // button height
+    bheight = 25; // button height
+    bheights = 20; // button height
 
     ytmp = height - yStep;
     println("height now = "+plotheight);
@@ -544,29 +509,29 @@ public void checkResize() {
     FVpages.get(currentpage).switchToPage();
 
     if (backon) {
-      EstablishDataLink();
+      establishDataLink();
     }
   }
 }
 
 public void initializeButtons() {
-  buttonsCommon = new GuiButton[ButtonNumCommon];
-  buttonsCommon[BCsettings]       = new GuiButton("Settings", 's', settingspage, xStep+plotwidth+55, yTitle+plotheight+yStep/2, 70, Bheight, color(BIdleColor), color(0), "Settings", Bmomentary, false);
-  buttonsCommon[BChelp]           = new GuiButton("Help", 'h', dummypage, xStep+plotwidth-35, 30, 25, 25, color(BIdleColor), color(0), "?", Bmomentary, false);
-  buttonsCommon[BCsave]           = new GuiButton("Store", 'i', dummypage, xStep+50, 12, 100, 20, color(BIdleColor), color(0), "Save Image", Bmomentary, false);
-  buttonsCommon[BCrecordnextdata] = new GuiButton("SaveRecord", 'd', dummypage, xStep+50, 36, 100, 20, color(BIdleColor), color(0), "Record "+DataRecordTime+"s", Bmomentary, false);
-  buttonsCommon[BCtimedomain]     = new GuiButton("TimePage", 't', timedomainpage, xStep+FullPlotWidth/2-73, yTitle-10, 60, 20, color(BIdleColor), color(0), "Plot Signals", Bonoff, true);
-  buttonsCommon[BCtraindomain]    = new GuiButton("WorkoutPage", 'w', workoutpage, xStep+FullPlotWidth/2+19, yTitle-10, 75, 20, color(BIdleColor), color(0), "Workout", Bonoff, false);
-  buttonsCommon[BCmousedomain]    = new GuiButton("MousePage", 'm', targetpracticepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "Mouse Games", Bonoff, false);
-  buttonsCommon[BCsnakedomain]    = new GuiButton("SnakeGame", 'n', snakegamepage, xStep+FullPlotWidth/2+115, yTitle-10, 110, 20, color(BIdleColor), color(0), "Snake Game", Bonoff, false);
-  buttonsCommon[BCmusicdomain]    = new GuiButton("MuscleMusic", 'u', musclemusicpage, xStep+FullPlotWidth/2+155, yTitle-10, 110, 20, color(BIdleColor), color(0), "Muscle Music", Bonoff, false);
-  buttonsCommon[BCserialreset]    = new GuiButton("SerialReset", 'r', dummypage, xStep+FullPlotWidth+55, yTitle/2, 60, 20, color(BIdleColor), color(0), "Reset", Bmomentary, false);
-  println(FullPlotWidth);
+  buttonsCommon = new GuiButton[buttonNumberCommon];
+  buttonsCommon[bcsettings]       = new GuiButton("Settings", 's', settingspage, xStep+plotwidth+55, yTitle+plotheight+yStep/2, 70, bheight, color(colorBIdle), color(0), "Settings", bMomentary, false, showButton);
+  buttonsCommon[bchelp]           = new GuiButton("Help", 'h', dummypage, xStep+plotwidth-35, 30, 25, 25, color(colorBIdle), color(0), "?", bMomentary, false, showButton);
+  buttonsCommon[bcsave]           = new GuiButton("Store", 'i', dummypage, xStep+50, 12, 100, 20, color(colorBIdle), color(0), "Save Image", bMomentary, false, showButton);
+  buttonsCommon[bcrecordnextdata] = new GuiButton("SaveRecord", 'd', dummypage, xStep+50, 36, 100, 20, color(colorBIdle), color(0), "Record "+recordDataTime+"s", bMomentary, false, showButton);
+  buttonsCommon[bcplotdomain]     = new GuiButton("TimePage", 't', timedomainpage, xStep+fullPlotWidth/2-73, yTitle-10, 60, 20, color(colorBIdle), color(0), "Plot Signals", bOnOff, true, showButton);
+  buttonsCommon[bctraindomain]    = new GuiButton("workoutPage", 'w', workoutpage, xStep+fullPlotWidth/2+19, yTitle-10, 75, 20, color(colorBIdle), color(0), "workout", bOnOff, false, showButton);
+  buttonsCommon[bcmousedomain]    = new GuiButton("MousePage", 'm', targetpracticepage, xStep+fullPlotWidth/2+115, yTitle-10, 110, 20, color(colorBIdle), color(0), "Mouse Games", bOnOff, false, showButton);
+  buttonsCommon[bcsnakedomain]    = new GuiButton("SnakeGame", 'n', snakegamepage, xStep+fullPlotWidth/2+115, yTitle-10, 110, 20, color(colorBIdle), color(0), "Snake Game", bOnOff, false, showButton);
+  buttonsCommon[bcmusicdomain]    = new GuiButton("MuscleMusic", 'u', musclemusicpage, xStep+fullPlotWidth/2+155, yTitle-10, 110, 20, color(colorBIdle), color(0), "Muscle Music", bOnOff, false, showButton);
+  buttonsCommon[bcserialreset]    = new GuiButton("SerialReset", 'r', dummypage, xStep+fullPlotWidth+55, yTitle/2, 60, 20, color(colorBIdle), color(0), "Reset", bMomentary, false, showButton);
+  println(fullPlotWidth);
   textSize(buttontextsize);
   int tabpad = 6;
   int tabspace = 5;
   int lengthtotal = 0;
-  for (int i = BCtimedomain; i<=BCmusicdomain; i++){
+  for (int i = bcplotdomain; i<=bcmusicdomain; i++){
     int tmplength = PApplet.parseInt(textWidth(buttonsCommon[i].label));
     buttonsCommon[i].xsize = tmplength + tabpad;
     println("bsize = "+buttonsCommon[i].xsize);
@@ -574,24 +539,22 @@ public void initializeButtons() {
   }
   lengthtotal -= tabspace;
   lengthtotal /= 2;
-  int tmpxpos = xStep + FullPlotWidth/2 - lengthtotal;
+  int tmpxpos = xStep + fullPlotWidth/2 - lengthtotal;
   int oldxsize = 0;
-  for (int i = BCtimedomain; i<=BCmusicdomain; i++){
+  for (int i = bcplotdomain; i<=bcmusicdomain; i++){
     int tmplength = PApplet.parseInt(textWidth(buttonsCommon[i].label));
     tmplength = (tmplength+tabpad)/2;
     tmpxpos +=  tmplength + oldxsize;
     oldxsize = tmplength + tabspace;
     buttonsCommon[i].xpos = tmpxpos;
   }
-  
-    
 }
 
 
 public void draw () {
-  if (InitFlag) {
-    InitCount ++;
-    if (InitCount == 1) {
+  if (initializeFlag) {
+    initializeCounter ++;
+    if (initializeCounter == 1) {
       frame.setLocation(0, 0);//1441
       xx = frame.getX()+2;
       if (platform == MACOSX) {
@@ -601,7 +564,7 @@ public void draw () {
         yy = frame.getY()+22; // add ace for teh app top bar
       }
 
-      background(backgroundcolor);
+      background(colorBackground);
 
       for (int i = 0; i < buttonsCommon.length; i++) {
         buttonsCommon[i].drawButton();
@@ -613,34 +576,50 @@ public void draw () {
 
       display_error("Searching for FlexVolt Devices");
     }
-    if (InitCount >= 2) {
+    if (initializeCounter >= 2) {
       startTime = System.nanoTime();
       // frame.setLocation(1481, 0);//1441
 
-      InitFlag = false;
+      initializeFlag = false;
       FVserial.connectserial();// the function will poll devices, set connecting flag, and set current try port index to 0
     }
   }
 
   checkResize();
 
-  if (ButtonPressedFlag) {
-    if (millis() > ButtonColorTimer) {
-      ButtonPressedFlag = false;
+  if (buttonPressedFlag) {
+    if (millis() > buttonColorTimer) {
+      buttonPressedFlag = false;
       println("Current Button = " + currentbutton);
       if (buttonsCommon[currentbuttonCommon] != null && currentbuttonCommon < buttonsCommon.length) {
-        buttonsCommon[currentbuttonCommon].ChangeColorUnpressed();
+        buttonsCommon[currentbuttonCommon].changeColorUnpressed();
         labelGUI();
       }
     }
   }
 
-  dataflag = FVserial.manageConnection(dataflag, SerialReceivedFlag);
-  SerialReceivedFlag = false;
+  dataflag = FVserial.manageConnection(dataflag);
 
+  drawRecordIndicator(recordDataFlag);
+  
+  
+  
   if (!helpFlag) {
     FVpages.get(currentpage).drawPage();
   }
+}
+
+public void drawRecordIndicator(boolean isrecording){
+  fill(150);
+  strokeWeight(2);
+  stroke(0);
+  ellipse(xStep+112, yTitle*1/2, 18, 18);
+  fill(color(50, 50, 50));
+  if (isrecording) {
+    fill(color(255, 0, 0));
+  }
+  stroke(0);
+  ellipse(xStep+112, yTitle*1/2, 10, 10);
 }
 
 public void serialEvent (Serial myPort) {
@@ -652,7 +631,7 @@ public void serialEvent (Serial myPort) {
   if (!communicationsflag && !dataflag) {
     int inChar = myPort.readChar(); // get ASCII
     if (inChar != -1) {
-      SerialReceivedFlag = true;
+      FVserial.serialReceivedFlag = true;
       println("handshaking, "+inChar+", count = "+testcounter);
       testcounter++;
       if (inChar == 'x') {
@@ -672,8 +651,7 @@ public void serialEvent (Serial myPort) {
         // ConnectingFlag = true;
         FVserial.flexvoltconnected = true;
         FVserial.connectionindicator = FVserial.indicator_connecting;
-        FVserial.drawConnectionIndicator();
-        UpdateSettings(); //EstablishDataLink is rolled in
+        updateSettings(); //establishDataLink is rolled in
         println("updated settings");
         communicationsflag = true;
       }
@@ -682,22 +660,21 @@ public void serialEvent (Serial myPort) {
   else if (communicationsflag && !dataflag) {
     int inChar = myPort.readChar(); // get ASCII
     if (inChar != -1) {
-      SerialReceivedFlag = true;
+      FVserial.serialReceivedFlag = true;
       println("handshaking, "+inChar+", count = "+testcounter);
       if (inChar == 'g') {
         myPort.clear();
         println("dataflag = true g");
-        blankplot();
+        blankPlot();
         dataflag = true;
         FVserial.connectionindicator = FVserial.indicator_connected;
-        FVserial.drawConnectionIndicator();
-        myPort.buffer((SerialBufferN+1)*SerialBurstN);
+        myPort.buffer((serialBufferN+1)*serialBurstN);
       }
       else if (inChar == 'y') {
         println("Received 'Y'");
       }
       else if (inChar == 'v') {
-        byte[] inBuffer = new byte[VersionBufferN];
+        byte[] inBuffer = new byte[nVersionBuffer];
         myPort.readBytes(inBuffer);
         VERSION = inBuffer[0];
         SERIALNUMBER = ((int)inBuffer[1]<<8)+(int)inBuffer[2];
@@ -708,57 +685,57 @@ public void serialEvent (Serial myPort) {
   }
   else if (dataflag) {
     // Actual Data Acquisition
-    byte[] inBuffer = new byte[SerialBufferN];
+    byte[] inBuffer = new byte[serialBufferN];
     //    println("avail = "+myPort.available());
-    while (myPort.available () > SerialBufferN) {
+    while (myPort.available () > serialBufferN) {
       // println((System.nanoTime()-startTime)/1000);
 
       //      println(myPort.available());
       int inChar = myPort.readChar(); // get ASCII
       // print("data, ");println(inChar);
       if (inChar != -1) {
-        SerialReceivedFlag = true;
+        FVserial.serialReceivedFlag = true;
 
         if (inChar == 'C' || inChar == 'D' || inChar == 'E' || inChar == 'F') {
           myPort.readBytes(inBuffer);
-          //          println("Received8bit - "+inChar+", buffer = "+SerialBufferN);
+          //          println("Received8bit - "+inChar+", buffer = "+serialBufferN);
           // println(inBuffer);
-          for (int i = 0; i < SignalNumber; i++) {
+          for (int i = 0; i < currentSignalNumber; i++) {
             int tmp = inBuffer[i]; // last 2 bits of each signal discarded
             tmp = tmp&0xFF; // account for translation from unsigned to signed
             tmp = tmp << 2; // shift to proper position
             float rawVal = PApplet.parseFloat(tmp);
 
             if (currentpage == frequencydomainpage) {
-              arrayCopy(FFTsignalIn[i], 1, FFTsignalIn[i], 0, FFTSignalLength-1);
-              FFTsignalIn[i][FFTSignalLength-1]=rawVal;
+              arrayCopy(SignalInFFT[i], 1, SignalInFFT[i], 0, signalLengthFFT-1);
+              SignalInFFT[i][signalLengthFFT-1]=rawVal;
             }
             else {
               signalIn[i][signalindex]=rawVal;
             }
-            if (DataRecordFlag && DataRecordIndex < DataRecordLength) {
-              DataRecord[i][DataRecordIndex]=PApplet.parseInt(rawVal);
+            if (recordDataFlag && recordDataIndex < recordDataLength) {
+              recordData[i][recordDataIndex]=PApplet.parseInt(rawVal);
             }
           }
-          if (DataRecordFlag) {
-            DataRecordIndex++;
-            if (DataRecordIndex >= DataRecordLength) {
-              if ((DataRecordIndex % 10) == 0) {
-                println("Saving"+str(DataRecord[1][DataRecordIndex-1]));
-              }
-              DataRecordedCounter = SaveRecordedData(DataRecordedCounter);
-              DataRecordFlag = false;
+          if (recordDataFlag) {
+            recordDataIndex++;
+            if ((recordDataIndex % 100) == 0) {
+              println("Saving " + recordDataIndex + "/" + recordDataLength + "data point");
+            }
+            if (recordDataIndex >= recordDataLength) {
+              recordDataedCounter = saveRecordedData(recordDataedCounter);
+              recordDataFlag = false;
             }
           }
-          signalindex ++;//= DownSampleCount;
-          if (signalindex >= MaxSignalLength)signalindex = 0;
+          signalindex ++;//= downSampleCount;
+          if (signalindex >= maxSignalLength)signalindex = 0;
           datacounter++;
-          if (datacounter >= MaxSignalLength)datacounter = MaxSignalLength;
+          if (datacounter >= maxSignalLength)datacounter = maxSignalLength;
         }
         else if (inChar == 'H' || inChar == 'I' || inChar == 'J' || inChar == 'K') {
           myPort.readBytes(inBuffer);
-          for (int i = 0; i < SignalNumber; i++) {
-            int tmplow = inBuffer[SerialBufferN-1]; // last 2 bits of each signal stored here
+          for (int i = 0; i < currentSignalNumber; i++) {
+            int tmplow = inBuffer[serialBufferN-1]; // last 2 bits of each signal stored here
             tmplow = tmplow&0xFF; // account for translation from unsigned to signed
             tmplow = tmplow >> (2*(3-i)); // shift to proper position
             tmplow = tmplow & (3); //3 (0b00000011) is a mask.
@@ -767,31 +744,31 @@ public void serialEvent (Serial myPort) {
             tmphigh = tmphigh << 2; // shift to proper position
             float rawVal = PApplet.parseFloat(tmphigh+tmplow);
             if (currentpage == frequencydomainpage) {
-              arrayCopy(FFTsignalIn[i], 1, FFTsignalIn[i], 0, FFTSignalLength-1);
-              FFTsignalIn[i][FFTSignalLength-1]=rawVal;
+              arrayCopy(SignalInFFT[i], 1, SignalInFFT[i], 0, signalLengthFFT-1);
+              SignalInFFT[i][signalLengthFFT-1]=rawVal;
             }
             else {
               signalIn[i][signalindex]=rawVal;
             }
-            if (DataRecordFlag && (DataRecordIndex < DataRecordLength)) {
-              // println("Saving Point: "+DataRecordIndex);
-              DataRecord[i][DataRecordIndex]=PApplet.parseInt(rawVal);
+            if (recordDataFlag && (recordDataIndex < recordDataLength)) {
+              // println("Saving Point: "+recordDataIndex);
+              recordData[i][recordDataIndex]=PApplet.parseInt(rawVal);
             }
           }
-          if (DataRecordFlag) {
-            DataRecordIndex++;
-            if ((DataRecordIndex % 10) == 0) {
-              println("Saving"+DataRecordIndex);
+          if (recordDataFlag) {
+            recordDataIndex++;
+            if ((recordDataIndex % 100) == 0) {
+              println("Saving " + recordDataIndex + "/" + recordDataLength + "data point");
             }
-            if (DataRecordIndex >= DataRecordLength) {
-              DataRecordedCounter = SaveRecordedData(DataRecordedCounter);
-              DataRecordFlag = false;
+            if (recordDataIndex >= recordDataLength) {
+              recordDataedCounter = saveRecordedData(recordDataedCounter);
+              recordDataFlag = false;
             }
           }
-          signalindex ++;//= DownSampleCount;
-          if (signalindex >= MaxSignalLength)signalindex = 0;
+          signalindex ++;//= downSampleCount;
+          if (signalindex >= maxSignalLength)signalindex = 0;
           datacounter++;
-          if (datacounter >= MaxSignalLength)datacounter = MaxSignalLength;
+          if (datacounter >= maxSignalLength)datacounter = maxSignalLength;
         }
         else if (inChar == 'p') {
           inBuffer = new byte[1];
@@ -815,8 +792,6 @@ public void serialEvent (Serial myPort) {
   stroke(tmpstrokeColor);
   strokeWeight(tmpstrokeWeight);
 }
-int keyInput = 1;
-int mouseInput = 2;
 
 public void useKeyPressedOrMousePressed(int inputDev) {
   // Store current fill and stroke settings
@@ -832,7 +807,9 @@ public void useKeyPressedOrMousePressed(int inputDev) {
   // priority 1 - if in the help menu, any click or key exis the help menu
   if (helpFlag) {
     helpFlag = false;
-    buttonsCommon[BChelp].BOn = false;
+    buttonsCommon[bchelp].bOn = false;
+    background(colorBackground);
+    FVpages.get(currentpage).switchToPage();
     labelGUI();
     // Restore fill and stroke settings
     fill(tmpfillColor);
@@ -857,27 +834,26 @@ public void useKeyPressedOrMousePressed(int inputDev) {
     if (buttonsCommon[i] != null) {
       if ( (inputDev == mouseInput && buttonsCommon[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttonsCommon[i].hotKey) ) {
         println("current button about to be " + i);
+        buttonsCommon[i].bOn = true;
+        buttonsCommon[i].changeColorPressed();
+        currentbuttonCommon = i;
         if (buttonsCommon[i].pageRef >= 0 && buttonsCommon[i].pageRef < FVpages.size()) {
-          buttonsCommon[i].BOn = true;
-          buttonsCommon[i].ChangeColorPressed();
           changePage(buttonsCommon[i].pageRef); // calls labelGUI
           println("Going to page"+buttonsCommon[i].pageRef);
         } 
         else {
-          buttonsCommon[i].BOn = true;
-          buttonsCommon[i].ChangeColorPressed();
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
-          currentbuttonCommon = i;
+          buttonColorTimer = millis()+buttonColorDelay;
+          buttonPressedFlag = true;
 
           if (buttonsCommon[currentbuttonCommon].hotKey == 'h') {
+            println("swap to help?");
             FVpages.get(currentpage).drawHelp();
             helpFlag = true;
           }
           if (buttonsCommon[currentbuttonCommon].hotKey == 'r') {
             ResetSerialConnection();
           }
-          if (buttonsCommon[currentbuttonCommon].hotKey == 'g') {
+          if (buttonsCommon[currentbuttonCommon].hotKey == 'i') {
             imagesavecounter = saveImage(imagesavecounter);
           }
           if (buttonsCommon[currentbuttonCommon].hotKey == 'd') {
@@ -931,10 +907,10 @@ public void drawMyLine(int x1, int y1, int x2, int y2, int c, int w) {
 }
 
 public void setPixel(int x, int y, int c) {
-  x = constrain(x, XMIN, XMAX);
-  y = constrain(y, YMIN, YMAX);
-  // if (x < XMIN || x >= XMAX) return;
-  // if (y < YMIN || y >= YMAX) return;
+  x = constrain(x, xMIN, xMAX);
+  y = constrain(y, yMIN, yMAX);
+  // if (x < xMIN || x >= xMAX) return;
+  // if (y < yMIN || y >= yMAX) return;
   // int N = 4;
   // for (int j = y-N; j<=y+N;j++){
   // pixels[x + j * width] = c;
@@ -945,59 +921,30 @@ public void setPixel(int x, int y, int c) {
 
 
 public void drawHelp() {
-  blankplot();
-  stroke(0);
-  strokeWeight(4);
-  fill(200);
-  rectMode(CENTER);
-  textAlign(CENTER, CENTER);
-  rect(width/2, height/2+10, width/2+200, height/2+180, 12);
-
-  fill(0);
-  textSize(30);
-  text("Help Page", width/2-200, height/2-240);
-
-  fill(0);
-  textSize(20);
-  text("Press Any Key or Click Anywhere To Go Back", width/2+150, height/2-240);
-
-  String helpdoc = "";
-  helpdoc = helpdoc + "This App should connect FlexVolt to your computer automatically.\n";
-  helpdoc = helpdoc + " For troubleshooting, try resetting the connection using 'Reset'.\n";
-  helpdoc = helpdoc + " If that does not work, unplug the USB cable, then plug back in and click 'Reset'.\n";
-  helpdoc = helpdoc + "\n";
-  helpdoc = helpdoc + "Use View Mode Button or Hotkeys to go to Pages:\n";
-  helpdoc = helpdoc + " Time (hotkey 't') - home page, plot signals vs. time\n";
-  helpdoc = helpdoc + " Frequency (hotkey 'f') - plot signal frequencies (using FFT).\n";
-  helpdoc = helpdoc + " Train (Workout) (hotey 'w') - monitor reps, work towards a goal\n";
-  helpdoc = helpdoc + " Mouse (hotkey 'm') - control your computer mouse\n";
-  helpdoc = helpdoc + "\n";
-  helpdoc = helpdoc + "Hot Keys Can Also be Used to Toggle:\n";
-  helpdoc = helpdoc + " 'h' = help page 's' = settings page 'r' = reset connection\n";
-  helpdoc = helpdoc + " 'c' = clear plot 'p' = pause/unpause 'k' = calibrate mouse\n";
-  helpdoc = helpdoc + " 'o' = offset plot lines 'j ' = smoothing filter\n";
-  helpdoc = helpdoc + "\n";
-  helpdoc = helpdoc + "For addtional help, go to www.flexvoltbiosensor.com\n";
-  fill(0);
-  textSize(18);
-  textAlign(LEFT, CENTER);
-  text(helpdoc, width/2, height/2+40, width/2+140, height/2+120);
-  textAlign(CENTER, CENTER);
+  
 }
 
 
-public void ClearYAxis() {
-  fill(backgroundcolor);
-  stroke(backgroundcolor);
+public void clearYAxis() {
+  fill(colorBackground);
+  stroke(colorBackground);
   rectMode(CENTER);
   // stroke(0);
   rect(xStep/2, yTitle+plotheight/2, xStep, plotheight);
 }
 
+public void clearRightBar(){
+  fill(colorBackground);
+  stroke(colorBackground);
+  strokeWeight(0);
+  rectMode(CENTER);
+  rect(xStep+plotwidth+barWidth/2,yTitle+plotheight/2,barWidth-6,plotheight);
+}
 
-public void blankplot() {
-  fill(plotbackground);
-  stroke(plotoutline);
+
+public void blankPlot() {
+  fill(colorPlotBackground);
+  stroke(colorPlotOutline);
   strokeWeight(2);
   rectMode(CENTER);
   if (currentpage == workoutpage) {
@@ -1014,18 +961,18 @@ public void labelGUI() {
 
   // Logo
   if (img != null) {
-    image(img, 5, yTitle/2-(yTitle-30)/2, xStep-10, yTitle-30);
+    image(img, 2, 2, xStep-4, yTitle-26);
   }
   else if (img == null) {
     textSize(labelsizexs);
     fill(20, 150, 20);
     textAlign(CENTER, CENTER);
-    text("FlexVolt\nViewer\n"+ViewerVersion, xStep/2, yTitle/2-2);
+    text("FlexVolt\nViewer\n"+viewerVersion, xStep/2, yTitle/2-2);
   }
 
-  fill(labelcolor);
+  fill(colorLabel);
   textSize(labelsizes);
-  text("Connection", xStep+FullPlotWidth+45, yTitle*3/16);
+  text("Connection", xStep+fullPlotWidth+45, yTitle*3/16);
 
   FVserial.drawConnectionIndicator();
 
@@ -1039,25 +986,28 @@ public void UpdatePorts(int ports) {
 }
 
 public void saveData() {
-  DataRecordFlag = true;
-  println("UserFreq = "+UserFrequency+", DataRecordTime = "+DataRecordTime);
-  DataRecordLength = DataRecordTime*UserFrequency;
-  DataRecord = new int[DataRecordCols][DataRecordLength];
-  DataRecordIndex = 0;
+  recordDataFlag = true;
+  println("UserFreq = "+userFrequency+", recordDataTime = "+recordDataTime);
+  recordDataLength = recordDataTime*userFrequency;
+  recordData = new int[recordDataCols][recordDataLength];
+  recordDataIndex = 0;
 }
 
-public int SaveRecordedData(int datasavecounter) {
-  String[] lines = new String[DataRecordLength];
-  for (int i=0; i<DataRecordLength;i++) {
+public int saveRecordedData(int datasavecounter) {
+  String[] lines = new String[recordDataLength];
+  for (int i=0; i<recordDataLength;i++) {
     lines[i] = nf(i, 6)+", ";
-    for (int j=0; j<SignalNumber;j++) {
-      lines[i] += str(DataRecord[j][i]) +", ";
+    for (int j=0; j<currentSignalNumber;j++) {
+      lines[i] += str(recordData[j][i]) +", ";
     }
   }
   String[] saveheader = {
-    "FlexVolt Saved Data", "Frequency = "+UserFrequency, "Signal Amplification Factor = "+AmpGain, "Index , Ch1, Ch2, Ch3, Ch4, Ch5, Ch6, Ch7, Ch8"
+    "FlexVolt Saved Data", "Frequency = "+userFrequency, "Signal Amplification Factor = "+signalAmplifierGain, "Index , Ch1, Ch2, Ch3, Ch4, Ch5, Ch6, Ch7, Ch8"
   };
   String[] savearray = concat(saveheader, lines);
+  if (folder.length() == 0){
+    folder = homePath;
+  }
   if (platform == MACOSX) {
     saveStrings(folder+"/FlexVoltData_"+year()+"-"+nf(month(), 2)+"-"+nf(day(), 2)+"_"+ nf(hour(), 2) +"h-"+ nf(minute(), 2) +"m-"+ nf(second(), 2)+"s_"+nf(datasavecounter, 3)+".txt", savearray);
   }
@@ -1070,6 +1020,9 @@ public int SaveRecordedData(int datasavecounter) {
 
 public int saveImage(int imagesavecounter) {
   String a0 = "";
+  if (folder.length() == 0){
+    folder = sketchPath("");
+  }
   if (platform == MACOSX) {
     a0=folder+"/FlexVoltPlot";
   }
@@ -1128,13 +1081,12 @@ public void ResetSerialConnection() {
     myPort.clear();
     myPort = null;
   }
-  initializeFlag = true;
   FVserial.connectserial();
   FVserial.drawConnectionIndicator();
 }
 
 
-public void EstablishDataLink() {
+public void establishDataLink() {
   if (myPort == null) {
     println("no port to connect to");
     return;
@@ -1142,17 +1094,17 @@ public void EstablishDataLink() {
   myPort.write('G'); // tells Arduino to start sending data
   if (commentflag)println("sent G at establishdatalink");
 
-  SerialBufferN = SignalNumber;
-  if (commentflag)println("Signum = "+SignalNumber);
-  if (BitDepth10) {
-    SerialBufferN += 1;
-    if (SignalNumber > 4) {
-      SerialBufferN += 1;
+  serialBufferN = currentSignalNumber;
+  if (commentflag)println("Signum = "+currentSignalNumber);
+  if (bitDepth10) {
+    serialBufferN += 1;
+    if (currentSignalNumber > 4) {
+      serialBufferN += 1;
     }
   }
-  if (commentflag)println("SignalBuffer = "+SerialBufferN);
+  if (commentflag)println("SignalBuffer = "+serialBufferN);
 
-  myPort.buffer((SerialBufferN+1)*SerialBurstN);
+  myPort.buffer((serialBufferN+1)*serialBurstN);
 }
 
 
@@ -1179,7 +1131,7 @@ public void StopData() {
 }
 
 public void importSettings() {
-  String loadedsettings[] = loadStrings(HomePath+"/FlexVoltViewerSettings.txt");
+  String loadedsettings[] = loadStrings(homePath+"/FlexVoltViewerSettings.txt");
   if (loadedsettings == null) {
     //handle error
     println("no settings saved!");
@@ -1206,47 +1158,49 @@ public void importSettings() {
     // frequency index
     m = match(loadedsettings[2], "null");
     if (m == null) {
-      UserFreqIndex = PApplet.parseInt(loadedsettings[2]);
-      UserFrequency = UserFreqArray[UserFreqIndex];
+      userFreqIndex = PApplet.parseInt(loadedsettings[2]);
+      userFrequency = userFreqArray[userFreqIndex];
     } 
     else {
-      UserFreqIndex = UserFreqIndexDefault;
-      UserFrequency = UserFreqArray[UserFreqIndex];
+      userFreqIndex = userFreqIndexDefault;
+      userFrequency = userFreqArray[userFreqIndex];
     }
-    CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0f/((float)UserFrequency/CheckSerialNSamples) );
-    TimeMax = PApplet.parseFloat(FullPlotWidth)/PApplet.parseFloat(UserFrequency);
-    println("UserFrequencyIndex = " + UserFreqIndex);
-    println("UserFrequency = " + UserFrequency);
+    checkSerialDelay = (long)max( checkSerialMinTime, 1000.0f/((float)userFrequency/checkSerialNSamples) );
+    maxPlotTime = PApplet.parseFloat(fullPlotWidth)/PApplet.parseFloat(userFrequency);
+    println("UserFrequencyIndex = " + userFreqIndex);
+    println("userFrequency = " + userFrequency);
 
     // smoothing filter factor
     m = match(loadedsettings[3], "null");
     if (m == null) {
-      SmoothFilterVal = PApplet.parseInt(loadedsettings[3]);
+      smoothFilterVal = PApplet.parseInt(loadedsettings[3]);
     } 
     else {
-      SmoothFilterVal = SmoothFilterValDefault;
+      smoothFilterVal = smoothFilterValDefault;
     }
-    println("SmoothFilterVal = " + SmoothFilterVal);
+    println("smoothFilterVal = " + smoothFilterVal);
 
     // mouse calibration values
     m = match(loadedsettings[4], "null");
-    if (m == null) {
-      MouseThresh[XLow] = PApplet.parseInt(loadedsettings[4]);
-    }
+    if (m == null) {      mouseThresh2Ch[thresh2chxLow] = PApplet.parseInt(loadedsettings[4]);    }
     m = match(loadedsettings[5], "null");
-    if (m == null) {
-      MouseThresh[XHigh] = PApplet.parseInt(loadedsettings[5]);
-    }
+    if (m == null) {      mouseThresh2Ch[thresh2chxHigh] = PApplet.parseInt(loadedsettings[5]);    }
     m = match(loadedsettings[6], "null");
-    if (m == null) {
-      MouseThresh[YLow] = PApplet.parseInt(loadedsettings[6]);
-    }
+    if (m == null) {      mouseThresh2Ch[thresh2chyLow] = PApplet.parseInt(loadedsettings[6]);    }
     m = match(loadedsettings[7], "null");
-    if (m == null) {
-      MouseThresh[YHigh] = PApplet.parseInt(loadedsettings[7]);
-    }
+    if (m == null) {      mouseThresh2Ch[thresh2chyHigh] = PApplet.parseInt(loadedsettings[7]);    }
+    println(mouseThresh2Ch);
 
-    println(MouseThresh);
+    if (loadedsettings.length <= 8)return;
+    m = match(loadedsettings[8], "null");
+    if (m == null) {      mouseThresh4Ch[thresh4chLeft] = PApplet.parseInt(loadedsettings[4]);    }
+    m = match(loadedsettings[9], "null");
+    if (m == null) {      mouseThresh4Ch[thresh4chRight] = PApplet.parseInt(loadedsettings[5]);    }
+    m = match(loadedsettings[10], "null");
+    if (m == null) {      mouseThresh4Ch[thresh4chDown] = PApplet.parseInt(loadedsettings[6]);    }
+    m = match(loadedsettings[11], "null");
+    if (m == null) {      mouseThresh4Ch[thresh4chUp] = PApplet.parseInt(loadedsettings[7]);    }
+    println(mouseThresh4Ch);
   }
 }
 
@@ -1260,16 +1214,16 @@ public void PollVersion() {
   delay(serialwritedelay);
   myPort.clear();
   println("sent Q version");
-  myPort.buffer(VersionBufferN+1);
+  myPort.buffer(nVersionBuffer+1);
   myPort.clear();
 
   myPort.write('V'); // Poll version and SN
   delay(serialwritedelay);
 
-  EstablishDataLink();
+  establishDataLink();
 }
 
-public void UpdateSettings() {
+public void updateSettings() {
   /*
 * Control Words
    *
@@ -1314,7 +1268,7 @@ public void UpdateSettings() {
     // handle changes to the Serial buffer coming out of settings
 
 
-    DataRegWriteFlag = true;
+    dataRegWriteFlag = true;
     delay(serialwritedelay);
     myPort.clear();
     println("sent Q update settings");
@@ -1330,20 +1284,20 @@ public void UpdateSettings() {
     int REGtmp = 0;
     int tmp = 0;
     //Register 1
-    if (SignalNumber == 8)tmp = 3;
-    if (SignalNumber == 4)tmp = 2;
-    if (SignalNumber == 2)tmp = 1;
-    if (SignalNumber == 1)tmp = 0;
+    if (currentSignalNumber == 8)tmp = 3;
+    if (currentSignalNumber == 4)tmp = 2;
+    if (currentSignalNumber == 2)tmp = 1;
+    if (currentSignalNumber == 1)tmp = 0;
     println(binary(tmp));
     REGtmp = tmp << 6;
-    REGtmp += UserFreqIndex << 2;
+    REGtmp += userFreqIndex << 2;
     tmp = 0;
-    if (SmoothFilterFlag) {
+    if (smoothFilterFlag) {
       tmp = 1;
     }
     REGtmp += tmp << 1;
     tmp = 0;
-    if (BitDepth10) {
+    if (bitDepth10) {
       tmp = 1;
     }
     REGtmp += tmp;
@@ -1351,43 +1305,43 @@ public void UpdateSettings() {
     delay(serialwritedelay);
 
     REGtmp = 0;
-    REGtmp += Prescaler << 5;
-    REGtmp += SmoothFilterVal;
+    REGtmp += prescalerPic << 5;
+    REGtmp += smoothFilterVal;
     myPort.write(REGtmp);
     delay(serialwritedelay);//01000101
 
-    REGtmp = UserFreqCustom;
+    REGtmp = userFreqCustom;
     myPort.write(REGtmp);
     delay(serialwritedelay);
 
-    REGtmp = UserFreqCustom>>8;
+    REGtmp = userFreqCustom>>8;
     myPort.write(REGtmp);
     delay(serialwritedelay);
 
-    REGtmp = Timer0AdjustVal+6;
+    REGtmp = timer0AdjustVal+6;
     myPort.write(REGtmp);
     delay(serialwritedelay);
 
-    REGtmp = Timer0PartialCount;
+    REGtmp = timer0PartialCount;
     myPort.write(REGtmp);
     delay(serialwritedelay);
 
-    REGtmp = Timer0PartialCount>>8;
+    REGtmp = timer0PartialCount>>8;
     myPort.write(REGtmp);
     delay(serialwritedelay);
 
-    REGtmp = DownSampleCount;
+    REGtmp = downSampleCount;
     myPort.write(REGtmp);
     delay(serialwritedelay);
 
-    REGtmp = PlugTestDelay;
+    REGtmp = plugTestDelay;
     myPort.write(REGtmp);
     delay(serialwritedelay);
 
     myPort.write('Y');
     delay(serialwritedelay);
 
-    EstablishDataLink();
+    establishDataLink();
   }
 }
 
@@ -1420,14 +1374,29 @@ public void changePage(int newPage) {
   println("oldpage = "+oldpage+", newpage = "+currentpage);
 
   if (newPage != settingspage) {
-    background(backgroundcolor);
+    background(colorBackground);
   }
 
-  buttonsCommon[BCsettings].ChangeColorUnpressed();
-  buttonsCommon[BChelp].ChangeColorUnpressed();
-  buttonsCommon[BCtimedomain].BOn = false;
-  buttonsCommon[BCtraindomain].BOn = false;
-  buttonsCommon[BCmousedomain].BOn = false;
+//  buttonsCommon[bcsettings].changeColorUnpressed();
+//  buttonsCommon[bchelp].changeColorUnpressed();
+//  buttonsCommon[bcplotdomain].bOn = false;
+//  buttonsCommon[bctraindomain].bOn = false;
+//  buttonsCommon[bcmousedomain].bOn = false;
+//  buttonsCommon[bcsnakedomain].bOn = false;
+//  buttonsCommon[bcmusicdomain].bOn = false;
+  
+  for (int i = 0; i < buttonsCommon.length; i++){
+    if (buttonsCommon[i].pageRef == currentpage){
+      buttonsCommon[i].bOn = true;
+    } else {
+      buttonsCommon[i].bOn = false;
+      buttonsCommon[i].changeColorUnpressed();
+    }
+  }
+  
+//  if (currentbuttonCommon >= 0 && currentbuttonCommon < buttonsCommon.length){
+//    buttonsCommon[currentbuttonCommon].bOn = true;
+//  }
 
   FVpages.get(currentpage).switchToPage();
   labelGUI();
@@ -1435,6 +1404,43 @@ public void changePage(int newPage) {
   loadPixels();
 }
 
+public void drawGenericHelp(){
+  blankPlot();
+  stroke(0);
+  strokeWeight(4);
+  fill(200);
+  rectMode(CENTER);
+  textAlign(CENTER, CENTER);
+  rect(xStep+fullPlotWidth/2, yTitle+plotheight/2, fullPlotWidth, plotheight, 12);
+
+  fill(0);
+  textSize(labelsizes);
+  int tmptextw = PApplet.parseInt(textWidth("Help Page"))/2; 
+  text("Help Page ", xStep+fullPlotWidth/2, yTitle+12);
+
+  String helpdoc = "";
+  helpdoc = helpdoc + " Troubleshooting:  1. Try resetting the connection using 'Reset'.\n";
+  helpdoc = helpdoc + "       2. Unplug USB cable from computer, plug back in, 'Reset'.\n";
+  helpdoc = helpdoc + "\n";
+  helpdoc = helpdoc + "Use Tabs or Hotkeys to switch Pages:\n";
+  helpdoc = helpdoc + " Time (hotkey 't') - home page, plot signals vs. time\n";
+  helpdoc = helpdoc + " Frequency (hotkey 'f') - plot signal frequencies (using FFT).\n";
+  helpdoc = helpdoc + " Train (workout) (hotey 'w') - monitor reps, work towards a goal\n";
+  helpdoc = helpdoc + " Mouse (hotkey 'm') - control your computer mouse\n";
+  helpdoc = helpdoc + "\n";
+  helpdoc = helpdoc + "Hot Keys: 'h' = help 's' = settings 'r' = reset connection 'c' = clear\n";
+  helpdoc = helpdoc + " 'p' = pause/unpause 'i' = save image 'd' = save data\n";
+  helpdoc = helpdoc + " 'o' = offset plot lines 'j ' = smoothing filter\n";
+  helpdoc = helpdoc + "\n";
+  helpdoc = helpdoc + "For addtional help, go to www.flexvoltbiosensor.com\n";
+  fill(0);
+  textSize(labelsizexs);
+  textAlign(LEFT, CENTER);
+  text(helpdoc, xStep+fullPlotWidth/2, yTitle+plotheight/2+10, fullPlotWidth-10, plotheight-20);
+  textAlign(CENTER, CENTER);
+  textSize(labelsizexs);
+  text("For addtional help: www.flexvoltbiosensor.com", xStep+fullPlotWidth/2, yTitle+plotheight - 15);
+}
 
 
 /************************* BEGIN SETTINGS Page ***********************/
@@ -1443,45 +1449,45 @@ public class SettingsPage implements pagesClass {
   PApplet parent;
 
   GuiButton[] buttons;
-  int ButtonNum = 0;
+  int buttonNumber = 0;
   int
-    Bfolder = ButtonNum++, 
-  Bfiltup = ButtonNum++, 
-  Bfiltdown = ButtonNum++, 
-  Bfrequp = ButtonNum++, 
-  Bfreqdown = ButtonNum++, 
-  Brecordtimeup = ButtonNum++, 
-  Brecordtimedown = ButtonNum++, 
-  B1chan = ButtonNum++, 
-  B2chan = ButtonNum++, 
-  B4chan = ButtonNum++, 
-  B8chan = ButtonNum++, 
-  Bcancel = ButtonNum++, 
-  Bsave = ButtonNum++, 
-  Bdefaults = ButtonNum++, 
-  Bdownsampleup = ButtonNum++, 
-  Bdownsampledown = ButtonNum++, 
-  Btimeradjustup = ButtonNum++, 
-  Btimeradjustdown = ButtonNum++, 
-  //Bbitdepth8 = ButtonNum++,
-  //Bbitdepth10 = ButtonNum++,
-  Bprescalerup = ButtonNum++, 
-  Bprescalerdown = ButtonNum++;
+    bfolder = buttonNumber++, 
+  bfiltup = buttonNumber++, 
+  bfiltdown = buttonNumber++, 
+  bfrequp = buttonNumber++, 
+  bfreqdown = buttonNumber++, 
+  brecordtimeup = buttonNumber++, 
+  brecordtimedown = buttonNumber++, 
+  b1chan = buttonNumber++, 
+  b2chan = buttonNumber++, 
+  b4chan = buttonNumber++, 
+  b8chan = buttonNumber++, 
+  bcancel = buttonNumber++, 
+  bsave = buttonNumber++, 
+  bdefaults = buttonNumber++, 
+  bdownsampleup = buttonNumber++, 
+  bdownsampledown = buttonNumber++, 
+  btimeradjustup = buttonNumber++, 
+  btimeradjustdown = buttonNumber++, 
+  //bbitdepth8 = buttonNumber++,
+  //bbitdepth10 = buttonNumber++,
+  bprescalerup = buttonNumber++, 
+  bprescalerdown = buttonNumber++;
   // Settings Page Buttons
 
   String pageName = "Settings";
   String folderTmp = "";
   String tmpfolder = "";
   int currentbutton = 0;
-  int UserFrequencyTmp;
-  int UserFreqIndexTmp;
-  int SmoothFilterValTmp;
-  int DownSampleCountTmp;
-  int Timer0AdjustValTmp;
-  int PrescalerTmp;
-  int DataRecordTimeTmp;
-  int SignalNumberTmp;
-  boolean ButtonPressedFlag = false;
+  int userFrequencyTmp;
+  int userFreqIndexTmp;
+  int smoothFilterValTmp;
+  int downSampleCountTmp;
+  int timer0AdjustValTmp;
+  int prescalerPicTmp;
+  int recordDataTimeTmp;
+  int currentSignalNumberTmp;
+  boolean buttonPressedFlag = false;
 
   // constructor
   SettingsPage(PApplet parent) {
@@ -1490,51 +1496,51 @@ public class SettingsPage implements pagesClass {
     initializeButtons();
 
     folderTmp = folder;
-    UserFreqIndexTmp = UserFreqIndex;
-    UserFrequencyTmp = UserFreqArray[UserFreqIndexTmp];
-    SmoothFilterValTmp = SmoothFilterVal;
-    DownSampleCountTmp = DownSampleCount;
-    Timer0AdjustValTmp = Timer0AdjustVal;
-    PrescalerTmp = Prescaler;
-    DataRecordTimeTmp = DataRecordTime;
-    SignalNumberTmp = SignalNumber;
+    userFreqIndexTmp = userFreqIndex;
+    userFrequencyTmp = userFreqArray[userFreqIndexTmp];
+    smoothFilterValTmp = smoothFilterVal;
+    downSampleCountTmp = downSampleCount;
+    timer0AdjustValTmp = timer0AdjustVal;
+    prescalerPicTmp = prescalerPic;
+    recordDataTimeTmp = recordDataTime;
+    currentSignalNumberTmp = currentSignalNumber;
   }
 
   public void initializeButtons() {
-    buttons = new GuiButton[ButtonNum];
+    buttons = new GuiButton[buttonNumber];
     println("width here = "+width);
-    buttons[Bfolder]         = new GuiButton("Folder", ' ', dummypage, width/2-200, height/2-110, 80, Bheights, color(BIdleColor), color(0), "change", Bmomentary, false);
-    buttons[Bfiltup]         = new GuiButton("FilterUp", ' ', dummypage, width/2+115, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-    buttons[Bfiltdown]       = new GuiButton("FilterDn", ' ', dummypage, width/2+65, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-    buttons[Bfrequp]         = new GuiButton("FreqUp", ' ', dummypage, width/2-160, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-    buttons[Bfreqdown]       = new GuiButton("FreqDn", ' ', dummypage, width/2-230, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-    buttons[Brecordtimeup]   = new GuiButton("RecordTimeUp", ' ', dummypage, width/2+200, height/2-70, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-    buttons[Brecordtimedown] = new GuiButton("RecordTimeDn", ' ', dummypage, width/2+130, height/2-70, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-    buttons[B1chan]          = new GuiButton("1chanmodel", ' ', dummypage, width/2-105, height/2+10, 30, Bheights, color(BIdleColor), color(0), "1", Bonoff, false);
-    buttons[B2chan]          = new GuiButton("2chanmodel", ' ', dummypage, width/2-70, height/2+10, 30, Bheights, color(BIdleColor), color(0), "2", Bonoff, false);
-    buttons[B4chan]          = new GuiButton("4chanmodel", ' ', dummypage, width/2-35, height/2+10, 30, Bheights, color(BIdleColor), color(0), "4", Bonoff, true);
-    buttons[B8chan]          = new GuiButton("8chanmodel", ' ', dummypage, width/2+0, height/2+10, 30, Bheights, color(BIdleColor), color(0), "8", Bonoff, false);
-    buttons[Bdownsampleup]   = new GuiButton("DownSampleUp", ' ', dummypage, width/2+220, height/2+10, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-    buttons[Bdownsampledown] = new GuiButton("DownSampleDn", ' ', dummypage, width/2+170, height/2+10, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-    buttons[Btimeradjustup]  = new GuiButton("TimerAdjustUp", ' ', dummypage, width/2-70, height/2+80, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-    buttons[Btimeradjustdown]= new GuiButton("TimerAdjustDn", ' ', dummypage, width/2-130, height/2+80, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-    buttons[Bprescalerup]    = new GuiButton("PrescalerUp", ' ', dummypage, width/2+60, height/2+80, 20, Bheights, color(BIdleColor), color(0), "+", Bmomentary, false);
-    buttons[Bprescalerdown]  = new GuiButton("PrescalerDn", ' ', dummypage, width/2+0, height/2+80, 20, Bheights, color(BIdleColor), color(0), "-", Bmomentary, false);
-    buttons[Bsave]           = new GuiButton("Save", 's', dummypage, width/2-160, height/2+130, 140, 30, color(BIdleColor), color(0), "Save & Exit (s)", Bonoff, false);
-    buttons[Bdefaults]       = new GuiButton("Defaults", 'd', dummypage, width/2+160, height/2+130, 140, 30, color(BIdleColor), color(0), "Restore Defaults", Bonoff, false);
-    buttons[Bcancel]         = new GuiButton("Exit", 'c', dummypage, width/2, height/2+130, 120, 30, color(BIdleColor), color(0), "Cancel (c)", Bonoff, false);
+    buttons[bfolder]         = new GuiButton("Folder", ' ', dummypage, width/2-200, height/2-110, 80, bheights, color(colorBIdle), color(0), "change", bMomentary, false, showButton);
+    buttons[bfiltup]         = new GuiButton("FilterUp", ' ', dummypage, width/2+115, height/2+10, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[bfiltdown]       = new GuiButton("FilterDn", ' ', dummypage, width/2+65, height/2+10, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[bfrequp]         = new GuiButton("FreqUp", ' ', dummypage, width/2-160, height/2+10, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[bfreqdown]       = new GuiButton("FreqDn", ' ', dummypage, width/2-230, height/2+10, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[brecordtimeup]   = new GuiButton("RecordTimeUp", ' ', dummypage, width/2+200, height/2-70, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[brecordtimedown] = new GuiButton("RecordTimeDn", ' ', dummypage, width/2+130, height/2-70, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[b1chan]          = new GuiButton("1chanmodel", ' ', dummypage, width/2-105, height/2+10, 30, bheights, color(colorBIdle), color(0), "1", bOnOff, false, showButton);
+    buttons[b2chan]          = new GuiButton("2chanmodel", ' ', dummypage, width/2-70, height/2+10, 30, bheights, color(colorBIdle), color(0), "2", bOnOff, false, showButton);
+    buttons[b4chan]          = new GuiButton("4chanmodel", ' ', dummypage, width/2-35, height/2+10, 30, bheights, color(colorBIdle), color(0), "4", bOnOff, true, showButton);
+    buttons[b8chan]          = new GuiButton("8chanmodel", ' ', dummypage, width/2+0, height/2+10, 30, bheights, color(colorBIdle), color(0), "8", bOnOff, false, showButton);
+    buttons[bdownsampleup]   = new GuiButton("downSampleUp", ' ', dummypage, width/2+220, height/2+10, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[bdownsampledown] = new GuiButton("downSampleDn", ' ', dummypage, width/2+170, height/2+10, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[btimeradjustup]  = new GuiButton("TimerAdjustUp", ' ', dummypage, width/2-70, height/2+80, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[btimeradjustdown]= new GuiButton("TimerAdjustDn", ' ', dummypage, width/2-130, height/2+80, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[bprescalerup]    = new GuiButton("prescalerPicUp", ' ', dummypage, width/2+60, height/2+80, 20, bheights, color(colorBIdle), color(0), "+", bMomentary, false, showButton);
+    buttons[bprescalerdown]  = new GuiButton("prescalerPicDn", ' ', dummypage, width/2+0, height/2+80, 20, bheights, color(colorBIdle), color(0), "-", bMomentary, false, showButton);
+    buttons[bsave]           = new GuiButton("Save", 's', dummypage, width/2-160, height/2+130, 140, 30, color(colorBIdle), color(0), "Save & Exit (s)", bOnOff, false, showButton);
+    buttons[bdefaults]       = new GuiButton("Defaults", 'd', dummypage, width/2+160, height/2+130, 140, 30, color(colorBIdle), color(0), "Restore Defaults", bOnOff, false, showButton);
+    buttons[bcancel]         = new GuiButton("Exit", 'c', dummypage, width/2, height/2+130, 120, 30, color(colorBIdle), color(0), "Cancel (c)", bOnOff, false, showButton);
   }
 
   public void switchToPage() {
     folderTmp = folder;
-    UserFreqIndexTmp = UserFreqIndex;
-    UserFrequencyTmp = UserFrequency;
-    SmoothFilterValTmp = SmoothFilterVal;
-    DownSampleCountTmp = DownSampleCount;
-    Timer0AdjustValTmp = Timer0AdjustVal;
-    PrescalerTmp = Prescaler;
-    DataRecordTimeTmp = DataRecordTime;
-    SignalNumberTmp = SignalNumber;
+    userFreqIndexTmp = userFreqIndex;
+    userFrequencyTmp = userFrequency;
+    smoothFilterValTmp = smoothFilterVal;
+    downSampleCountTmp = downSampleCount;
+    timer0AdjustValTmp = timer0AdjustVal;
+    prescalerPicTmp = prescalerPic;
+    recordDataTimeTmp = recordDataTime;
+    currentSignalNumberTmp = currentSignalNumber;
 
     StopData(); // turn data off
     delay(serialwritedelay);
@@ -1546,12 +1552,12 @@ public class SettingsPage implements pagesClass {
 
   public void drawPage() {
     // draw subfunctions
-    if (ButtonPressedFlag) {
-      if (millis() > ButtonColorTimer) {
-        ButtonPressedFlag = false;
+    if (buttonPressedFlag) {
+      if (millis() > buttonColorTimer) {
+        buttonPressedFlag = false;
         println("Current Button = " + currentbutton);
         if (buttons[currentbutton] != null && currentbutton < buttons.length) {
-          buttons[currentbutton].ChangeColorUnpressed();
+          buttons[currentbutton].changeColorUnpressed();
         }
       }
     }
@@ -1566,43 +1572,47 @@ public class SettingsPage implements pagesClass {
   public void saveSettings() {
     // save all tmp vals from the settings menu in the actual variables
     folder = folderTmp;
-    UserFreqIndex = UserFreqIndexTmp;
-    SmoothFilterVal = SmoothFilterValTmp;
-    DownSampleCount = DownSampleCountTmp;
-    Timer0AdjustVal = Timer0AdjustValTmp;
-    Prescaler = PrescalerTmp;
-    DataRecordTime = DataRecordTimeTmp;
-    SignalNumber = SignalNumberTmp;
+    userFreqIndex = userFreqIndexTmp;
+    smoothFilterVal = smoothFilterValTmp;
+    downSampleCount = downSampleCountTmp;
+    timer0AdjustVal = timer0AdjustValTmp;
+    prescalerPic = prescalerPicTmp;
+    recordDataTime = recordDataTimeTmp;
+    currentSignalNumber = currentSignalNumberTmp;
 
-    UserFrequency = UserFreqArray[UserFreqIndex];
-    TimeMax = PApplet.parseFloat(FullPlotWidth)/PApplet.parseFloat(UserFrequency);
-    UserFreqCustom = 0;
-    CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0f/((float)UserFrequency/CheckSerialNSamples) );
-    DataRecordLength = DataRecordTime*UserFrequency;
-    buttonsCommon[BCrecordnextdata].label = "Record "+DataRecordTime+"s";
-    for (int i = 0; i<MaxSignalNumber;i++) {
-      if (i < SignalNumber) {
-        ChannelOn[i]=true;
+    userFrequency = userFreqArray[userFreqIndex];
+    maxPlotTime = PApplet.parseFloat(fullPlotWidth)/PApplet.parseFloat(userFrequency);
+    userFreqCustom = 0;
+    checkSerialDelay = (long)max( checkSerialMinTime, 1000.0f/((float)userFrequency/checkSerialNSamples) );
+    recordDataLength = recordDataTime*userFrequency;
+    buttonsCommon[bcrecordnextdata].label = "Record "+recordDataTime+"s";
+    for (int i = 0; i<maxcurrentSignalNumber;i++) {
+      if (i < currentSignalNumber) {
+        channelsOn[i]=true;
       } 
-      else if (i >= SignalNumber) {
-        ChannelOn[i]=false;
+      else if (i >= currentSignalNumber) {
+        channelsOn[i]=false;
       }
     }
-    TimeMax = PApplet.parseFloat(FullPlotWidth)/PApplet.parseFloat(UserFrequency);
+    maxPlotTime = PApplet.parseFloat(fullPlotWidth)/PApplet.parseFloat(userFrequency);
 
     // build and save a txt file of settings
-    String[] SettingString = new String[8];
-    SettingString[0] = "FlexVoltViewer User Settings";
-    SettingString[1] = folder;
-    SettingString[2] = str(UserFreqIndex);
-    SettingString[3] = str(SmoothFilterVal);
-    SettingString[4] = str(MouseThresh[XLow]);
-    SettingString[5] = str(MouseThresh[XHigh]);
-    SettingString[6] = str(MouseThresh[YLow]);
-    SettingString[7] = str(MouseThresh[YHigh]);
+    String[] settingString = new String[12];
+    settingString[0] = "FlexVoltViewer User Settings";
+    settingString[1] = folder;
+    settingString[2] = str(userFreqIndex);
+    settingString[3] = str(smoothFilterVal);
+    settingString[4] = str(mouseThresh2Ch[thresh2chxLow]);
+    settingString[5] = str(mouseThresh2Ch[thresh2chxHigh]);
+    settingString[6] = str(mouseThresh2Ch[thresh2chyLow]);
+    settingString[7] = str(mouseThresh2Ch[thresh2chyHigh]);
+    settingString[8]  = str(mouseThresh4Ch[thresh4chLeft]);
+    settingString[9]  = str(mouseThresh4Ch[thresh4chRight]);
+    settingString[10] = str(mouseThresh4Ch[thresh4chDown]);
+    settingString[11] = str(mouseThresh4Ch[thresh4chUp]);
 
-    saveStrings(HomePath+"/FlexVoltViewerSettings.txt", SettingString);
-    UpdateSettings();
+    saveStrings(homePath+"/FlexVoltViewerSettings.txt", settingString);
+    updateSettings();
   }
 
   public boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
@@ -1612,115 +1622,115 @@ public class SettingsPage implements pagesClass {
       if (buttons[i] != null) {
         if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
           outflag = true;
-          buttons[i].BOn = !buttons[i].BOn;
-          buttons[i].ChangeColorPressed();
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
+          buttons[i].bOn = !buttons[i].bOn;
+          buttons[i].changeColorPressed();
+          buttonColorTimer = millis()+buttonColorDelay;
+          buttonPressedFlag = true;
           currentbutton = i;
 
-          if (currentbutton == Bfolder) {
+          if (currentbutton == bfolder) {
             println("getting folder");
             waitForFolder();
             println(folder);
           }
-          if (currentbutton == Bfrequp) {
-            UserFreqIndexTmp++;
-            if (UserFreqIndexTmp >= UserFreqArray.length)UserFreqIndexTmp=UserFreqArray.length-1;
-            println(UserFreqIndexTmp);
-            UserFrequencyTmp = UserFreqArray[UserFreqIndexTmp];
+          if (currentbutton == bfrequp) {
+            userFreqIndexTmp++;
+            if (userFreqIndexTmp >= userFreqArray.length)userFreqIndexTmp=userFreqArray.length-1;
+            println(userFreqIndexTmp);
+            userFrequencyTmp = userFreqArray[userFreqIndexTmp];
           }
-          if (currentbutton == Bfreqdown) {
-            UserFreqIndexTmp--;
-            if (UserFreqIndexTmp < 0)UserFreqIndexTmp=0;
-            println(UserFreqIndexTmp);
-            UserFrequencyTmp = UserFreqArray[UserFreqIndexTmp];
+          if (currentbutton == bfreqdown) {
+            userFreqIndexTmp--;
+            if (userFreqIndexTmp < 0)userFreqIndexTmp=0;
+            println(userFreqIndexTmp);
+            userFrequencyTmp = userFreqArray[userFreqIndexTmp];
           }
-          if (currentbutton == Bfiltup) {
-            SmoothFilterValTmp++;  
-            SmoothFilterVal = constrain(SmoothFilterValTmp, SmoothFilterValMin, SmoothFilterValMax);
+          if (currentbutton == bfiltup) {
+            smoothFilterValTmp++;  
+            smoothFilterVal = constrain(smoothFilterValTmp, smoothFilterValMin, smoothFilterValMax);
           }
-          if (currentbutton == Bfiltdown) {
-            SmoothFilterValTmp--;  
-            SmoothFilterVal = constrain(SmoothFilterValTmp, SmoothFilterValMin, SmoothFilterValMax);
+          if (currentbutton == bfiltdown) {
+            smoothFilterValTmp--;  
+            smoothFilterVal = constrain(smoothFilterValTmp, smoothFilterValMin, smoothFilterValMax);
           }
-          if (currentbutton == Bdownsampleup) {
-            DownSampleCountTmp++;  
-            DownSampleCountTmp = constrain(DownSampleCountTmp, DownSampleCountMin, DownSampleCountMax);
+          if (currentbutton == bdownsampleup) {
+            downSampleCountTmp++;  
+            downSampleCountTmp = constrain(downSampleCountTmp, downSampleCountMin, downSampleCountMax);
           }
-          if (currentbutton == Bdownsampledown) {
-            DownSampleCountTmp--;  
-            DownSampleCountTmp = constrain(DownSampleCountTmp, DownSampleCountMin, DownSampleCountMax);
+          if (currentbutton == bdownsampledown) {
+            downSampleCountTmp--;  
+            downSampleCountTmp = constrain(downSampleCountTmp, downSampleCountMin, downSampleCountMax);
           }
-          if (currentbutton == Btimeradjustup) {
-            Timer0AdjustValTmp++;  
-            Timer0AdjustValTmp = constrain(Timer0AdjustValTmp, Timer0AdjustValMin, Timer0AdjustValMax);
+          if (currentbutton == btimeradjustup) {
+            timer0AdjustValTmp++;  
+            timer0AdjustValTmp = constrain(timer0AdjustValTmp, timer0AdjustValMin, timer0AdjustValMax);
           }
-          if (currentbutton == Btimeradjustdown) {
-            Timer0AdjustValTmp--;  
-            Timer0AdjustValTmp = constrain(Timer0AdjustValTmp, Timer0AdjustValMin, Timer0AdjustValMax);
+          if (currentbutton == btimeradjustdown) {
+            timer0AdjustValTmp--;  
+            timer0AdjustValTmp = constrain(timer0AdjustValTmp, timer0AdjustValMin, timer0AdjustValMax);
           }
-          if (currentbutton == Bprescalerup) {
-            PrescalerTmp++;
-            if (PrescalerTmp > PrescalerMax) PrescalerTmp = PrescalerMax;
+          if (currentbutton == bprescalerup) {
+            prescalerPicTmp++;
+            if (prescalerPicTmp > prescalerPicMax) prescalerPicTmp = prescalerPicMax;
           }
-          if (currentbutton == Bprescalerdown) {
-            PrescalerTmp--;
-            if (PrescalerTmp < PrescalerMin) PrescalerTmp = PrescalerMin;
+          if (currentbutton == bprescalerdown) {
+            prescalerPicTmp--;
+            if (prescalerPicTmp < prescalerPicMin) prescalerPicTmp = prescalerPicMin;
           }
-          if (currentbutton == Brecordtimeup) {
-            DataRecordTimeTmp++;
-            if (DataRecordTimeTmp > DataRecordTimeMax) DataRecordTimeTmp = DataRecordTimeMax;
+          if (currentbutton == brecordtimeup) {
+            recordDataTimeTmp++;
+            if (recordDataTimeTmp > recordDatamaxPlotTime) recordDataTimeTmp = recordDatamaxPlotTime;
           }
-          if (currentbutton == Brecordtimedown) {
-            DataRecordTimeTmp--;
-            if (DataRecordTimeTmp < DataRecordTimeMin) DataRecordTimeTmp = DataRecordTimeMin;
+          if (currentbutton == brecordtimedown) {
+            recordDataTimeTmp--;
+            if (recordDataTimeTmp < recordDataTimeMin) recordDataTimeTmp = recordDataTimeMin;
           }
-          if (currentbutton == B1chan) {
-            SignalNumberTmp = 1;
-            buttons[B1chan].BOn = false;
-            buttons[B2chan].BOn = false;
-            buttons[B4chan].BOn = false;
-            buttons[B8chan].BOn = false;
-            buttons[currentbutton].BOn = true;
+          if (currentbutton == b1chan) {
+            currentSignalNumberTmp = 1;
+            buttons[b1chan].bOn = false;
+            buttons[b2chan].bOn = false;
+            buttons[b4chan].bOn = false;
+            buttons[b8chan].bOn = false;
+            buttons[currentbutton].bOn = true;
           }
-          if (currentbutton == B2chan) {
-            SignalNumberTmp = 2;
-            buttons[B1chan].BOn = false;
-            buttons[B2chan].BOn = false;
-            buttons[B4chan].BOn = false;
-            buttons[B8chan].BOn = false;
-            buttons[currentbutton].BOn = true;
+          if (currentbutton == b2chan) {
+            currentSignalNumberTmp = 2;
+            buttons[b1chan].bOn = false;
+            buttons[b2chan].bOn = false;
+            buttons[b4chan].bOn = false;
+            buttons[b8chan].bOn = false;
+            buttons[currentbutton].bOn = true;
           }
-          if (currentbutton == B4chan) {
-            SignalNumberTmp = 4;
-            buttons[B1chan].BOn = false;
-            buttons[B2chan].BOn = false;
-            buttons[B4chan].BOn = false;
-            buttons[B8chan].BOn = false;
-            buttons[currentbutton].BOn = true;
+          if (currentbutton == b4chan) {
+            currentSignalNumberTmp = 4;
+            buttons[b1chan].bOn = false;
+            buttons[b2chan].bOn = false;
+            buttons[b4chan].bOn = false;
+            buttons[b8chan].bOn = false;
+            buttons[currentbutton].bOn = true;
           }
-          if (currentbutton == B8chan) {
-            SignalNumberTmp = 8;
-            buttons[B1chan].BOn = false;
-            buttons[B2chan].BOn = false;
-            buttons[B4chan].BOn = false;
-            buttons[B8chan].BOn = false;
-            buttons[currentbutton].BOn = true;
+          if (currentbutton == b8chan) {
+            currentSignalNumberTmp = 8;
+            buttons[b1chan].bOn = false;
+            buttons[b2chan].bOn = false;
+            buttons[b4chan].bOn = false;
+            buttons[b8chan].bOn = false;
+            buttons[currentbutton].bOn = true;
           }
-          if (currentbutton == Bsave) {
+          if (currentbutton == bsave) {
             println("Got the save 's'");
             saveSettings();
             changePage(oldpage);
-            buttons[currentbutton].BOn = false;
+            buttons[currentbutton].bOn = false;
             return outflag;
           }
-          if (currentbutton == Bcancel) {
+          if (currentbutton == bcancel) {
             changePage(oldpage);
-            EstablishDataLink();
-            buttons[currentbutton].BOn = false;
+            establishDataLink();
+            buttons[currentbutton].bOn = false;
             return outflag;
           }
-          if (currentbutton == Bdefaults) {
+          if (currentbutton == bdefaults) {
             restoreDefaults();
           }
           drawSettings();
@@ -1734,7 +1744,7 @@ public class SettingsPage implements pagesClass {
   }
 
   public void drawHelp() {
-    // help text
+    drawGenericHelp();
   }
 
   public void restoreDefaults() {
@@ -1763,28 +1773,28 @@ public class SettingsPage implements pagesClass {
 
   public void drawSettings() {
     textAlign(CENTER, CENTER);
-    blankplot();
-    stroke(labelcolor);
+    blankPlot();
+    stroke(colorLabel);
     strokeWeight(4);
-    fill(backgroundcolor);
+    fill(colorBackground);
     rectMode(CENTER);
-    rect(width/2, height/2, FullPlotWidth+20, plotheight+40, 12);
+    rect(width/2, height/2, fullPlotWidth+20, plotheight+40, 12);
 
     strokeWeight(2);
     textSize(labelsizexs);
     textAlign(CENTER, CENTER);
 
-    stroke(labelcolor);
-    fill(backgroundcolor);
-    rect(width/2-90, height/2-90, 300, Bheights);
+    stroke(colorLabel);
+    fill(colorBackground);
+    rect(width/2-90, height/2-90, 300, bheights);
     if (PApplet.parseInt(textWidth(folderTmp)) < 300) {
-      fill(labelcolor);
+      fill(colorLabel);
       text(folderTmp, width/2-90, height/2-90);
     }
     else if (textWidth(folderTmp) >= 450) {
-      rect(width/2-90, height/2-70, 300, Bheights);
-      fill(labelcolor);
-      text(folderTmp, width/2-90, height/2-80, 300, Bheights*2);
+      rect(width/2-90, height/2-70, 300, bheights);
+      fill(colorLabel);
+      text(folderTmp, width/2-90, height/2-80, 300, bheights*2);
     }
 
     textSize(titlesize);
@@ -1796,30 +1806,30 @@ public class SettingsPage implements pagesClass {
     text("Save Directory", width/2-200, height/2-130);
 
     text("Data Recording Time (s)", width/2+170, height/2-95);
-    text(str(DataRecordTimeTmp), width/2+170, height/2-70);
+    text(str(recordDataTimeTmp), width/2+170, height/2-70);
 
     textSize(labelsizes);
     text("Data Sampling Settings", width/2, height/2-40);
     textSize(labelsizexs);
     text("Frequency, Hz", width/2-195, height/2-15);
-    text(str(UserFrequencyTmp), width/2-195, height/2+10);
+    text(str(userFrequencyTmp), width/2-195, height/2+10);
 
     text("Number of Channels", width/2-50, height/2-15); // reserved for future use
 
     text("Smooth Filter", width/2+90, height/2-15);
-    text(str(SmoothFilterValTmp), width/2+90, height/2+10);
+    text(str(smoothFilterValTmp), width/2+90, height/2+10);
 
     text("Downsample", width/2+200, height/2-15);
-    text(str(DownSampleCountTmp), width/2+200, height/2+10);
+    text(str(downSampleCountTmp), width/2+200, height/2+10);
 
     textSize(labelsizes);
     text("Timing Settings (Advanced)", width/2, height/2+40);
     textSize(labelsizexs);
     text("Timer Adjust", width/2-100, height/2+60);
-    text(str(Timer0AdjustValTmp), width/2-100, height/2+80);
+    text(str(timer0AdjustValTmp), width/2-100, height/2+80);
 
-    text("Prescaler", width/2+30, height/2+60);
-    text(str(PrescalerTmp), width/2+30, height/2+80);
+    text("prescalerPic", width/2+30, height/2+60);
+    text(str(prescalerPicTmp), width/2+30, height/2+80);
 
 
     for (int i = 0; i < buttons.length; i++) {
@@ -1836,43 +1846,41 @@ public class SettingsPage implements pagesClass {
 public class TimeDomainPlotPage implements pagesClass {
   // variables
   GuiButton[] buttons;
-  int ButtonNum = 0;
+  int buttonNumber = 0;
   int
-    Boffset = ButtonNum++, 
-  Bpause = ButtonNum++, 
-  Bsmooth = ButtonNum++, 
-  Bclear = ButtonNum++, 
-  Bchan1 = ButtonNum++, 
-  Bchan2 = ButtonNum++, 
-  Bchan3 = ButtonNum++, 
-  Bchan4 = ButtonNum++, 
-  Bchan5 = ButtonNum++, 
-  Bchan6 = ButtonNum++, 
-  Bchan7 = ButtonNum++, 
-  Bchan8 = ButtonNum++,
-  Bdomain = ButtonNum++;
+    boffset = buttonNumber++, 
+  bpause = buttonNumber++, 
+  bsmooth = buttonNumber++, 
+  bclear = buttonNumber++, 
+  bchan1 = buttonNumber++, 
+  bchan2 = buttonNumber++, 
+  bchan3 = buttonNumber++, 
+  bchan4 = buttonNumber++, 
+  bchan5 = buttonNumber++, 
+  bchan6 = buttonNumber++, 
+  bchan7 = buttonNumber++, 
+  bchan8 = buttonNumber++,
+  bdomain = buttonNumber++;
 
   String pageName = "Muscle Voltage";
   int xPos = 0;
-  int[] OffSet2 = {    
+  int[] offSet2 = {    
     +plotheight*3/4, +plotheight*1/4
   };
-  int[] OffSet8 = {    
+  int[] offSet8 = {    
     +plotheight*7/8, +plotheight*5/8, +plotheight*3/8, +plotheight*1/8, +plotheight*7/8, +plotheight*5/8, +plotheight*3/8, +plotheight*1/8
   };
-  int[] OffSet4 = {    
+  int[] offSet4 = {    
     +plotheight*7/8, +plotheight*5/8, +plotheight*3/8, +plotheight*1/8
   };
   
-  float FreqMax = 500;//Hz for fft dilay window
-  float FreqAmpMin = 0;
-  float FreqAmpMax = 1;
-  int FFTscale = 80; // multiplying fft amplitude
-  //  int FreqFactor = FullPlotWidth/250;
-  int FFTstep = 2;
-  float FreqFactor = (float)plotwidth/FrequencyMax;
+  float minFreqAmp = 0;
+  float maxFreqAmp = 1;
+  int scaleFFT = 80; // multiplying fft amplitude
+  int yStepFFT = 2;
+  float frequencyFactor = (float)plotwidth/maxPlotFrequency;
 
-  boolean ButtonPressedFlag = false;
+  boolean buttonPressedFlag = false;
   boolean flagTimeDomain = true;
   boolean flagFreqDomain = false;
   
@@ -1886,96 +1894,96 @@ public class TimeDomainPlotPage implements pagesClass {
   }
 
   public void initializeButtons() {
-    buttons = new GuiButton[ButtonNum];
+    buttons = new GuiButton[buttonNumber];
     int buttony = yTitle+195;
     int controlsy = yTitle+30;
 
-    buttons[Boffset] =new GuiButton("OffSet", 'o', dummypage, xStep+plotwidth+45, controlsy+70, 60, Bheight, color(BIdleColor), color(0), "OffSet", Bonoff, false);
-    buttons[Bpause] = new GuiButton("Pause",  'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
-    buttons[Bsmooth] =new GuiButton("Smooth", 'f', dummypage, xStep+plotwidth+45, controlsy+100, 60, Bheight, color(BIdleColor), color(0), "Filter", Bonoff, false);
-    buttons[Bclear] = new GuiButton("Clear",  'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
-    buttons[Bchan1] = new GuiButton("Chan1",  '1', dummypage, xStep+plotwidth+25, buttony, 30, Bheight, color(BIdleColor), Sig1Color, "1", Bonoff, true);
-    buttons[Bchan2] = new GuiButton("Chan2",  '2', dummypage, xStep+plotwidth+25, buttony+30, 30, Bheight, color(BIdleColor), Sig2Color, "2", Bonoff, true);
-    buttons[Bchan3] = new GuiButton("Chan3",  '3', dummypage, xStep+plotwidth+25, buttony+60, 30, Bheight, color(BIdleColor), Sig3Color, "3", Bonoff, true);
-    buttons[Bchan4] = new GuiButton("Chan4",  '4', dummypage, xStep+plotwidth+25, buttony+90, 30, Bheight, color(BIdleColor), Sig4Color, "4", Bonoff, true);
-    buttons[Bchan5] = new GuiButton("Chan5",  '5', dummypage, xStep+plotwidth+65, buttony, 30, Bheight, color(BIdleColor), Sig5Color, "5", Bonoff, false);
-    buttons[Bchan6] = new GuiButton("Chan6",  '6', dummypage, xStep+plotwidth+65, buttony+30, 30, Bheight, color(BIdleColor), Sig6Color, "6", Bonoff, false);
-    buttons[Bchan7] = new GuiButton("Chan7",  '7', dummypage, xStep+plotwidth+65, buttony+60, 30, Bheight, color(BIdleColor), Sig7Color, "7", Bonoff, false);
-    buttons[Bchan8] = new GuiButton("Chan8",  '8', dummypage, xStep+plotwidth+65, buttony+90, 30, Bheight, color(BIdleColor), Sig8Color, "8", Bonoff, false);
-    buttons[Bdomain]= new GuiButton("Domain", 'd', dummypage, xStep+80, yTitle+plotheight+30, 160, 18, color(BIdleColor), color(0), domainStr, Bmomentary, false);
+    buttons[boffset] =new GuiButton("OffSet", 'o', dummypage, xStep+plotwidth+45, controlsy+70, 60, bheight, color(colorBIdle), color(0), "OffSet", bOnOff, false, showButton);
+    buttons[bpause] = new GuiButton("Pause",  'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false, showButton);
+    buttons[bsmooth] =new GuiButton("Smooth", 'f', dummypage, xStep+plotwidth+45, controlsy+100, 60, bheight, color(colorBIdle), color(0), "Filter", bOnOff, false, showButton);
+    buttons[bclear] = new GuiButton("Clear",  'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false, showButton);
+    buttons[bchan1] = new GuiButton("Chan1",  '1', dummypage, xStep+plotwidth+25, buttony, 30, bheight, color(colorBIdle), colorSig1, "1", bOnOff, true, showButton);
+    buttons[bchan2] = new GuiButton("Chan2",  '2', dummypage, xStep+plotwidth+25, buttony+30, 30, bheight, color(colorBIdle), colorSig2, "2", bOnOff, true, showButton);
+    buttons[bchan3] = new GuiButton("Chan3",  '3', dummypage, xStep+plotwidth+25, buttony+60, 30, bheight, color(colorBIdle), colorSig3, "3", bOnOff, true, showButton);
+    buttons[bchan4] = new GuiButton("Chan4",  '4', dummypage, xStep+plotwidth+25, buttony+90, 30, bheight, color(colorBIdle), colorSig4, "4", bOnOff, true, showButton);
+    buttons[bchan5] = new GuiButton("Chan5",  '5', dummypage, xStep+plotwidth+65, buttony, 30, bheight, color(colorBIdle), colorSig5, "5", bOnOff, false, showButton);
+    buttons[bchan6] = new GuiButton("Chan6",  '6', dummypage, xStep+plotwidth+65, buttony+30, 30, bheight, color(colorBIdle), colorSig6, "6", bOnOff, false, showButton);
+    buttons[bchan7] = new GuiButton("Chan7",  '7', dummypage, xStep+plotwidth+65, buttony+60, 30, bheight, color(colorBIdle), colorSig7, "7", bOnOff, false, showButton);
+    buttons[bchan8] = new GuiButton("Chan8",  '8', dummypage, xStep+plotwidth+65, buttony+90, 30, bheight, color(colorBIdle), colorSig8, "8", bOnOff, false, showButton);
+    buttons[bdomain]= new GuiButton("Domain", 't', dummypage, xStep+80, yTitle+plotheight+30, 160, 18, color(colorBIdle), color(0), domainStr, bMomentary, false, showButton);
 
     if (flagTimeDomain){
-      OffSet2[0] = plotheight*3/4;
-      OffSet2[1] = plotheight*1/4;
+      offSet2[0] = plotheight*3/4;
+      offSet2[1] = plotheight*1/4;
   
-      OffSet4[0] = plotheight*7/8;
-      OffSet4[1] = plotheight*5/8;
-      OffSet4[2] = plotheight*3/8;
-      OffSet4[3] = plotheight*1/8;
+      offSet4[0] = plotheight*7/8;
+      offSet4[1] = plotheight*5/8;
+      offSet4[2] = plotheight*3/8;
+      offSet4[3] = plotheight*1/8;
   
-      OffSet8[0] = plotheight*7/8;
-      OffSet8[1] = plotheight*5/8;
-      OffSet8[2] = plotheight*3/8;
-      OffSet8[3] = plotheight*1/8;
-      OffSet8[4] = plotheight*7/8;
-      OffSet8[5] = plotheight*5/8;
-      OffSet8[6] = plotheight*3/8;
-      OffSet8[7] = plotheight*1/8;
+      offSet8[0] = plotheight*7/8;
+      offSet8[1] = plotheight*5/8;
+      offSet8[2] = plotheight*3/8;
+      offSet8[3] = plotheight*1/8;
+      offSet8[4] = plotheight*7/8;
+      offSet8[5] = plotheight*5/8;
+      offSet8[6] = plotheight*3/8;
+      offSet8[7] = plotheight*1/8;
     } else if(flagFreqDomain){
-      OffSet2[0] = 0;
-      OffSet2[1] = plotheight/2;
+      offSet2[0] = 0;
+      offSet2[1] = plotheight/2;
   
-      OffSet4[0] = 0;
-      OffSet4[1] = plotheight/4;
-      OffSet4[2] = plotheight/2;
-      OffSet4[3] = plotheight*3/4;
+      offSet4[0] = 0;
+      offSet4[1] = plotheight/4;
+      offSet4[2] = plotheight/2;
+      offSet4[3] = plotheight*3/4;
   
-      OffSet8[0] = 0;
-      OffSet8[1] = plotheight/8;
-      OffSet8[2] = plotheight/4;
-      OffSet8[3] = plotheight*3/8;
-      OffSet8[4] = plotheight/2;
-      OffSet8[5] = plotheight*5/8;
-      OffSet8[6] = plotheight*3/4;
-      OffSet8[7] = plotheight*7/8;
+      offSet8[0] = 0;
+      offSet8[1] = plotheight/8;
+      offSet8[2] = plotheight/4;
+      offSet8[3] = plotheight*3/8;
+      offSet8[4] = plotheight/2;
+      offSet8[5] = plotheight*5/8;
+      offSet8[6] = plotheight*3/4;
+      offSet8[7] = plotheight*7/8;
       
-      FreqFactor = (float)plotwidth/FrequencyMax;
+      frequencyFactor = (float)plotwidth/maxPlotFrequency;
     }
   }
 
   public void switchToPage() {
-    //    SmoothFilterFlag = false; //todo make this stay as it was for this page
-    //    OffSetFlag = false;
-    //PauseFlag = false;
-    for (int i = 0; i < MaxSignalNumber; i++) {
-      buttons[Bchan1+i].BOn = ChannelOn[i];
+    //    smoothFilterFlag = false; //todo make this stay as it was for this page
+    //    offsetFlag = false;
+    //pauseFlag = false;
+    for (int i = 0; i < maxcurrentSignalNumber; i++) {
+      buttons[bchan1+i].bOn = channelsOn[i];
     }
-    buttons[Boffset].BOn = OffSetFlag;
-    buttons[Bsmooth].BOn = SmoothFilterFlag;
-    buttons[Bpause].BOn = PauseFlag;
+    buttons[boffset].bOn = offsetFlag;
+    buttons[bsmooth].bOn = smoothFilterFlag;
+    buttons[bpause].bOn = pauseFlag;
 
     datacounter = 0;
-    plotwidth = FullPlotWidth;
+    plotwidth = fullPlotWidth;
     xPos = 0;
-    //    background(backgroundcolor);
+    //    background(colorBackground);
     labelAxes();
-    blankplot();
+    blankPlot();
     println("TimeDomain");
   }
 
   public void drawPage() {
     // draw subfunctions
-    if (ButtonPressedFlag) {
-      if (millis() > ButtonColorTimer) {
-        ButtonPressedFlag = false;
+    if (buttonPressedFlag) {
+      if (millis() > buttonColorTimer) {
+        buttonPressedFlag = false;
         println("Current Button = " + currentbutton);
         if (buttons[currentbutton] != null && currentbutton < buttons.length) {
-          buttons[currentbutton].ChangeColorUnpressed();
+          buttons[currentbutton].changeColorUnpressed();
         }
       }
     }
 
-    if (!(xPos == plotwidth && PauseFlag)) {
+    if (!(xPos == plotwidth && pauseFlag)) {
       // startTime = System.nanoTime()/1000;
       if(flagTimeDomain){
         drawTrace();
@@ -2002,56 +2010,56 @@ public class TimeDomainPlotPage implements pagesClass {
   }
 
   public void labelAxesTime() {
-    fill(labelcolor);
-    stroke(labelcolor);
+    fill(colorLabel);
+    stroke(colorLabel);
     strokeWeight(2);
     textAlign(CENTER, CENTER);
 
     // title
     textSize(titlesize);
-    text("Muscle Voltage", xStep+FullPlotWidth/2+20, yTitle-45);
+    text("Muscle Voltage", xStep+fullPlotWidth/2+20, yTitle-45);
 
     textSize(axisnumbersize);
     // x-axis
     float val = 0;
-    for (int i = 0; i < Nxticks+1; i++) {
-      text(nf(val, 1, 0), xStep+PApplet.parseInt(map(val, 0, TimeMax, 0, plotwidth-10)), height-yStep+10);
-      val += TimeMax/Nxticks;
+    for (int i = 0; i < nXTicks+1; i++) {
+      text(nf(val, 1, 0), xStep+PApplet.parseInt(map(val, 0, maxPlotTime, 0, plotwidth-10)), height-yStep+10);
+      val += maxPlotTime/nXTicks;
     }
 
     // y-axis
-    if (!OffSetFlag) {
-      val = VoltageMin;
-      for (int i = 0; i < Nyticks+1; i++) {
+    if (!offsetFlag) {
+      val = minVoltage;
+      for (int i = 0; i < nYTicks+1; i++) {
         if (val > 0) {
-          text(("+"+nf(val, 1, 0)), xStep-20, ytmp -5 - PApplet.parseInt(map(val, VoltageMin, VoltageMax, 0, plotheight-10)));
+          text(("+"+nf(val, 1, 0)), xStep-22, ytmp -6 - PApplet.parseInt(map(val, minVoltage, maxVoltage, 0, plotheight-12)));
         } 
         else {
-          text(nf(val, 1, 0), xStep-20, ytmp -5 - PApplet.parseInt(map(val, VoltageMin, VoltageMax, 0, plotheight-10)));
+          text(nf(val, 1, 0), xStep-22, ytmp -6 - PApplet.parseInt(map(val, minVoltage, maxVoltage, 0, plotheight-12)));
         }
-        val += (VoltageMax-VoltageMin)/Nyticks;
+        val += (maxVoltage-minVoltage)/nYTicks;
       }
     }
-    else if (OffSetFlag) {
-      val = VoltageMin/2;
-      // val = VoltageMin;
+    else if (offsetFlag) {
+      val = minVoltage/2;
+      // val = minVoltage;
       int xtmp = 0;
-      for (int i = 0; i < NyticksHalf+1; i++) {
+      for (int i = 0; i < nYTicksHalf+1; i++) {
         xtmp = xStep-20;
         if (val > 0) {
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp - PApplet.parseInt(map(val, VoltageMin, VoltageMax, 0, plotheight/4)));
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp - PApplet.parseInt(map(val, VoltageMin, VoltageMax, plotheight/4, plotheight/2)));
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp - PApplet.parseInt(map(val, VoltageMin, VoltageMax, plotheight/2, plotheight*3/4)));
-          text(("+"+nf(val, 1, 0)), xtmp, ytmp - PApplet.parseInt(map(val, VoltageMin, VoltageMax, plotheight*3/4, plotheight)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - PApplet.parseInt(map(val, minVoltage, maxVoltage, 0, plotheight/4)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - PApplet.parseInt(map(val, minVoltage, maxVoltage, plotheight/4, plotheight/2)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - PApplet.parseInt(map(val, minVoltage, maxVoltage, plotheight/2, plotheight*3/4)));
+          text(("+"+nf(val, 1, 0)), xtmp, ytmp - PApplet.parseInt(map(val, minVoltage, maxVoltage, plotheight*3/4, plotheight)));
         } 
         else {
-          text(nf(val, 1, 0), xtmp, ytmp - PApplet.parseInt(map(val, VoltageMin, VoltageMax, 0, plotheight/4)));
-          text(nf(val, 1, 0), xtmp, ytmp - PApplet.parseInt(map(val, VoltageMin, VoltageMax, plotheight/4, plotheight/2)));
-          text(nf(val, 1, 0), xtmp, ytmp - PApplet.parseInt(map(val, VoltageMin, VoltageMax, plotheight/2, plotheight*3/4)));
-          text(nf(val, 1, 0), xtmp, ytmp - PApplet.parseInt(map(val, VoltageMin, VoltageMax, plotheight*3/4, plotheight)));
+          text(nf(val, 1, 0), xtmp, ytmp - PApplet.parseInt(map(val, minVoltage, maxVoltage, 0, plotheight/4)));
+          text(nf(val, 1, 0), xtmp, ytmp - PApplet.parseInt(map(val, minVoltage, maxVoltage, plotheight/4, plotheight/2)));
+          text(nf(val, 1, 0), xtmp, ytmp - PApplet.parseInt(map(val, minVoltage, maxVoltage, plotheight/2, plotheight*3/4)));
+          text(nf(val, 1, 0), xtmp, ytmp - PApplet.parseInt(map(val, minVoltage, maxVoltage, plotheight*3/4, plotheight)));
         }
-        val += ((VoltageMax/2)-(VoltageMin/2))/NyticksHalf;
-        // val += ((VoltageMax)-(VoltageMin))/Nyticks;
+        val += ((maxVoltage/2)-(minVoltage/2))/nYTicksHalf;
+        // val += ((maxVoltage)-(minVoltage))/nYTicks;
       }
     }
 
@@ -2065,8 +2073,8 @@ public class TimeDomainPlotPage implements pagesClass {
     text("Time, seconds", xStep + plotwidth/2, height-15);
 
     textSize(labelsize);
-    text("Channel", xStep+FullPlotWidth+45, yTitle+165);
-    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
+    text("Channel", xStep+fullPlotWidth+45, yTitle+165);
+    text("Plotting", xStep+fullPlotWidth+45, yTitle+10);
 
     for (int i = 0; i < buttons.length; i++) {
       buttons[i].drawButton();
@@ -2074,26 +2082,21 @@ public class TimeDomainPlotPage implements pagesClass {
   }
   
   public void labelAxesFFT() {
-    fill(labelcolor);
-    stroke(labelcolor);
+    fill(colorLabel);
+    stroke(colorLabel);
     strokeWeight(2);
     textAlign(CENTER, CENTER);
 
     // title
     textSize(titlesize);
-    text("Signal Frequency", xStep+FullPlotWidth/2+20, yTitle-45);
+    text("Signal Frequency", xStep+fullPlotWidth/2+20, yTitle-45);
 
     // x-axis
     textSize(axisnumbersize);
     float val = 0;
-    //    println("MSL = "+MaxSignalLength+", plotwidth = "+plotwidth+", freqfac = "+FreqFactor);
-    //    float tmp = (float)MaxSignalLength/plotwidth;
-    //    tmp = max(tmp,1);
-    //    FreqMax = (int)(float(UserFrequency)/(tmp)/float(FreqFactor));
-    //    println("fm = "+FreqMax);
-    for (int i = 0; i < Nxticks+1; i++) {
-      text(nf(val, 1, 0), xStep+PApplet.parseInt(map(val, 0, FrequencyMax, 0, plotwidth)), height-yStep+10);
-      val += FrequencyMax/Nxticks;
+    for (int i = 0; i < nXTicks+1; i++) {
+      text(nf(val, 1, 0), xStep+PApplet.parseInt(map(val, 0, maxPlotFrequency, 0, plotwidth)), height-yStep+10);
+      val += maxPlotFrequency/nXTicks;
     }
 
     // axis labels
@@ -2106,8 +2109,8 @@ public class TimeDomainPlotPage implements pagesClass {
     text("Frequency, Hz", xStep + plotwidth/2, height-15);
 
     textSize(labelsize);
-    text("Channel", xStep+FullPlotWidth+45, yTitle+165);
-    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
+    text("Channel", xStep+fullPlotWidth+45, yTitle+165);
+    text("Plotting", xStep+fullPlotWidth+45, yTitle+10);
     textSize(labelsizes);
 
     for (int i = 0; i < buttons.length; i++) {
@@ -2122,21 +2125,21 @@ public class TimeDomainPlotPage implements pagesClass {
       if (buttons[i] != null) {
         if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
           outflag = true;
-          buttons[i].BOn = !buttons[i].BOn;
-          buttons[i].ChangeColorPressed();
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
+          buttons[i].bOn = !buttons[i].bOn;
+          buttons[i].changeColorPressed();
+          buttonColorTimer = millis()+buttonColorDelay;
+          buttonPressedFlag = true;
           currentbutton = i;
 
-          if (currentbutton == Bdomain){
+          if (currentbutton == bdomain){
             if (flagTimeDomain){
               flagTimeDomain = false;
               flagFreqDomain = true;
               domainStr = "Switch to Time";
               buttons[i].label = "Switch to Time";
-              buttons[i].ChangeColorUnpressed();
-              ButtonPressedFlag = false;
-              background(backgroundcolor);
+              buttons[i].changeColorUnpressed();
+              buttonPressedFlag = false;
+              background(colorBackground);
               labelGUI();
               initializeButtons();
               switchToPage();
@@ -2147,70 +2150,70 @@ public class TimeDomainPlotPage implements pagesClass {
               flagFreqDomain = false;
               domainStr = "Switch to Frequency";
               buttons[i].label = "Switch to Frequency";
-              buttons[i].ChangeColorUnpressed();
-              ButtonPressedFlag = false;
-              background(backgroundcolor);
+              buttons[i].changeColorUnpressed();
+              buttonPressedFlag = false;
+              background(colorBackground);
               labelGUI();
               initializeButtons();
               switchToPage();
               return outflag;
             }
           }
-          if (currentbutton == Boffset) {
-            OffSetFlag = !OffSetFlag;
-            ClearYAxis();
+          if (currentbutton == boffset) {
+            offsetFlag = !offsetFlag;
+            clearYAxis();
           }
-          if (currentbutton == Bsmooth) {
-            SmoothFilterFlag = !SmoothFilterFlag;
-            if (SmoothFilterFlag) {
-              DownSampleCount = 10;
-              BitDepth10 = false;
+          if (currentbutton == bsmooth) {
+            smoothFilterFlag = !smoothFilterFlag;
+            if (smoothFilterFlag) {
+              downSampleCount = 10;
+              bitDepth10 = false;
             }
             else {
-              DownSampleCount = 1;
-              BitDepth10 = true;
+              downSampleCount = 1;
+              bitDepth10 = true;
             }
-            UpdateSettings();
+            updateSettings();
           }
-          if (currentbutton == Bclear) {
+          if (currentbutton == bclear) {
             datacounter = 0;
             xPos = 0;
-            blankplot();
+            blankPlot();
           }
-          if (currentbutton == Bpause) {
-            PauseFlag = !PauseFlag;
-            if (!PauseFlag) {
+          if (currentbutton == bpause) {
+            pauseFlag = !pauseFlag;
+            if (!pauseFlag) {
               buttons[currentbutton].label = "Pause";
               datacounter = 0;
               xPos = 0;
             }
-            else if (PauseFlag) {
+            else if (pauseFlag) {
               buttons[currentbutton].label = "Play";
             }
           }
-          if (currentbutton == Bchan1) {
-            ChannelOn[0] = !ChannelOn[0];
+          if (currentbutton == bchan1) {
+            channelsOn[0] = !channelsOn[0];
           }
-          if (currentbutton == Bchan2) {
-            ChannelOn[1] = !ChannelOn[1];
+          if (currentbutton == bchan2) {
+            channelsOn[1] = !channelsOn[1];
           }
-          if (currentbutton == Bchan3) {
-            ChannelOn[2] = !ChannelOn[2];
+          if (currentbutton == bchan3) {
+            channelsOn[2] = !channelsOn[2];
           }
-          if (currentbutton == Bchan4) {
-            ChannelOn[3] = !ChannelOn[3];
+          if (currentbutton == bchan4) {
+            channelsOn[3] = !channelsOn[3];
           }
-          if (currentbutton == Bchan5) {
-            ChannelOn[4] = !ChannelOn[4];
+          if (currentbutton == bchan5) {
+            channelsOn[4] = !channelsOn[4];
           }
-          if (currentbutton == Bchan6) {
-            ChannelOn[5] = !ChannelOn[5];
+          if (currentbutton == bchan6) {
+            channelsOn[5] = !channelsOn[5];
           }
-          if (currentbutton == Bchan7) {
-            ChannelOn[6] = !ChannelOn[6];
+          if (currentbutton == bchan7) {
+            channelsOn[6] = !channelsOn[6];
           }
-          if (currentbutton == Bchan8) {
-            ChannelOn[7] = !ChannelOn[7];
+          if (currentbutton == bchan8) {
+            channelsOn[7] = !channelsOn[7];
           }
 
           labelAxes();
@@ -2224,52 +2227,52 @@ public class TimeDomainPlotPage implements pagesClass {
   }
 
   public void drawHelp() {
-    // help text
+    drawGenericHelp();
   }
 
   public void drawTrace() {
     int sigtmp = 0;
     loadPixels();
     while (datacounter > 1) {
-      xPos++;//=DownSampleCount;
-      if (xPos >= plotwidth && !PauseFlag) {
+      xPos++;//=downSampleCount;
+      if (xPos >= plotwidth && !pauseFlag) {
         xPos = -1;
         updatePixels();
         return;
       }
-      else if (xPos >= plotwidth && PauseFlag) {
+      else if (xPos >= plotwidth && pauseFlag) {
         xPos = plotwidth-1;
         updatePixels();
         return;
       }
       else if (xPos == 0) {
         updatePixels();
-        blankplot();
+        blankPlot();
         return;
       }
 
-      for (int j = 0; j < SignalNumber;j++) {
-        if (ChannelOn[j]) {
-          int tmpind = signalindex-datacounter;//*DownSampleCount;
+      for (int j = 0; j < currentSignalNumber;j++) {
+        if (channelsOn[j]) {
+          int tmpind = signalindex-datacounter;//*downSampleCount;
           while (tmpind < 0) {
-            tmpind+=MaxSignalLength;
+            tmpind+=maxSignalLength;
           }
-          if (!OffSetFlag) {
-            sigtmp = PApplet.parseInt(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, 0, plotheight));
+          if (!offsetFlag) {
+            sigtmp = PApplet.parseInt(map((signalIn[j][tmpind]+calibration[j]-halfSignalVal)*scaleVoltage, -maxSignalVal, +maxSignalVal, 0, plotheight));
           }
           else {
-            if (ChannelOn[4] || ChannelOn[5] || ChannelOn[6] || ChannelOn[7]) {
-              sigtmp = OffSet8[j]+PApplet.parseInt(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, -plotheight/(2*SignalNumber), plotheight/(2*SignalNumber)));
+            if (channelsOn[4] || channelsOn[5] || channelsOn[6] || channelsOn[7]) {
+              sigtmp = offSet8[j]+PApplet.parseInt(map((signalIn[j][tmpind]+calibration[j]-halfSignalVal)*scaleVoltage, -maxSignalVal, +maxSignalVal, -plotheight/(2*currentSignalNumber), plotheight/(2*currentSignalNumber)));
             } 
-            else if (ChannelOn[3] || ChannelOn[2]) {
-              sigtmp = OffSet4[j]+PApplet.parseInt(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, -plotheight/(2*SignalNumber), plotheight/(2*SignalNumber)));
+            else if (channelsOn[3] || channelsOn[2]) {
+              sigtmp = offSet4[j]+PApplet.parseInt(map((signalIn[j][tmpind]+calibration[j]-halfSignalVal)*scaleVoltage, -maxSignalVal, +maxSignalVal, -plotheight/(2*currentSignalNumber), plotheight/(2*currentSignalNumber)));
             } 
-            else if (ChannelOn[1]) {
-              sigtmp = OffSet2[j]+PApplet.parseInt(map((signalIn[j][tmpind]+Calibration[j]-HalfSignalVal)*VoltScale, -MaxSignalVal, +MaxSignalVal, -plotheight/(2*SignalNumber), plotheight/(2*SignalNumber)));
+            else if (channelsOn[1]) {
+              sigtmp = offSet2[j]+PApplet.parseInt(map((signalIn[j][tmpind]+calibration[j]-halfSignalVal)*scaleVoltage, -maxSignalVal, +maxSignalVal, -plotheight/(2*currentSignalNumber), plotheight/(2*currentSignalNumber)));
             }
           }
           sigtmp = constrain( sigtmp, pointThickness, plotheight - pointThickness);
-          drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, SigColorM[j], pointThickness);
+          drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, colorSigM[j], pointThickness);
           oldPlotSignal[j] = sigtmp;
         }
       }
@@ -2279,39 +2282,39 @@ public class TimeDomainPlotPage implements pagesClass {
   }
   
   public void drawFFT() {
-    blankplot();
-    stroke(FFTcolor);
+    blankPlot();
+    stroke(colorFFT);
     // filtered=filter1.apply(signalIn);
     // filtered = signalIn1;
 
-    for (int j = 0; j < SignalNumber; j++) {
-      System.arraycopy(fft.computeFFT(FFTsignalIn[j]), 0, fft_result[j], 0, FFTSignalLength/2);
+    for (int j = 0; j < currentSignalNumber; j++) {
+      System.arraycopy(fft.computeFFT(SignalInFFT[j]), 0, fft_result[j], 0, signalLengthFFT/2);
     }
 
-    for (int i = 2; i<min(fft.WS2,FrequencyMax); i++) {
-      int xtmp = xStep+PApplet.parseInt(FreqFactor*PApplet.parseFloat(i-1));
-      for (int j = 0; j < SignalNumber;j++) {
-        if (ChannelOn[j]) {
-          stroke(SigColorM[j]);
-          if (OffSetFlag) {
-            if (ChannelOn[4] || ChannelOn[5] || ChannelOn[6] || ChannelOn[7]) {
-              for (int k = 0; k < FreqFactor; k++) {
-                line(xtmp+k, ytmp - FFTstep - OffSet8[j], xtmp+k, min(ytmp-FFTstep-OffSet8[j], max(yTitle+2+OffSet8[7-j], ytmp - OffSet8[j] - PApplet.parseInt(FFTscale*fft_result[j][i])/8)) );
+    for (int i = 2; i<min(fft.WS2,maxPlotFrequency); i++) {
+      int xtmp = xStep+PApplet.parseInt(frequencyFactor*PApplet.parseFloat(i-1));
+      for (int j = 0; j < currentSignalNumber;j++) {
+        if (channelsOn[j]) {
+          stroke(colorSigM[j]);
+          if (offsetFlag) {
+            if (channelsOn[4] || channelsOn[5] || channelsOn[6] || channelsOn[7]) {
+              for (int k = 0; k < frequencyFactor; k++) {
+                line(xtmp+k, ytmp - yStepFFT - offSet8[j], xtmp+k, min(ytmp-yStepFFT-offSet8[j], max(yTitle+2+offSet8[7-j], ytmp - offSet8[j] - PApplet.parseInt(scaleFFT*fft_result[j][i])/8)) );
               }
             }
-            else if (ChannelOn[3] || ChannelOn[2]) {
-              for (int k = 0; k < FreqFactor; k++) {
-                line(xtmp+k, ytmp - FFTstep - OffSet4[j], xtmp+k, min(ytmp-FFTstep-OffSet4[j], max(yTitle+2+OffSet4[3-j], ytmp - OffSet4[j] - PApplet.parseInt(FFTscale*fft_result[j][i])/4)) );
+            else if (channelsOn[3] || channelsOn[2]) {
+              for (int k = 0; k < frequencyFactor; k++) {
+                line(xtmp+k, ytmp - yStepFFT - offSet4[j], xtmp+k, min(ytmp-yStepFFT-offSet4[j], max(yTitle+2+offSet4[3-j], ytmp - offSet4[j] - PApplet.parseInt(scaleFFT*fft_result[j][i])/4)) );
               }
             }
             else {
-              for (int k = 0; k < FreqFactor; k++) {
-                line(xtmp+k, ytmp - FFTstep - OffSet2[j], xtmp+k, min(ytmp-FFTstep-OffSet2[j], max(yTitle+2+OffSet2[1-j], ytmp - OffSet2[j] - PApplet.parseInt(FFTscale*fft_result[j][i])/2)) );
+              for (int k = 0; k < frequencyFactor; k++) {
+                line(xtmp+k, ytmp - yStepFFT - offSet2[j], xtmp+k, min(ytmp-yStepFFT-offSet2[j], max(yTitle+2+offSet2[1-j], ytmp - offSet2[j] - PApplet.parseInt(scaleFFT*fft_result[j][i])/2)) );
               }
             }
           }
           else {
-            line(xtmp, ytmp - FFTstep, xtmp, min(ytmp-FFTstep, max(yTitle+2, ytmp - PApplet.parseInt(FFTscale*fft_result[j][i]))) );
+            line(xtmp, ytmp - yStepFFT, xtmp, min(ytmp-yStepFFT, max(yTitle+2, ytmp - PApplet.parseInt(scaleFFT*fft_result[j][i]))) );
           }
         }
       }
@@ -2323,130 +2326,130 @@ public class TimeDomainPlotPage implements pagesClass {
 
 
 /************************* BEGIN WORKOUT PAGE ***********************/
-public class WorkoutPage implements pagesClass {
+public class workoutPage implements pagesClass {
   // variables
   GuiButton[] buttons;
-  int ButtonNum = 0;
+  int buttonNumber = 0;
   int
-    Breset = ButtonNum++, 
-  BsetReps1 = ButtonNum++, 
-  BsetReps2 = ButtonNum++, 
-  Bthresh1up = ButtonNum++, 
-  Bthresh1down = ButtonNum++, 
-  Bthresh2up = ButtonNum++, 
-  Bthresh2down = ButtonNum++, 
-  Bchan1 = ButtonNum++, 
-  Bchan2 = ButtonNum++, 
-  Bchan1up = ButtonNum++, 
-  Bchan2up = ButtonNum++, 
-  Bchan1down = ButtonNum++, 
-  Bchan2down = ButtonNum++, 
-  Bchan1name = ButtonNum++, 
-  Bchan2name = ButtonNum++;
+    breset = buttonNumber++, 
+    bsetreps1 = buttonNumber++, 
+    bsetreps2 = buttonNumber++, 
+    bthresh1up = buttonNumber++, 
+    bthresh1down = buttonNumber++, 
+    bthresh2up = buttonNumber++, 
+    bthresh2down = buttonNumber++, 
+    bchan1 = buttonNumber++, 
+    bchan2 = buttonNumber++, 
+    bchan1up = buttonNumber++, 
+    bchan2up = buttonNumber++, 
+    bchan1down = buttonNumber++, 
+    bchan2down = buttonNumber++, 
+    bchan1name = buttonNumber++, 
+    bchan2name = buttonNumber++;
 
 
-  // Workout
-  int Reps = 0, Work = 1;
-  int BTWorkoutType = Reps;
-  int RepsTargetDefault = 10;
-  int RepsTarget[] = {     
-    RepsTargetDefault, RepsTargetDefault
+  // workout
+  int reps = 0, work = 1;
+  int workoutType = reps;
+  int repsTargetDefault = 10;
+  int repsTarget[] = {     
+    repsTargetDefault, repsTargetDefault
   };
-  int RepThreshDefault = 64;
-  int RepThresh[] = {    
-    RepThreshDefault, RepThreshDefault
+  int repThreshDefault = 64;
+  int repThresh[] = {    
+    repThreshDefault, repThreshDefault
   };
-  int RepThreshStep = 10;
-  int RepsCounter[] = {     
+  int repThreshStep = 10;
+  int repsCounter[] = {     
     0, 0
   };
-  int FlexOnCounter[] = {     
+  int flexOnCounter[] = {     
     0, 0
   };
-  boolean ChanFlexed[] = {     
+  boolean chanFlexed[] = {     
     false, false
   };
-  int TRepCounter = 0, TDataLogger = 1;
-  int TrainingMode = TRepCounter;
-  int DataThresh[] = {    
+  int tRepCounter = 0, tDataLogger = 1;
+  int trainingMode = tRepCounter;
+  int dataThresh[] = {    
     545, 545
   };
-  int[][] TMax;
-  int TrainChan[] = {    
+  int[][] tMax;
+  int trainChan[] = {    
     0, 1
   };
 
   String pageName = "FlexVolt Training";
   String typing = "";
   String savedname = "";
-  boolean NamesFlag = false;
-  int NameNumber = 0;
-  int RepBarWidth = 30;
+  boolean namesFlag = false;
+  int namesNumber = 0;
+  int repBarWidth = 30;
   int xPos = 0;
-  boolean ButtonPressedFlag = false;
+  boolean buttonPressedFlag = false;
 
   // constructor
-  WorkoutPage() {
+  workoutPage() {
     // set input variables
     initializeButtons();
   }
 
   public void initializeButtons() {
-    buttons = new GuiButton[ButtonNum];
-    buttons[Breset]       = new GuiButton("Reset", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+plotheight/2+5, 120, Bheights, color(BIdleColor), color(0), "Reset Workout", Bmomentary, false);
-    buttons[BsetReps1]    = new GuiButton("SetReps1", ' ', dummypage, xStep+HalfPlotWidth+30, yTitle+70, 50, Bheights, color(BIdleColor), color(0), str(RepsTarget[0]), Bonoff, false);
-    buttons[BsetReps2]    = new GuiButton("SetReps2", ' ', dummypage, xStep+HalfPlotWidth+30, yTitle+plotheight/2+90, 50, Bheights, color(BIdleColor), color(0), str(RepsTarget[1]), Bonoff, false);
-    buttons[Bthresh1up]   = new GuiButton("repthresh1up", ' ', dummypage, xStep+HalfPlotWidth+20, yTitle+plotheight/2-50, 30, Bheights, color(BIdleColor), color(0), "up", Bmomentary, false);
-    buttons[Bthresh1down] = new GuiButton("repthresh1dn", ' ', dummypage, xStep+HalfPlotWidth+20, yTitle+plotheight/2-26, 30, Bheights, color(BIdleColor), color(0), "dn", Bmomentary, false);
-    buttons[Bthresh2up]   = new GuiButton("repthresh2up", ' ', dummypage, xStep+HalfPlotWidth+20, yTitle+plotheight-29, 30, Bheights, color(BIdleColor), color(0), "up", Bmomentary, false);
-    buttons[Bthresh2down] = new GuiButton("repthresh2dn", ' ', dummypage, xStep+HalfPlotWidth+20, yTitle+plotheight-5, 30, Bheights, color(BIdleColor), color(0), "dn", Bmomentary, false);
-    buttons[Bchan1]       = new GuiButton("Chan1", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+40, 30, Bheights, color(BIdleColor), SigColorM[TrainChan[0]], str(TrainChan[0]+1), Bonoff, true);
-    buttons[Bchan1name]   = new GuiButton("Name1", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+15, 120, Bheights, color(BIdleColor), color(0), "name1", Bonoff, false);
-    buttons[Bchan1up]     = new GuiButton("Ch1up", ' ', dummypage, xStep+HalfPlotWidth+105, yTitle+40, Bheights, Bheights, color(BIdleColor), color(0), ">", Bmomentary, false);
-    buttons[Bchan1down]   = new GuiButton("Ch1dn", ' ', dummypage, xStep+HalfPlotWidth+25, yTitle+40, Bheights, Bheights, color(BIdleColor), color(0), "<", Bmomentary, false);
-    buttons[Bchan2]       = new GuiButton("Chan2", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+plotheight/2+60, 30, Bheights, color(BIdleColor), SigColorM[TrainChan[1]], str(TrainChan[1]+1), Bonoff, false);
-    buttons[Bchan2name]   = new GuiButton("Name2", ' ', dummypage, xStep+HalfPlotWidth+65, yTitle+plotheight/2+35, 120, Bheights, color(BIdleColor), color(0), "name2", Bonoff, false);
-    buttons[Bchan2up]     = new GuiButton("Ch2up", ' ', dummypage, xStep+HalfPlotWidth+105, yTitle+plotheight/2+60, Bheights, Bheights, color(BIdleColor), color(0), ">", Bmomentary, false);
-    buttons[Bchan2down]   = new GuiButton("Ch2dn", ' ', dummypage, xStep+HalfPlotWidth+25, yTitle+plotheight/2+60, Bheights, Bheights, color(BIdleColor), color(0), "<", Bmomentary, false);
+    buttons = new GuiButton[buttonNumber];
+    buttons[breset]       = new GuiButton("Reset", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+plotheight/2+5, 120, bheights, color(colorBIdle), color(0), "Reset workout", bMomentary, false, showButton);
+    buttons[bsetreps1]    = new GuiButton("Setreps1", ' ', dummypage, xStep+halfPlotWidth+30, yTitle+70, 50, bheights, color(colorBIdle), color(0), str(repsTarget[0]), bOnOff, false, showButton);
+    buttons[bsetreps2]    = new GuiButton("Setreps2", ' ', dummypage, xStep+halfPlotWidth+30, yTitle+plotheight/2+90, 50, bheights, color(colorBIdle), color(0), str(repsTarget[1]), bOnOff, false, showButton);
+    buttons[bthresh1up]   = new GuiButton("repthresh1up", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight/2-50, 30, bheights, color(colorBIdle), color(0), "up", bMomentary, false, showButton);
+    buttons[bthresh1down] = new GuiButton("repthresh1dn", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight/2-26, 30, bheights, color(colorBIdle), color(0), "dn", bMomentary, false, showButton);
+    buttons[bthresh2up]   = new GuiButton("repthresh2up", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight-29, 30, bheights, color(colorBIdle), color(0), "up", bMomentary, false, showButton);
+    buttons[bthresh2down] = new GuiButton("repthresh2dn", ' ', dummypage, xStep+halfPlotWidth+20, yTitle+plotheight-5, 30, bheights, color(colorBIdle), color(0), "dn", bMomentary, false, showButton);
+    buttons[bchan1]       = new GuiButton("Chan1", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+40, 30, bheights, color(colorBIdle), colorSigM[trainChan[0]], str(trainChan[0]+1), bOnOff, true, showButton);
+    buttons[bchan1name]   = new GuiButton("Name1", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+15, 120, bheights, color(colorBIdle), color(0), "name1", bOnOff, false, showButton);
+    buttons[bchan1up]     = new GuiButton("Ch1up", ' ', dummypage, xStep+halfPlotWidth+105, yTitle+40, bheights, bheights, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+    buttons[bchan1down]   = new GuiButton("Ch1dn", ' ', dummypage, xStep+halfPlotWidth+25, yTitle+40, bheights, bheights, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+    buttons[bchan2]       = new GuiButton("Chan2", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+plotheight/2+60, 30, bheights, color(colorBIdle), colorSigM[trainChan[1]], str(trainChan[1]+1), bOnOff, false, showButton);
+    buttons[bchan2name]   = new GuiButton("Name2", ' ', dummypage, xStep+halfPlotWidth+65, yTitle+plotheight/2+35, 120, bheights, color(colorBIdle), color(0), "name2", bOnOff, false, showButton);
+    buttons[bchan2up]     = new GuiButton("Ch2up", ' ', dummypage, xStep+halfPlotWidth+105, yTitle+plotheight/2+60, bheights, bheights, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+    buttons[bchan2down]   = new GuiButton("Ch2dn", ' ', dummypage, xStep+halfPlotWidth+25, yTitle+plotheight/2+60, bheights, bheights, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
   }
 
   public void switchToPage() {
 
-    DownSampleCount = DownSampleCountTraining; //!!!!!!!!!!!!!!!
-    UserFreqIndex = UserFreqIndexTraining;
-    UserFrequency = UserFreqArray[UserFreqIndex];
-    CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0f/((float)UserFrequency/CheckSerialNSamples) );
-    SmoothFilterFlag = true;
-    BitDepth10 = false;
-    OffSetFlag = true;
-    PauseFlag = false;
-    ChannelOn[TrainChan[0]] = true;
-    ChannelOn[TrainChan[1]] = true;
-    buttons[Bchan1].BOn = ChannelOn[TrainChan[0]];
-    buttons[Bchan2].BOn = ChannelOn[TrainChan[1]];
-    plotwidth = HalfPlotWidth;
-    //    background(backgroundcolor);
+    downSampleCount = downSampleCountTraining; //!!!!!!!!!!!!!!!
+    userFreqIndex = userFreqIndexTraining;
+    userFrequency = userFreqArray[userFreqIndex];
+    checkSerialDelay = (long)max( checkSerialMinTime, 1000.0f/((float)userFrequency/checkSerialNSamples) );
+    smoothFilterFlag = true;
+    bitDepth10 = false;
+    offsetFlag = true;
+    pauseFlag = false;
+    channelsOn[trainChan[0]] = true;
+    channelsOn[trainChan[1]] = true;
+    buttons[bchan1].bOn = channelsOn[trainChan[0]];
+    buttons[bchan2].bOn = channelsOn[trainChan[1]];
+    plotwidth = halfPlotWidth;
+    //    background(colorBackground);
     labelAxes();
-    blankplot();
-    UpdateSettings();
-    println("Workout Turned ON");
+    blankPlot();
+    updateSettings();
+    println("workout Turned ON");
   }
 
   public void drawPage() {
-    if (ButtonPressedFlag) {
-      if (millis() > ButtonColorTimer) {
-        ButtonPressedFlag = false;
+    if (buttonPressedFlag) {
+      if (millis() > buttonColorTimer) {
+        buttonPressedFlag = false;
         println("Current Button = " + currentbutton);
         if (buttons[currentbutton] != null && currentbutton < buttons.length) {
-          buttons[currentbutton].ChangeColorUnpressed();
+          buttons[currentbutton].changeColorUnpressed();
         }
       }
     }
 
     drawTrace();
     drawThresh();
-    if (TrainingMode == TRepCounter) {
-      CountReps();
+    if (trainingMode == tRepCounter) {
+      countreps();
       drawRepBar();
     }
   }
@@ -2456,22 +2459,22 @@ public class WorkoutPage implements pagesClass {
   }
 
   public void labelAxes() {
-    fill(labelcolor);
-    stroke(labelcolor);
+    fill(colorLabel);
+    stroke(colorLabel);
     strokeWeight(2);
     textAlign(CENTER, CENTER);
 
     // title
     textSize(titlesize);
-    text("Flex Training", xStep+FullPlotWidth/2+20, yTitle-45);
+    text("Flex Training", xStep+fullPlotWidth/2+20, yTitle-45);
 
     // y-axis
     float val = 0;
     textSize(20);
-    for (int i = 0; i < NyticksHalf+1; i++) {
-      text(nf(val, 1, 0), xStep-25, ytmp - PApplet.parseInt(map(val, 0, VoltageMax, 0, plotheight/2-20)));
-      text(nf(val, 1, 0), xStep-25, ytmp - PApplet.parseInt(map(val, 0, VoltageMax, 0, plotheight/2-10)) - plotheight/2 - 10);
-      val += (VoltageMax)/NyticksHalf;
+    for (int i = 0; i < nYTicksHalf+1; i++) {
+      text(nf(val, 1, 0), xStep-25, ytmp - PApplet.parseInt(map(val, 0, maxVoltage, 0, plotheight/2-20)));
+      text(nf(val, 1, 0), xStep-25, ytmp - PApplet.parseInt(map(val, 0, maxVoltage, 0, plotheight/2-10)) - plotheight/2 - 10);
+      val += (maxVoltage)/nYTicksHalf;
     }
 
     textSize(labelsizes);
@@ -2486,9 +2489,9 @@ public class WorkoutPage implements pagesClass {
     // rectMode(CENTER);
     // rect(xStep+580, 230, 100, 50,15);
     // rect(xStep+580, yTitle+plotheight-150, 100, 50,15);
-    fill(labelcolor);
-    text("Set Reps", xStep+plotwidth+100, yTitle+70);
-    text("Set Reps", xStep+plotwidth+100, yTitle+plotheight/2+90);
+    fill(colorLabel);
+    text("Set reps", xStep+plotwidth+100, yTitle+70);
+    text("Set reps", xStep+plotwidth+100, yTitle+plotheight/2+90);
     text("Threshold", xStep+plotwidth+90, yTitle+plotheight/2-40);
     text("Threshold", xStep+plotwidth+90, yTitle+plotheight-20);
 
@@ -2498,199 +2501,199 @@ public class WorkoutPage implements pagesClass {
       }
     }
 
-    LabelRepBar(3);
+    labelRepBar(3);
   }
 
   public boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
     boolean outflag = false;
 
-    if (NamesFlag) {
+    if (namesFlag) {
       if (key == '\n' ) {
         println("here");
         println(typing);
         int tmpint = 0;
         savedname = typing;
-        if (NameNumber == BsetReps1 || NameNumber == BsetReps2) {
-          tmpint = getIntFromString(typing, RepsTargetDefault);
+        if (namesNumber == bsetreps1 || namesNumber == bsetreps2) {
+          tmpint = getIntFromString(typing, repsTargetDefault);
           savedname = str(tmpint);
         }
-        buttons[NameNumber].label = savedname;
-        if (NameNumber == BsetReps1) {
-          RepsTarget[0] = tmpint;
-          ClearRepBar(1);
-          LabelRepBar(1);
+        buttons[namesNumber].label = savedname;
+        if (namesNumber == bsetreps1) {
+          repsTarget[0] = tmpint;
+          clearRepBar(1);
+          labelRepBar(1);
         }
-        else if (NameNumber == BsetReps2) {
-          RepsTarget[1] = tmpint;
-          ClearRepBar(2);
-          LabelRepBar(2);
+        else if (namesNumber == bsetreps2) {
+          repsTarget[1] = tmpint;
+          clearRepBar(2);
+          labelRepBar(2);
         }
-        NamesFlag = !NamesFlag;
-        buttons[currentbutton].BOn = !buttons[currentbutton].BOn;
-        buttons[NameNumber].drawButton();
+        namesFlag = !namesFlag;
+        buttons[currentbutton].bOn = !buttons[currentbutton].bOn;
+        buttons[namesNumber].drawButton();
         typing = "";
-        NameNumber = -1;
+        namesNumber = -1;
         outflag = true;
       }
       else if ((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z') || (key == ' ') || (key >='0' && key <= '9')) {
         // Otherwise, concatenate the String - Each character typed by the user is added to the end of the String variable.
         typing = typing + key;
-        buttons[NameNumber].label = typing;
-        buttons[NameNumber].drawButton();
+        buttons[namesNumber].label = typing;
+        buttons[namesNumber].drawButton();
         outflag = true;
       }
     }
-    else if (!NamesFlag) {
+    else if (!namesFlag) {
       currentbutton = -1;
       for (int i = 0; i < buttons.length; i++) {
         if (buttons[i] != null) {
           if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
             outflag = true;
-            buttons[i].BOn = !buttons[i].BOn;
-            buttons[i].ChangeColorPressed();
-            ButtonColorTimer = millis()+ButtonColorDelay;
-            ButtonPressedFlag = true;
+            buttons[i].bOn = !buttons[i].bOn;
+            buttons[i].changeColorPressed();
+            buttonColorTimer = millis()+buttonColorDelay;
+            buttonPressedFlag = true;
             currentbutton = i;
 
-            if (currentbutton == Breset) {
-              resetWorkout();
+            if (currentbutton == breset) {
+              resetworkout();
             }
-            if (currentbutton == BsetReps1 || currentbutton == BsetReps2 || currentbutton == Bchan1name || currentbutton == Bchan2name) {
-              if (NameNumber == currentbutton) {
+            if (currentbutton == bsetreps1 || currentbutton == bsetreps2 || currentbutton == bchan1name || currentbutton == bchan2name) {
+              if (namesNumber == currentbutton) {
                 int tmpint = 0;
                 savedname = typing;
-                if (NameNumber == BsetReps1 || NameNumber == BsetReps2) {
-                  tmpint = getIntFromString(typing, RepsTargetDefault);
+                if (namesNumber == bsetreps1 || namesNumber == bsetreps2) {
+                  tmpint = getIntFromString(typing, repsTargetDefault);
                   savedname = str(tmpint);
                 }
                 println(tmpint);
-                buttons[NameNumber].label = savedname;
-                if (NameNumber == BsetReps1) {
-                  RepsTarget[0] = tmpint;
+                buttons[namesNumber].label = savedname;
+                if (namesNumber == bsetreps1) {
+                  repsTarget[0] = tmpint;
                   println("int saved");
-                  println(RepsTarget[0]);
-                  ClearRepBar(1);
-                  LabelRepBar(1);
+                  println(repsTarget[0]);
+                  clearRepBar(1);
+                  labelRepBar(1);
                 }
-                else if (NameNumber == BsetReps2) {
-                  RepsTarget[1] = tmpint;
+                else if (namesNumber == bsetreps2) {
+                  repsTarget[1] = tmpint;
                   println("int saved");
-                  println(RepsTarget[0]);
-                  ClearRepBar(2);
-                  LabelRepBar(2);
+                  println(repsTarget[0]);
+                  clearRepBar(2);
+                  labelRepBar(2);
                 }
 
-                NamesFlag = !NamesFlag;
-                //buttons[currentbutton].BOn = !buttons[currentbutton].BOn;
+                namesFlag = !namesFlag;
+                //buttons[currentbutton].bOn = !buttons[currentbutton].bOn;
 
-                buttons[NameNumber].drawButton();
+                buttons[namesNumber].drawButton();
                 typing = "";
-                NameNumber = -1;
+                namesNumber = -1;
               }
               else {
-                NameNumber = currentbutton;
-                NamesFlag = true;
-                buttons[currentbutton].BOn = true;
+                namesNumber = currentbutton;
+                namesFlag = true;
+                buttons[currentbutton].bOn = true;
                 typing = "";
-                buttons[NameNumber].label = typing;
-                buttons[NameNumber].drawButton();
+                buttons[namesNumber].label = typing;
+                buttons[namesNumber].drawButton();
               }
               println("Names Toggled");
             }
-            if (currentbutton == Bchan1) {
-              ChannelOn[0] = !ChannelOn[0];
+            if (currentbutton == bchan1) {
+              channelsOn[0] = !channelsOn[0];
               println("Chan1 Toggled");
             }
-            if (currentbutton == Bchan2) {
-              ChannelOn[1] = !ChannelOn[1];
+            if (currentbutton == bchan2) {
+              channelsOn[1] = !channelsOn[1];
               println("Chan2 Toggled");
             }
-            if (currentbutton == Bchan1up) {
-              TrainChan[0]++;
-              if (TrainChan[0]>=SignalNumber) {
-                TrainChan[0]=SignalNumber-1;
+            if (currentbutton == bchan1up) {
+              trainChan[0]++;
+              if (trainChan[0]>=currentSignalNumber) {
+                trainChan[0]=currentSignalNumber-1;
               }
-              if (TrainChan[0] == TrainChan[1]) {
-                TrainChan[0]++;
-                if (TrainChan[0]>=SignalNumber) {
-                  TrainChan[0]=TrainChan[1]-1;
+              if (trainChan[0] == trainChan[1]) {
+                trainChan[0]++;
+                if (trainChan[0]>=currentSignalNumber) {
+                  trainChan[0]=trainChan[1]-1;
                 }
               }
-              buttons[Bchan1].ctext = SigColorM[TrainChan[0]];
-              buttons[Bchan1].label = str(TrainChan[0]+1);
-              buttons[Bchan1].drawButton();
-              ChannelOn[TrainChan[0]] = buttons[Bchan1].BOn;
+              buttons[bchan1].ctext = colorSigM[trainChan[0]];
+              buttons[bchan1].label = str(trainChan[0]+1);
+              buttons[bchan1].drawButton();
+              channelsOn[trainChan[0]] = buttons[bchan1].bOn;
             }
-            if (currentbutton == Bchan1down) {
-              TrainChan[0]--;
-              if (TrainChan[0]<0) {
-                TrainChan[0]=0;
+            if (currentbutton == bchan1down) {
+              trainChan[0]--;
+              if (trainChan[0]<0) {
+                trainChan[0]=0;
               }
-              if (TrainChan[0] == TrainChan[1]) {
-                TrainChan[0]--;
-                if (TrainChan[0]<0) {
-                  TrainChan[0]=TrainChan[1]+1;
+              if (trainChan[0] == trainChan[1]) {
+                trainChan[0]--;
+                if (trainChan[0]<0) {
+                  trainChan[0]=trainChan[1]+1;
                 }
               }
-              buttons[Bchan1].ctext = SigColorM[TrainChan[0]];
-              buttons[Bchan1].label = str(TrainChan[0]+1);
-              buttons[Bchan1].drawButton();
-              ChannelOn[TrainChan[0]] = buttons[Bchan1].BOn;
+              buttons[bchan1].ctext = colorSigM[trainChan[0]];
+              buttons[bchan1].label = str(trainChan[0]+1);
+              buttons[bchan1].drawButton();
+              channelsOn[trainChan[0]] = buttons[bchan1].bOn;
             }
-            if (currentbutton == Bchan2up) {
-              TrainChan[1]++;
-              if (TrainChan[1]>=SignalNumber) {
-                TrainChan[1]=SignalNumber-1;
+            if (currentbutton == bchan2up) {
+              trainChan[1]++;
+              if (trainChan[1]>=currentSignalNumber) {
+                trainChan[1]=currentSignalNumber-1;
               }
-              if (TrainChan[1] == TrainChan[0]) {
-                TrainChan[1]++;
-                if (TrainChan[1]>=SignalNumber) {
-                  TrainChan[1]=TrainChan[0]-1;
+              if (trainChan[1] == trainChan[0]) {
+                trainChan[1]++;
+                if (trainChan[1]>=currentSignalNumber) {
+                  trainChan[1]=trainChan[0]-1;
                 }
               }
-              buttons[Bchan2].ctext = SigColorM[TrainChan[1]];
-              buttons[Bchan2].label = str(TrainChan[1]+1);
-              buttons[Bchan2].drawButton();
-              ChannelOn[TrainChan[1]] = buttons[Bchan2].BOn;
+              buttons[bchan2].ctext = colorSigM[trainChan[1]];
+              buttons[bchan2].label = str(trainChan[1]+1);
+              buttons[bchan2].drawButton();
+              channelsOn[trainChan[1]] = buttons[bchan2].bOn;
             }
-            if (currentbutton == Bchan2down) {
-              TrainChan[1]--;
-              if (TrainChan[1]<0) {
-                TrainChan[1]=0;
+            if (currentbutton == bchan2down) {
+              trainChan[1]--;
+              if (trainChan[1]<0) {
+                trainChan[1]=0;
               }
-              if (TrainChan[1] == TrainChan[0]) {
-                TrainChan[1]--;
-                if (TrainChan[1]<0) {
-                  TrainChan[1]=TrainChan[0]+1;
+              if (trainChan[1] == trainChan[0]) {
+                trainChan[1]--;
+                if (trainChan[1]<0) {
+                  trainChan[1]=trainChan[0]+1;
                 }
               }
-              buttons[Bchan2].ctext = SigColorM[TrainChan[1]];
-              buttons[Bchan2].label = str(TrainChan[1]+1);
-              buttons[Bchan2].drawButton();
-              ChannelOn[TrainChan[1]] = buttons[Bchan2].BOn;
+              buttons[bchan2].ctext = colorSigM[trainChan[1]];
+              buttons[bchan2].label = str(trainChan[1]+1);
+              buttons[bchan2].drawButton();
+              channelsOn[trainChan[1]] = buttons[bchan2].bOn;
             }
-            if (currentbutton == Bthresh1up) {
-              RepThresh[0]+=RepThreshStep;
-              if (RepThresh[0]>=MaxSignalVal) {
-                RepThresh[0]=MaxSignalVal;
+            if (currentbutton == bthresh1up) {
+              repThresh[0]+=repThreshStep;
+              if (repThresh[0]>=maxSignalVal) {
+                repThresh[0]=maxSignalVal;
               }
             }
-            if (currentbutton == Bthresh1down) {
-              RepThresh[0]-=RepThreshStep;
-              if (RepThresh[0]<0) {
-                RepThresh[0]=0;
+            if (currentbutton == bthresh1down) {
+              repThresh[0]-=repThreshStep;
+              if (repThresh[0]<0) {
+                repThresh[0]=0;
               }
             }
-            if (currentbutton == Bthresh2up) {
-              RepThresh[1]+=RepThreshStep;
-              if (RepThresh[1]>=MaxSignalVal) {
-                RepThresh[1]=MaxSignalVal;
+            if (currentbutton == bthresh2up) {
+              repThresh[1]+=repThreshStep;
+              if (repThresh[1]>=maxSignalVal) {
+                repThresh[1]=maxSignalVal;
               }
             }
-            if (currentbutton == Bthresh2down) {
-              RepThresh[1]-=RepThreshStep;
-              if (RepThresh[1]<0) {
-                RepThresh[1]=0;
+            if (currentbutton == bthresh2down) {
+              repThresh[1]-=repThreshStep;
+              if (repThresh[1]<0) {
+                repThresh[1]=0;
               }
             }
 
@@ -2704,46 +2707,46 @@ public class WorkoutPage implements pagesClass {
 
   public boolean useKeyPressed() {
     boolean outflag = false;
-    if (NamesFlag) {
+    if (namesFlag) {
       if (key == '\n' ) {
         println("here");
         println(typing);
         int tmpint = 0;
         savedname = typing;
-        if (NameNumber == BsetReps1 || NameNumber == BsetReps2) {
-          tmpint = getIntFromString(typing, RepsTargetDefault);
+        if (namesNumber == bsetreps1 || namesNumber == bsetreps2) {
+          tmpint = getIntFromString(typing, repsTargetDefault);
           println(tmpint);
           savedname = str(tmpint);
         }
-        buttons[NameNumber].label = savedname;
-        if (NameNumber == BsetReps1) {
-          RepsTarget[0] = tmpint;
+        buttons[namesNumber].label = savedname;
+        if (namesNumber == bsetreps1) {
+          repsTarget[0] = tmpint;
           println("int saved");
-          println(RepsTarget[0]);
-          ClearRepBar(1);
-          LabelRepBar(1);
+          println(repsTarget[0]);
+          clearRepBar(1);
+          labelRepBar(1);
         }
-        else if (NameNumber == BsetReps2) {
-          RepsTarget[1] = tmpint;
+        else if (namesNumber == bsetreps2) {
+          repsTarget[1] = tmpint;
           println("int saved");
-          println(RepsTarget[0]);
-          ClearRepBar(2);
-          LabelRepBar(2);
+          println(repsTarget[0]);
+          clearRepBar(2);
+          labelRepBar(2);
         }
-        NamesFlag = !NamesFlag;
-        buttons[currentbutton].BOn = !buttons[currentbutton].BOn;
+        namesFlag = !namesFlag;
+        buttons[currentbutton].bOn = !buttons[currentbutton].bOn;
 
-        buttons[NameNumber].drawButton();
+        buttons[namesNumber].drawButton();
         typing = "";
-        NameNumber = -1;
+        namesNumber = -1;
         outflag = true;
       }
       else if ((key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z') || (key == ' ') || (key >='0' && key <= '9')) {
         // Otherwise, concatenate the String
         // Each character typed by the user is added to the end of the String variable.
         typing = typing + key;
-        buttons[NameNumber].label = typing;
-        buttons[NameNumber].drawButton();
+        buttons[namesNumber].label = typing;
+        buttons[namesNumber].drawButton();
         println("adjusting");
         outflag = true;
       }
@@ -2761,197 +2764,198 @@ public class WorkoutPage implements pagesClass {
     for (int i = 0; i < buttons.length; i++) {
       if (buttons[i] != null) {
         if (buttons[i].IsMouseOver(x, y)) {
-          buttons[i].BOn = !buttons[i].BOn;
-          buttons[i].ChangeColorPressed();
+          buttons[i].bOn = !buttons[i].bOn;
+          buttons[i].changeColorPressed();
           currentbutton = i;
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
+          buttonColorTimer = millis()+buttonColorDelay;
+          buttonPressedFlag = true;
         }
       }
     }
-    if (currentbutton == Breset) {
-      resetWorkout();
+    if (currentbutton == breset) {
+      resetworkout();
     }
-    if (currentbutton == BsetReps1 || currentbutton == BsetReps2 || currentbutton == Bchan1name || currentbutton == Bchan2name) {
-      if (NameNumber == currentbutton) {
+    if (currentbutton == bsetreps1 || currentbutton == bsetreps2 || currentbutton == bchan1name || currentbutton == bchan2name) {
+      if (namesNumber == currentbutton) {
         int tmpint = 0;
         savedname = typing;
-        if (NameNumber == BsetReps1 || NameNumber == BsetReps2) {
-          tmpint = getIntFromString(typing, RepsTargetDefault);
+        if (namesNumber == bsetreps1 || namesNumber == bsetreps2) {
+          tmpint = getIntFromString(typing, repsTargetDefault);
           savedname = str(tmpint);
         }
         println(tmpint);
-        buttons[NameNumber].label = savedname;
-        if (NameNumber == BsetReps1) {
-          RepsTarget[0] = tmpint;
+        buttons[namesNumber].label = savedname;
+        if (namesNumber == bsetreps1) {
+          repsTarget[0] = tmpint;
           println("int saved");
-          println(RepsTarget[0]);
-          ClearRepBar(1);
-          LabelRepBar(1);
+          println(repsTarget[0]);
+          clearRepBar(1);
+          labelRepBar(1);
         }
-        else if (NameNumber == BsetReps2) {
-          RepsTarget[1] = tmpint;
+        else if (namesNumber == bsetreps2) {
+          repsTarget[1] = tmpint;
           println("int saved");
-          println(RepsTarget[0]);
-          ClearRepBar(2);
-          LabelRepBar(2);
+          println(repsTarget[0]);
+          clearRepBar(2);
+          labelRepBar(2);
         }
 
-        NamesFlag = !NamesFlag;
-        //buttons[currentbutton].BOn = !buttons[currentbutton].BOn;
+        namesFlag = !namesFlag;
+        //buttons[currentbutton].bOn = !buttons[currentbutton].bOn;
 
-        buttons[NameNumber].drawButton();
+        buttons[namesNumber].drawButton();
         typing = "";
-        NameNumber = -1;
+        namesNumber = -1;
       }
       else {
-        NameNumber = currentbutton;
-        NamesFlag = true;
-        buttons[currentbutton].BOn = true;
+        namesNumber = currentbutton;
+        namesFlag = true;
+        buttons[currentbutton].bOn = true;
         typing = "";
-        buttons[NameNumber].label = typing;
-        buttons[NameNumber].drawButton();
+        buttons[namesNumber].label = typing;
+        buttons[namesNumber].drawButton();
       }
       println("Names Toggled");
     }
-    if (currentbutton == Bchan1) {
-      ChannelOn[0] = !ChannelOn[0];
+    if (currentbutton == bchan1) {
+      channelsOn[0] = !channelsOn[0];
       println("Chan1 Toggled");
     }
-    if (currentbutton == Bchan2) {
-      ChannelOn[1] = !ChannelOn[1];
+    if (currentbutton == bchan2) {
+      channelsOn[1] = !channelsOn[1];
       println("Chan2 Toggled");
     }
-    if (currentbutton == Bchan1up) {
-      TrainChan[0]++;
-      if (TrainChan[0]>=SignalNumber) {
-        TrainChan[0]=SignalNumber-1;
+    if (currentbutton == bchan1up) {
+      trainChan[0]++;
+      if (trainChan[0]>=currentSignalNumber) {
+        trainChan[0]=currentSignalNumber-1;
       }
-      if (TrainChan[0] == TrainChan[1]) {
-        TrainChan[0]++;
-        if (TrainChan[0]>=SignalNumber) {
-          TrainChan[0]=TrainChan[1]-1;
+      if (trainChan[0] == trainChan[1]) {
+        trainChan[0]++;
+        if (trainChan[0]>=currentSignalNumber) {
+          trainChan[0]=trainChan[1]-1;
         }
       }
-      buttons[Bchan1].ctext = SigColorM[TrainChan[0]];
-      buttons[Bchan1].label = str(TrainChan[0]+1);
-      buttons[Bchan1].drawButton();
-      ChannelOn[TrainChan[0]] = buttons[Bchan1].BOn;
+      buttons[bchan1].ctext = colorSigM[trainChan[0]];
+      buttons[bchan1].label = str(trainChan[0]+1);
+      buttons[bchan1].drawButton();
+      channelsOn[trainChan[0]] = buttons[bchan1].bOn;
     }
-    if (currentbutton == Bchan1down) {
-      TrainChan[0]--;
-      if (TrainChan[0]<0) {
-        TrainChan[0]=0;
+    if (currentbutton == bchan1down) {
+      trainChan[0]--;
+      if (trainChan[0]<0) {
+        trainChan[0]=0;
       }
-      if (TrainChan[0] == TrainChan[1]) {
-        TrainChan[0]--;
-        if (TrainChan[0]<0) {
-          TrainChan[0]=TrainChan[1]+1;
+      if (trainChan[0] == trainChan[1]) {
+        trainChan[0]--;
+        if (trainChan[0]<0) {
+          trainChan[0]=trainChan[1]+1;
         }
       }
-      buttons[Bchan1].ctext = SigColorM[TrainChan[0]];
-      buttons[Bchan1].label = str(TrainChan[0]+1);
-      buttons[Bchan1].drawButton();
-      ChannelOn[TrainChan[0]] = buttons[Bchan1].BOn;
+      buttons[bchan1].ctext = colorSigM[trainChan[0]];
+      buttons[bchan1].label = str(trainChan[0]+1);
+      buttons[bchan1].drawButton();
+      channelsOn[trainChan[0]] = buttons[bchan1].bOn;
     }
-    if (currentbutton == Bchan2up) {
-      TrainChan[1]++;
-      if (TrainChan[1]>=SignalNumber) {
-        TrainChan[1]=SignalNumber-1;
+    if (currentbutton == bchan2up) {
+      trainChan[1]++;
+      if (trainChan[1]>=currentSignalNumber) {
+        trainChan[1]=currentSignalNumber-1;
       }
-      if (TrainChan[1] == TrainChan[0]) {
-        TrainChan[1]++;
-        if (TrainChan[1]>=SignalNumber) {
-          TrainChan[1]=TrainChan[0]-1;
+      if (trainChan[1] == trainChan[0]) {
+        trainChan[1]++;
+        if (trainChan[1]>=currentSignalNumber) {
+          trainChan[1]=trainChan[0]-1;
         }
       }
-      buttons[Bchan2].ctext = SigColorM[TrainChan[1]];
-      buttons[Bchan2].label = str(TrainChan[1]+1);
-      buttons[Bchan2].drawButton();
-      ChannelOn[TrainChan[1]] = buttons[Bchan2].BOn;
+      buttons[bchan2].ctext = colorSigM[trainChan[1]];
+      buttons[bchan2].label = str(trainChan[1]+1);
+      buttons[bchan2].drawButton();
+      channelsOn[trainChan[1]] = buttons[bchan2].bOn;
     }
-    if (currentbutton == Bchan2down) {
-      TrainChan[1]--;
-      if (TrainChan[1]<0) {
-        TrainChan[1]=0;
+    if (currentbutton == bchan2down) {
+      trainChan[1]--;
+      if (trainChan[1]<0) {
+        trainChan[1]=0;
       }
-      if (TrainChan[1] == TrainChan[0]) {
-        TrainChan[1]--;
-        if (TrainChan[1]<0) {
-          TrainChan[1]=TrainChan[0]+1;
+      if (trainChan[1] == trainChan[0]) {
+        trainChan[1]--;
+        if (trainChan[1]<0) {
+          trainChan[1]=trainChan[0]+1;
         }
       }
-      buttons[Bchan2].ctext = SigColorM[TrainChan[1]];
-      buttons[Bchan2].label = str(TrainChan[1]+1);
-      buttons[Bchan2].drawButton();
-      ChannelOn[TrainChan[1]] = buttons[Bchan2].BOn;
+      buttons[bchan2].ctext = colorSigM[trainChan[1]];
+      buttons[bchan2].label = str(trainChan[1]+1);
+      buttons[bchan2].drawButton();
+      channelsOn[trainChan[1]] = buttons[bchan2].bOn;
     }
-    if (currentbutton == Bthresh1up) {
-      RepThresh[0]+=RepThreshStep;
-      if (RepThresh[0]>=MaxSignalVal) {
-        RepThresh[0]=MaxSignalVal;
+    if (currentbutton == bthresh1up) {
+      repThresh[0]+=repThreshStep;
+      if (repThresh[0]>=maxSignalVal) {
+        repThresh[0]=maxSignalVal;
       }
     }
-    if (currentbutton == Bthresh1down) {
-      RepThresh[0]-=RepThreshStep;
-      if (RepThresh[0]<0) {
-        RepThresh[0]=0;
+    if (currentbutton == bthresh1down) {
+      repThresh[0]-=repThreshStep;
+      if (repThresh[0]<0) {
+        repThresh[0]=0;
       }
     }
-    if (currentbutton == Bthresh2up) {
-      RepThresh[1]+=RepThreshStep;
-      if (RepThresh[1]>=MaxSignalVal) {
-        RepThresh[1]=MaxSignalVal;
+    if (currentbutton == bthresh2up) {
+      repThresh[1]+=repThreshStep;
+      if (repThresh[1]>=maxSignalVal) {
+        repThresh[1]=maxSignalVal;
       }
     }
-    if (currentbutton == Bthresh2down) {
-      RepThresh[1]-=RepThreshStep;
-      if (RepThresh[1]<0) {
-        RepThresh[1]=0;
+    if (currentbutton == bthresh2down) {
+      repThresh[1]-=repThreshStep;
+      if (repThresh[1]<0) {
+        repThresh[1]=0;
       }
     }
   }
 
   public void drawHelp() {
+    drawGenericHelp();
   }
 
   public void drawTrace() {
     int sigtmp = 0;
     loadPixels();
     while (datacounter > 1) {
-      xPos++;//=DownSampleCount;
-      if (xPos >= plotwidth && !PauseFlag) {
+      xPos++;//=downSampleCount;
+      if (xPos >= plotwidth && !pauseFlag) {
         xPos = -1;
         updatePixels();
         return;
       }
-      else if (xPos >= plotwidth && PauseFlag) {
+      else if (xPos >= plotwidth && pauseFlag) {
         xPos = plotwidth-1;
         updatePixels();
         return;
       }
       else if (xPos == 0) {
         updatePixels();
-        blankplot();
+        blankPlot();
         return;
       }
 
-      for (int j = 0; j < SignalNumber;j++) {
-        if (ChannelOn[j]) {
-          if (j == TrainChan[0] || j == TrainChan[1]) {
-            int tmpind = signalindex-datacounter;//*DownSampleCount;
+      for (int j = 0; j < currentSignalNumber;j++) {
+        if (channelsOn[j]) {
+          if (j == trainChan[0] || j == trainChan[1]) {
+            int tmpind = signalindex-datacounter;//*downSampleCount;
             while (tmpind < 0) {
-              tmpind+=MaxSignalLength;
+              tmpind+=maxSignalLength;
             }
-            if (j == TrainChan[0]) {
-              sigtmp = PApplet.parseInt(map((signalIn[j][tmpind]+Calibration[j] - HalfSignalVal)*VoltScale, 0, MaxSignalVal, plotheight/2, plotheight));
+            if (j == trainChan[0]) {
+              sigtmp = PApplet.parseInt(map((signalIn[j][tmpind]+calibration[j] - halfSignalVal)*scaleVoltage, 0, maxSignalVal, plotheight/2, plotheight));
               sigtmp = constrain(sigtmp, plotheight/2+pointThickness+1, plotheight-pointThickness-1);
             }
-            if (j==TrainChan[1]) {
-              sigtmp = PApplet.parseInt(map((signalIn[j][tmpind]+Calibration[j] - HalfSignalVal)*VoltScale, 0, MaxSignalVal, 0, plotheight/2));
+            if (j==trainChan[1]) {
+              sigtmp = PApplet.parseInt(map((signalIn[j][tmpind]+calibration[j] - halfSignalVal)*scaleVoltage, 0, maxSignalVal, 0, plotheight/2));
               sigtmp = constrain(sigtmp, pointThickness+1, plotheight/2 - pointThickness-1)-plot2offset;
             }
-            drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, SigColorM[j], pointThickness);
+            drawMyLine(xPos+xStep-1, ytmp - oldPlotSignal[j], xPos+xStep, ytmp - sigtmp, colorSigM[j], pointThickness);
             oldPlotSignal[j] = sigtmp;
           }
         }
@@ -2967,72 +2971,72 @@ public class WorkoutPage implements pagesClass {
     strokeWeight(1);
 
     // channel 1
-    sigtmp = PApplet.parseInt(map(RepThresh[0], 0, MaxSignalVal, plotheight/2, plotheight));
+    sigtmp = PApplet.parseInt(map(repThresh[0], 0, maxSignalVal, plotheight/2, plotheight));
     sigtmp = constrain(sigtmp, plotheight/2 + pointThickness, plotheight-pointThickness);
     line(xStep, ytmp-sigtmp, xStep+plotwidth, ytmp-sigtmp);
 
     // channel 2
-    sigtmp = PApplet.parseInt(map(RepThresh[1], 0, MaxSignalVal, 0-plot2offset, plotheight/2-plot2offset));
+    sigtmp = PApplet.parseInt(map(repThresh[1], 0, maxSignalVal, 0-plot2offset, plotheight/2-plot2offset));
     sigtmp = constrain(sigtmp, pointThickness-plot2offset, plotheight/2-pointThickness-plot2offset);
     line(xStep, ytmp-sigtmp, xStep+plotwidth, ytmp-sigtmp);
   }
 
-  public void resetWorkout() {
-    ChanFlexed[0] = false;
-    ChanFlexed[0] = false;
-    RepsCounter[0] = 0;
-    RepsCounter[1] = 0;
-    FlexOnCounter[0] = 0;
-    FlexOnCounter[1] = 0;
-    if (TrainingMode == TRepCounter) {
-      ClearRepBar(3);
-      LabelRepBar(3);
+  public void resetworkout() {
+    chanFlexed[0] = false;
+    chanFlexed[0] = false;
+    repsCounter[0] = 0;
+    repsCounter[1] = 0;
+    flexOnCounter[0] = 0;
+    flexOnCounter[1] = 0;
+    if (trainingMode == tRepCounter) {
+      clearRepBar(3);
+      labelRepBar(3);
     }
-    else if (TrainingMode == TDataLogger) {
-      TMax = new int[2][100];
-      ClearRepBar(3);
-      LabelTData();
+    else if (trainingMode == tDataLogger) {
+      tMax = new int[2][100];
+      clearRepBar(3);
+      labelTData();
     }
   }
 
-  public void LabelTData() {
+  public void labelTData() {
     textAlign(CENTER, CENTER);
     stroke(0);
     fill(0);
     text("Max Voltages", xStep+880, 40);
   }
 
-  public void CountReps() {
+  public void countreps() {
     int tmpind = 0;
     tmpind = signalindex-datacounter;
     while (tmpind < 0) {
-      tmpind+=MaxSignalLength;
+      tmpind+=maxSignalLength;
     }
     for (int i = 0; i < 2; i++) {
-      if (ChannelOn[TrainChan[i]]) {
-        if ((signalIn[TrainChan[i]][tmpind]-HalfSignalVal)>RepThresh[i]) {
-          if (!ChanFlexed[i]) {
-            FlexOnCounter[i]++;
-            if (FlexOnCounter[i] > 2) {
-              ChanFlexed[i] = true;
-              if (RepsCounter[i] < RepsTarget[i]) {
-                RepsCounter[i]++;
+      if (channelsOn[trainChan[i]]) {
+        if ((signalIn[trainChan[i]][tmpind]-halfSignalVal)>repThresh[i]) {
+          if (!chanFlexed[i]) {
+            flexOnCounter[i]++;
+            if (flexOnCounter[i] > 2) {
+              chanFlexed[i] = true;
+              if (repsCounter[i] < repsTarget[i]) {
+                repsCounter[i]++;
               }
-              FlexOnCounter[i]=0;
+              flexOnCounter[i]=0;
             }
           }
         }
-        else if ((signalIn[TrainChan[i]][tmpind]-HalfSignalVal)<RepThresh[i]) {
-          ChanFlexed[i] = false;
-          FlexOnCounter[i] = 0;
+        else if ((signalIn[trainChan[i]][tmpind]-halfSignalVal)<repThresh[i]) {
+          chanFlexed[i] = false;
+          flexOnCounter[i] = 0;
         }
       }
     }
   }
 
-  public void ClearRepBar(int barN) {
-    fill(backgroundcolor);
-    stroke(backgroundcolor);
+  public void clearRepBar(int barN) {
+    fill(colorBackground);
+    stroke(colorBackground);
     rectMode(CENTER);
     if (barN == 1 || barN == 3) {
       rect(xStep+plotwidth+200, yTitle+plotheight/2, 80, plotheight-40);
@@ -3043,73 +3047,73 @@ public class WorkoutPage implements pagesClass {
   }
 
   public void drawRepBar() {
-    if (ChannelOn[TrainChan[0]]) {
-      int top = min(plotheight, PApplet.parseInt(map(RepsCounter[0], 0, RepsTarget[0], 0, plotheight-60)));
+    if (channelsOn[trainChan[0]]) {
+      int top = min(plotheight, PApplet.parseInt(map(repsCounter[0], 0, repsTarget[0], 0, plotheight-60)));
       rectMode(CENTER);
       stroke(0);
       strokeWeight(2);
-      fill(SigColorM[TrainChan[0]]);
-      rect(xStep+plotwidth+200, ytmp-top/2-20, RepBarWidth, top);
+      fill(colorSigM[trainChan[0]]);
+      rect(xStep+plotwidth+200, ytmp-top/2-20, repBarWidth, top);
     }
-    if (ChannelOn[TrainChan[1]]) {
-      int top = min(plotheight, PApplet.parseInt(map(RepsCounter[1], 0, RepsTarget[1], 0, plotheight-60)));
+    if (channelsOn[trainChan[1]]) {
+      int top = min(plotheight, PApplet.parseInt(map(repsCounter[1], 0, repsTarget[1], 0, plotheight-60)));
       rectMode(CENTER);
       stroke(0);
-      fill(SigColorM[TrainChan[1]]);
-      rect(xStep+plotwidth+300, ytmp-top/2-20, RepBarWidth, top);
+      fill(colorSigM[trainChan[1]]);
+      rect(xStep+plotwidth+300, ytmp-top/2-20, repBarWidth, top);
     }
     rectMode(CENTER);
   }
 
-  public void LabelRepBar(int ChanN) {
+  public void labelRepBar(int ChanN) {
     int val;
     textAlign(CENTER, CENTER);
-    stroke(labelcolor);
-    fill(labelcolor);
+    stroke(colorLabel);
+    fill(colorLabel);
     if (ChanN == 1 || ChanN == 3) {
-      if (ChannelOn[TrainChan[0]]) {
+      if (channelsOn[trainChan[0]]) {
         val = 0;
-        for (int i = 0; i <= RepsTarget[0]; i++) {
-          text(nf(val, 1, 0), plotwidth+220, ytmp - 20 - PApplet.parseInt(map(val, 0, RepsTarget[0], 0, plotheight-60)));
+        for (int i = 0; i <= repsTarget[0]; i++) {
+          text(nf(val, 1, 0), plotwidth+220, ytmp - 20 - PApplet.parseInt(map(val, 0, repsTarget[0], 0, plotheight-60)));
           val ++;
         }
-        text(buttons[Bchan1].label, plotwidth+260, yTitle+20);
+        text(buttons[bchan1].label, plotwidth+260, yTitle+20);
       }
     }
     if (ChanN == 2 || ChanN == 3) {
-      if (ChannelOn[TrainChan[1]]) {
+      if (channelsOn[trainChan[1]]) {
         val = 0;
-        for (int i = 0; i <= RepsTarget[1]; i++) {
-          text(nf(val, 1, 0), plotwidth+320, ytmp - 20 - PApplet.parseInt(map(val, 0, RepsTarget[1], 0, plotheight-60)));
+        for (int i = 0; i <= repsTarget[1]; i++) {
+          text(nf(val, 1, 0), plotwidth+320, ytmp - 20 - PApplet.parseInt(map(val, 0, repsTarget[1], 0, plotheight-60)));
           val ++;
         }
-        text(buttons[Bchan2].label, plotwidth+360, yTitle+20);
+        text(buttons[bchan2].label, plotwidth+360, yTitle+20);
       }
     }
   }
 
-  public void TLogData() {
+  public void tLogData() {
     for (int i = 0; i < 2; i++) {
-      if (ChannelOn[i]) {
-        if (signalIn[TrainChan[i]][signalindex]>DataThresh[i]) {
-          if (!ChanFlexed[i]) {
-            FlexOnCounter[i]++;
-            if (FlexOnCounter[i] > 15) {
-              ChanFlexed[i] = true;
-              RepsCounter[i]++;
-              //FlexOnCounter[i]=0;
+      if (channelsOn[i]) {
+        if (signalIn[trainChan[i]][signalindex]>dataThresh[i]) {
+          if (!chanFlexed[i]) {
+            flexOnCounter[i]++;
+            if (flexOnCounter[i] > 15) {
+              chanFlexed[i] = true;
+              repsCounter[i]++;
+              //flexOnCounter[i]=0;
             }
           }
-          else if (ChanFlexed[i]) {
-            TMax[i][RepsCounter[i]] = max(TMax[i][RepsCounter[i]], PApplet.parseInt(signalIn[TrainChan[i]][signalindex]));
+          else if (chanFlexed[i]) {
+            tMax[i][repsCounter[i]] = max(tMax[i][repsCounter[i]], PApplet.parseInt(signalIn[trainChan[i]][signalindex]));
           }
         }
-        else if (signalIn[TrainChan[i]][signalindex]<DataThresh[i]) {
-          if (ChanFlexed[i]) {
-            FlexOnCounter[i]--;
-            if (FlexOnCounter[i] <= 0) {
-              ChanFlexed[i] = false;
-              FlexOnCounter[i] = 0;
+        else if (signalIn[trainChan[i]][signalindex]<dataThresh[i]) {
+          if (chanFlexed[i]) {
+            flexOnCounter[i]--;
+            if (flexOnCounter[i] <= 0) {
+              chanFlexed[i] = false;
+              flexOnCounter[i] = 0;
             }
           }
         }
@@ -3122,19 +3126,19 @@ public class WorkoutPage implements pagesClass {
     int sigtmp = 0;
     for (int i = 0; i < 100; i++) {
       int j = 0;
-      if (ChannelOn[j]) {
+      if (channelsOn[j]) {
         stroke(0, 255, 0);
         fill(0, 255, 0);
-        sigtmp = PApplet.parseInt(map(TMax[j][i], MaxSignalVal/2, MaxSignalVal, 0, plotheight));
+        sigtmp = PApplet.parseInt(map(tMax[j][i], maxSignalVal/2, maxSignalVal, 0, plotheight));
         sigtmp = max(sigtmp, 0);
         line(xstart, yTitle+plotheight/2, xstart, yTitle+plotheight/2-sigtmp);
         line(xstart+1, yTitle+plotheight/2, xstart+1, yTitle+plotheight/2-sigtmp);
       }
       j = 1;
-      if (ChannelOn[j]) {
+      if (channelsOn[j]) {
         stroke(0, 0, 255);
         fill(0, 0, 255);
-        sigtmp = PApplet.parseInt(map(TMax[j][i], MaxSignalVal/2, MaxSignalVal, 0, plotheight));
+        sigtmp = PApplet.parseInt(map(tMax[j][i], maxSignalVal/2, maxSignalVal, 0, plotheight));
         sigtmp = max(sigtmp, 0);
         line(xstart, yTitle+plotheight, xstart, yTitle+plotheight-sigtmp);
         line(xstart+1, yTitle+plotheight, xstart+1, yTitle+plotheight-sigtmp);
@@ -3150,44 +3154,51 @@ public class WorkoutPage implements pagesClass {
 public class TargetPracticePage implements pagesClass {
   // variables
   GuiButton[] buttons;
-  int ButtonNum = 0;
+  int buttonNumber = 0;
   int
-    Bclear = ButtonNum++, 
-  Bpause = ButtonNum++, 
-  Bchan1 = ButtonNum++, 
-  Bchan2 = ButtonNum++, 
-  Bchan1up = ButtonNum++, 
-  Bchan2up = ButtonNum++, 
-  Bchan1down = ButtonNum++, 
-  Bchan2down = ButtonNum++;
+    bclear = buttonNumber++, 
+  bpause = buttonNumber++, 
+//  bchan1 = buttonNumber++, 
+//  bchan2 = buttonNumber++, 
+  b2chctrl = buttonNumber++,
+  b4chctrl = buttonNumber++,
+  badjustthresh = buttonNumber++;
+//  bchan1up = buttonNumber++, 
+//  bchan2up = buttonNumber++, 
+//  bchan3up = buttonNumber++, 
+//  bchan4up = buttonNumber++, 
+//  bchan1down = buttonNumber++, 
+//  bchan2down = buttonNumber++, 
+//  bchan3down = buttonNumber++, 
+//  bchan4down = buttonNumber++;
 
   // MouseGame
-  int GameTargetX;
-  int GameTargetY;
-  int GamedelayTime = 10;
-  int GamedelayTimeMin = 1;
-  int GamedelayTimeMax = 10;
-  int GamedelayTimeIncrement = 1;
-  int GamenextStep;
-  int Gametargetsize = 60;
-  int GameScore = 0;
-  boolean MouseTuneFlag = false;
-  char MouseAxis = 'X';
-  boolean MouseXAxisFlip = false;
-  boolean MouseYAxisFlip = false;
+  int gameTargetX;
+  int gameTargetY;
+  int gamedelayTime = 10;
+  int gamedelayTimeMin = 1;
+  int gamedelaymaxPlotTime = 10;
+  int gamedelayTimeIncrement = 1;
+  int gamenextStep;
+  int gametargetsize = 60;
+  int gameScore = 0;
+  boolean mouseTuneFlag = false;
+  char mouseAxis = 'X';
+  boolean mouseXAxisFlip = false;
+  boolean mouseYAxisFlip = false;
 
-
-  int MouseThreshStandOff = 5;
-  int MouseThreshInd = 0;
-  int XMouseFactor1 = 2;
-  int XMouseFactor2 = 2;
-  int XMouseFactor3 = 2;
-  int YMouseFactor1 = 2;
-  int YMouseFactor2 = 2;
-  int YMouseFactor3 = 2;
-  int MouseX=0, MouseY=0;
-  int MouseSpeed = 3;
-  boolean ButtonPressedFlag = false;
+  int threshStep = 4;
+  int mouseThreshStandOff = 5;
+  int mouseThreshInd = 0;
+  int xMouseFactor1 = 2;
+  int xMouseFactor2 = 2;
+  int xMouseFactor3 = 2;
+  int yMouseFactor1 = 2;
+  int yMouseFactor2 = 2;
+  int yMouseFactor3 = 2;
+  int xMouse=0, yMouse=0;
+  int mouseSpeed = 3;
+  boolean buttonPressedFlag = false;
   String pageName = "Target Practice";
 
   // constructor
@@ -3198,59 +3209,66 @@ public class TargetPracticePage implements pagesClass {
   }
 
   public void initializeButtons() {
-    buttons = new GuiButton[ButtonNum];
+    buttons = new GuiButton[buttonNumber];
     int buttony = yTitle+195;
     int controlsy = yTitle+30;
-    buttons[Bpause]    = new GuiButton("Pause", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
-    buttons[Bclear]    = new GuiButton("Clear", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
-    buttons[Bchan1up]  = new GuiButton("MChan1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
-    buttons[Bchan1down]= new GuiButton("MChan1down", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
-    buttons[Bchan1]    = new GuiButton("MChan1", ' ', dummypage, xStep+plotwidth+50, yTitle+200, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[0]], ""+(MouseChan[0]+1), Bonoff, true);
-    buttons[Bchan2up]  = new GuiButton("MChan2up", ' ', dummypage, xStep+plotwidth+80, yTitle+260, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
-    buttons[Bchan2down]= new GuiButton("MChan2down", ' ', dummypage, xStep+plotwidth+16, yTitle+260, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
-    buttons[Bchan2]    = new GuiButton("MChan2", ' ', dummypage, xStep+plotwidth+50, yTitle+260, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[1]], ""+(MouseChan[1]+1), Bonoff, true);
+    buttons[bpause]        = new GuiButton("Pause",    'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Play", bOnOff, false, showButton);
+    buttons[bclear]        = new GuiButton("Clear",    'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false, showButton);
+    buttons[b2chctrl]      = new GuiButton("M2chCtrl", '2', dummypage, xStep+plotwidth+27, yTitle+150, 36, bheight, color(colorBIdle), color(0), "2Ch", bOnOff, true, showButton);
+    buttons[b4chctrl]      = new GuiButton("M4chCtrl", '4', dummypage, xStep+plotwidth+63, yTitle+150, 36, bheight, color(colorBIdle), color(0), "4Ch", bOnOff, false, showButton);
+    buttons[badjustthresh] = new GuiButton("Adjthresh",'a', dummypage, xStep+90, yTitle+plotheight+20, 170, bheight, color(colorBIdle), color(0), "Adjust Thresholds 'a'", bOnOff, false, showButton);
+
+//    buttons[bchan1up]  = new GuiButton("MChan1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+//    buttons[bchan1down]= new GuiButton("MChan1down", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+//    buttons[bchan2up]  = new GuiButton("MChan2up", ' ', dummypage, xStep+plotwidth+80, yTitle+250, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+//    buttons[bchan2down]= new GuiButton("MChan2down", ' ', dummypage, xStep+plotwidth+16, yTitle+250, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+//    buttons[bchan3up]  = new GuiButton("MChan3up", ' ', dummypage, xStep+plotwidth+80, yTitle+300, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, hideButton);
+//    buttons[bchan3down]= new GuiButton("MChan3down", ' ', dummypage, xStep+plotwidth+16, yTitle+300, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, hideButton);
+//    buttons[bchan4up]  = new GuiButton("MChan4up", ' ', dummypage, xStep+plotwidth+80, yTitle+350, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, hideButton);
+//    buttons[bchan4down]= new GuiButton("MChan5down", ' ', dummypage, xStep+plotwidth+16, yTitle+350, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, hideButton);
+
   }
 
   public void switchToPage() {
-    plotwidth = FullPlotWidth;
+    plotwidth = fullPlotWidth;
 
-    DownSampleCount = DownSampleCountMouse; //!!!!!!!!!!!!!!!
-    UserFreqIndex = UserFreqIndexMouse;
-    UserFrequency = UserFreqArray[UserFreqIndex];
-    CheckSerialDelay = (long)max( CheckSerialMinTime, 1000.0f/((float)UserFrequency/CheckSerialNSamples) );
+    downSampleCount = downSampleCountMouse; //!!!!!!!!!!!!!!!
+    userFreqIndex = userFreqIndexMouse;
+    userFrequency = userFreqArray[userFreqIndex];
+    checkSerialDelay = (long)max( checkSerialMinTime, 1000.0f/((float)userFrequency/checkSerialNSamples) );
 
-    PauseFlag = true;
-    SmoothFilterFlag = true;
-    BitDepth10 = false;
-    ChannelOn[MouseChan[0]] = true;
-    ChannelOn[MouseChan[1]] = true;
-    buttons[Bchan1].BOn = ChannelOn[MouseChan[0]];
-    buttons[Bchan2].BOn = ChannelOn[MouseChan[1]];
-    buttons[Bpause].BOn = PauseFlag;
+    pauseFlag = true;
+    smoothFilterFlag = true;
+    bitDepth10 = false;
+    channelsOn[mouseChan[0]] = true;
+    channelsOn[mouseChan[1]] = true;
+//    buttons[bchan1].bOn = channelsOn[mouseChan[0]];
+//    buttons[bchan2].bOn = channelsOn[mouseChan[1]];
+    buttons[bpause].bOn = pauseFlag;
 
-    UpdateSettings();
-    //    background(backgroundcolor);
+    updateSettings();
+    //    background(colorBackground);
     labelAxes();
-    blankplot();
+    blankPlot();
     drawTarget();
-    GamenextStep = second()+GamedelayTime;
-    println(GamenextStep);
-    GameScore = 0;
+    gamenextStep = second()+gamedelayTime;
+    println(gamenextStep);
+    gameScore = 0;
     println("Mouse Turned ON");
-    MouseX = xx+width/2;
-    MouseY = yy+height/2;
-    robot.mouseMove(MouseX, MouseY);
-    MouseTuneFlag = false;
+    xMouse = xx+width/2;
+    yMouse = yy+height/2;
+    robot.mouseMove(xMouse, yMouse);
+    mouseTuneFlag = false;
   }
 
   public void drawPage() {
     // draw subfunctions
-    if (ButtonPressedFlag) {
-      if (millis() > ButtonColorTimer) {
-        ButtonPressedFlag = false;
+    if (buttonPressedFlag) {
+      if (millis() > buttonColorTimer) {
+        buttonPressedFlag = false;
         println("Current Button = " + currentbutton);
         if (buttons[currentbutton] != null && currentbutton < buttons.length) {
-          buttons[currentbutton].ChangeColorUnpressed();
+          buttons[currentbutton].changeColorUnpressed();
         }
       }
     }
@@ -3263,104 +3281,152 @@ public class TargetPracticePage implements pagesClass {
   }
 
   public void labelAxes() {
-    fill(labelcolor);
-    stroke(labelcolor);
+    fill(colorLabel);
+    stroke(colorLabel);
     strokeWeight(2);
     textAlign(CENTER, CENTER);
 
     // title
     textSize(titlesize);
-    text("Flex Mouse", xStep+FullPlotWidth/2+20, yTitle-45);
-
-    textSize(labelsizes);
-    text("'p' or pause/play = toggle control of your mouse pointer.", xStep+plotwidth/2, yTitle+plotheight+9);
-    text("'k' = set sensitivity for mouse control.", xStep+plotwidth/2, yTitle+plotheight+26);
-    text("x=left/right", xStep+plotwidth+barwidth/2, yTitle+120);
-    text("y=up/down", xStep+plotwidth+barwidth/2, yTitle+140);
-    // text("Select which input channel controls X (left/right) and Y(up/down) axes.",width/2,yTitle+plotheight+25);
+    text("Flex Mouse", xStep+fullPlotWidth/2+20, yTitle-45);
 
 
-    // blankplot();
+    // blankPlot();
     for (int i = 0; i < buttons.length; i++) {
       buttons[i].drawButton();
     }
+    
     textSize(labelsize);
-    text("X-Axis", xStep+FullPlotWidth+50, yTitle+170);
-    text("Y-Axis", xStep+FullPlotWidth+50, yTitle+230);
-    text("Plotting", xStep+FullPlotWidth+45, yTitle+10);
+    text("Plotting", xStep+fullPlotWidth+45, yTitle+10);
+    text("Control", xStep+fullPlotWidth+45,yTitle+100);
+    text("Mode", xStep+fullPlotWidth+45,yTitle+120);
+    
+    textSize(labelsizes);
+    text("'p' (pause) to get your mouse back!", xStep+plotwidth/2+80, yTitle+plotheight+15);
+//    text("'k' = set sensitivity for mouse control.", xStep+plotwidth/2, yTitle+plotheight+26);
+//    text("x=left/right", xStep+plotwidth+barWidth/2, yTitle+120);
+//    text("y=up/down", xStep+plotwidth+barWidth/2, yTitle+140);
+    
+    
+    if (buttons[b2chctrl].bOn){
+      textSize(labelsizexs);
+      text("X-Axis", xStep+fullPlotWidth+30, yTitle+190);
+      text("Y-Axis", xStep+fullPlotWidth+30, yTitle+220);
+      
+      
+      fill(colorPlotBackground);
+      rect(xStep+plotwidth+70, yTitle+190, 25, bheight);
+      rect(xStep+plotwidth+70, yTitle+220, 25, bheight);
+      fill(colorSigM[mouseChan[0]]);
+      text(""+(mouseChan[0]+1),xStep+plotwidth+70, yTitle+190-2);
+      fill(colorSigM[mouseChan[1]]);
+      text(""+(mouseChan[1]+1),xStep+plotwidth+70, yTitle+220-2);
+    } else if (buttons[b4chctrl].bOn){
+      textSize(labelsizexs);
+      text("Left",  xStep+fullPlotWidth+30, yTitle+190);
+      text("Right", xStep+fullPlotWidth+30, yTitle+220);
+      text("Up",    xStep+fullPlotWidth+30, yTitle+250);
+      text("Down",  xStep+fullPlotWidth+30, yTitle+280);
+      
+      
+      fill(colorPlotBackground);
+      rect(xStep+plotwidth+70, yTitle+190, 25, bheight);
+      rect(xStep+plotwidth+70, yTitle+220, 25, bheight);
+      rect(xStep+plotwidth+70, yTitle+250, 25, bheight);
+      rect(xStep+plotwidth+70, yTitle+280, 25, bheight);
+      fill(colorSigM[mouseChan[0]]);
+      text(""+(mouseChan[0]+1),xStep+plotwidth+70, yTitle+190-2);
+      fill(colorSigM[mouseChan[1]]);
+      text(""+(mouseChan[1]+1),xStep+plotwidth+70, yTitle+220-2);
+      fill(colorSigM[mouseChan[2]]);
+      text(""+(mouseChan[2]+1),xStep+plotwidth+70, yTitle+250-2);
+      fill(colorSigM[mouseChan[3]]);
+      text(""+(mouseChan[3]+1),xStep+plotwidth+70, yTitle+280-2);
+    }
   }
 
   public boolean useKeyPressedOrMousePressed(int x, int y, char tkey, int tkeyCode, int inputDev) {
     boolean outflag = false;
 
     if (key == 'F' || key == 'f') {
-      if (MouseAxis == 'X') {
-        MouseXAxisFlip = !MouseXAxisFlip;
-        print("MouseXAxis Flipped. Axis = ");
-        println(MouseXAxisFlip);
+      if (mouseAxis == 'X') {
+        mouseXAxisFlip = !mouseXAxisFlip;
+        print("xMouseAxis Flipped. Axis = ");
+        println(mouseXAxisFlip);
       }
-      else if (MouseAxis == 'Y') {
-        MouseYAxisFlip = !MouseYAxisFlip;
+      else if (mouseAxis == 'Y') {
+        mouseYAxisFlip = !mouseYAxisFlip;
         print("MouseYAxis Flipped. Axis = ");
-        println(MouseYAxisFlip);
+        println(mouseYAxisFlip);
       }
       //      outflag = true;
       return outflag = true;
     }
     if (key == 'K' || key == 'k') {
-      MouseTuneFlag = !MouseTuneFlag;
-      if (!MouseTuneFlag) {
+      mouseTuneFlag = !mouseTuneFlag;
+      if (!mouseTuneFlag) {
         drawTarget();
-        GamenextStep = second()+GamedelayTime;
-        println(GamenextStep);
-        GameScore = 0;
+        gamenextStep = second()+gamedelayTime;
+        println(gamenextStep);
+        gameScore = 0;
       }
       outflag = true;
     }
-    if (MouseTuneFlag) {
+    if (mouseTuneFlag) {
       if (key == CODED) {
         if (keyCode == LEFT) {
-          MouseThreshInd --;
-          if (MouseThreshInd < 0) {
-            MouseThreshInd = 3;
+          mouseThreshInd --;
+          if (mouseThreshInd < 0) {
+            mouseThreshInd = 3;
           }
           outflag = true;
         }
         else if (keyCode == RIGHT) {
-          MouseThreshInd ++;
-          if (MouseThreshInd > 3) {
-            MouseThreshInd = 0;
+          mouseThreshInd ++;
+          if (mouseThreshInd > 3) {
+            mouseThreshInd = 0;
           }
           outflag = true;
         }
         else if (keyCode == UP) {
-
-          if (MouseThreshInd == YLow && MouseThresh[YLow] > (MouseThresh[YHigh]-MouseThreshStandOff)) {
-            // do nothing - can't have low >= high!
+          if (buttons[b2chctrl].bOn){
+            if (mouseThreshInd == thresh2chyLow && mouseThresh2Ch[thresh2chyLow] > (mouseThresh2Ch[thresh2chyHigh]-mouseThreshStandOff)) {
+              // do nothing - can't have low >= high!
+            }
+            else if (mouseThreshInd == thresh2chxLow && mouseThresh2Ch[thresh2chxLow] > (mouseThresh2Ch[thresh2chxHigh]-mouseThreshStandOff)) {
+              // do nothing - can't have low >= high!
+            }
+            else {
+              mouseThresh2Ch[mouseThreshInd] = constrain(mouseThresh2Ch[mouseThreshInd]+threshStep, maxSignalVal, maxSignalVal*2);
+            }
+            println("New mouseThresh = "+mouseThresh2Ch[mouseThreshInd]);
           }
-          else if (MouseThreshInd == XLow && MouseThresh[XLow] > (MouseThresh[XHigh]-MouseThreshStandOff)) {
-            // do nothing - can't have low >= high!
-          }
-          else {
-            MouseThresh[MouseThreshInd]+=2;
-            MouseThresh[MouseThreshInd] = constrain(MouseThresh[MouseThreshInd], MaxSignalVal, MaxSignalVal*2);
+          else if (buttons[b4chctrl].bOn){
+            mouseThresh4Ch[mouseThreshInd] = constrain(mouseThresh4Ch[mouseThreshInd]+threshStep, maxSignalVal, maxSignalVal*2);
+            println("ind = "+mouseThreshInd+", New mouseThresh = "+mouseThresh4Ch[mouseThreshInd]);
           }
           outflag = true;
         }
         else if (keyCode == DOWN) {
-          if (MouseThreshInd == YHigh && MouseThresh[YLow] > (MouseThresh[YHigh]-MouseThreshStandOff)) {
-            // do nothing - can't have low >= high!
+          if (buttons[b2chctrl].bOn){
+            if (mouseThreshInd == thresh2chyHigh && mouseThresh2Ch[thresh2chyLow] > (mouseThresh2Ch[thresh2chyHigh]-mouseThreshStandOff)) {
+              // do nothing - can't have low >= high!
+            }
+            else if (mouseThreshInd == thresh2chxHigh && mouseThresh2Ch[thresh2chxLow] > (mouseThresh2Ch[thresh2chxHigh]-mouseThreshStandOff)) {
+              // do nothing - can't have low >= high!
+            }
+            else {
+              mouseThresh2Ch[mouseThreshInd] = constrain(mouseThresh2Ch[mouseThreshInd]-threshStep, maxSignalVal, maxSignalVal*2);
+            }
+            println("New mouseThresh = "+mouseThresh2Ch[mouseThreshInd]);
           }
-          else if (MouseThreshInd == XHigh && MouseThresh[XLow] > (MouseThresh[XHigh]-MouseThreshStandOff)) {
-            // do nothing - can't have low >= high!
-          }
-          else {
-            MouseThresh[MouseThreshInd]-=2;
-            MouseThresh[MouseThreshInd] = constrain(MouseThresh[MouseThreshInd], MaxSignalVal, MaxSignalVal*2);
+          else if (buttons[b4chctrl].bOn){
+            mouseThresh4Ch[mouseThreshInd] = constrain(mouseThresh4Ch[mouseThreshInd]-threshStep, maxSignalVal, maxSignalVal*2);
+            println("ind = "+mouseThreshInd+", New mouseThresh = "+mouseThresh4Ch[mouseThreshInd]);
           }
           outflag = true;
         }
-        println("New MouseThresh = "+MouseThresh[MouseThreshInd]);
+        
       }
     }
 
@@ -3369,93 +3435,140 @@ public class TargetPracticePage implements pagesClass {
       if (buttons[i] != null) {
         if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
           outflag = true;
-          buttons[i].BOn = !buttons[i].BOn;
-          buttons[i].ChangeColorPressed();
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
+//          buttons[i].bOn = !buttons[i].bOn;
+          if (buttons[i].bMomentary){
+            buttons[i].changeColorPressed();
+            buttonColorTimer = millis()+buttonColorDelay;
+            buttonPressedFlag = true;
+          }
           currentbutton = i;
 
-          if (currentbutton == Bclear) {
-            blankplot();
+          if (currentbutton == badjustthresh){
+            mouseTuneFlag = !mouseTuneFlag;
+            buttons[i].bOn = !buttons[i].bOn;
+            if (!mouseTuneFlag) {
+              drawTarget();
+              gamenextStep = second()+gamedelayTime;
+              println(gamenextStep);
+              gameScore = 0;
+            }
+          }
+          if (currentbutton == bclear) {
+            blankPlot();
             labelAxes();
             println("Plot Cleared");
           }
-          if (currentbutton == Bpause) {
-            PauseFlag = !PauseFlag;
-            if (!PauseFlag) {
+          if (currentbutton == bpause) {
+            pauseFlag = !pauseFlag;
+            buttons[i].bOn = !buttons[i].bOn;
+            if (!pauseFlag) {
               buttons[currentbutton].label = "Pause";
               buttons[currentbutton].drawButton();
             }
-            else if (PauseFlag) {
+            else if (pauseFlag) {
               buttons[currentbutton].label = "Play";
               buttons[currentbutton].drawButton();
             }
             println("Pause Toggled");
           }
-          if (currentbutton == Bchan1up) {
-            MouseChan[0]++;
-            if (MouseChan[0]>=SignalNumber) {
-              MouseChan[0]=SignalNumber-1;
+          if (currentbutton == b2chctrl){
+            if (!buttons[currentbutton].bOn){
+              buttons[currentbutton].bOn = true;
+              buttons[b4chctrl].bOn = false;
+              clearRightBar();
+              
+//              buttons[bchan3up].bHidden = hideButton;
+//              buttons[bchan3down].bHidden = hideButton;
+//              buttons[bchan4up].bHidden = hideButton;
+//              buttons[bchan4down].bHidden = hideButton;
+              
+//              background(colorBackground);
+//              labelGUI();
+//              switchToPage();
             }
-            if (MouseChan[0] == MouseChan[1]) {
-              MouseChan[0]++;
-              if (MouseChan[0]>=SignalNumber) {
-                MouseChan[0]=MouseChan[1]-1;
-              }
-            }
-            buttons[Bchan1].ctext = SigColorM[MouseChan[0]];
-            buttons[Bchan1].label = str(MouseChan[0]+1);
-            buttons[Bchan1].drawButton();
-            ChannelOn[MouseChan[0]] = buttons[Bchan1].BOn;
           }
-          if (currentbutton == Bchan1down) {
-            MouseChan[0]--;
-            if (MouseChan[0]<0) {
-              MouseChan[0]=0;
+          if (currentbutton == b4chctrl){
+            if (!buttons[currentbutton].bOn){
+              buttons[currentbutton].bOn = true;
+              buttons[b2chctrl].bOn = false;
+              clearRightBar();
+              
+//              buttons[bchan3up].bHidden = showButton;
+//              buttons[bchan3down].bHidden = showButton;
+//              buttons[bchan4up].bHidden = showButton;
+//              buttons[bchan4down].bHidden = showButton;
+              
+//              background(colorBackground);
+//              labelGUI();
+//              switchToPage();
+              
+              
             }
-            if (MouseChan[0] == MouseChan[1]) {
-              MouseChan[0]--;
-              if (MouseChan[0]<0) {
-                MouseChan[0]=MouseChan[1]+1;
-              }
-            }
-            buttons[Bchan1].ctext = SigColorM[MouseChan[0]];
-            buttons[Bchan1].label = str(MouseChan[0]+1);
-            buttons[Bchan1].drawButton();
-            ChannelOn[MouseChan[0]] = buttons[Bchan1].BOn;
           }
-          if (currentbutton == Bchan2up) {
-            MouseChan[1]++;
-            if (MouseChan[1]>=SignalNumber) {
-              MouseChan[1]=SignalNumber-1;
-            }
-            if (MouseChan[1] == MouseChan[0]) {
-              MouseChan[1]++;
-              if (MouseChan[1]>=SignalNumber) {
-                MouseChan[1]=MouseChan[0]-1;
-              }
-            }
-            buttons[Bchan2].ctext = SigColorM[MouseChan[1]];
-            buttons[Bchan2].label = str(MouseChan[1]+1);
-            buttons[Bchan2].drawButton();
-            ChannelOn[MouseChan[1]] = buttons[Bchan2].BOn;
-          }
-          if (currentbutton == Bchan2down) {
-            MouseChan[1]--;
-            if (MouseChan[1]<0) {
-              MouseChan[1]=0;
-            }
-            if (MouseChan[1] == MouseChan[0]) {
-              MouseChan[1]--;
-              if (MouseChan[1]<0) {
-                MouseChan[1]=MouseChan[0]+1;
-              }
-            }
-            buttons[Bchan2].ctext = SigColorM[MouseChan[1]];
-            buttons[Bchan2].label = str(MouseChan[1]+1);
-            buttons[Bchan2].drawButton();
-            ChannelOn[MouseChan[1]] = buttons[Bchan2].BOn;
-          }
+//          if (currentbutton == bchan1up) {
+//            mouseChan[0]++;
+//            if (mouseChan[0]>=currentSignalNumber) {
+//              mouseChan[0]=currentSignalNumber-1;
+//            }
+//            if (mouseChan[0] == mouseChan[1]) {
+//              mouseChan[0]++;
+//              if (mouseChan[0]>=currentSignalNumber) {
+//                mouseChan[0]=mouseChan[1]-1;
+//              }
+//            }
+////            buttons[bchan1].ctext = colorSigM[mouseChan[0]];
+////            buttons[bchan1].label = str(mouseChan[0]+1);
+////            buttons[bchan1].drawButton();
+////            channelsOn[mouseChan[0]] = buttons[bchan1].bOn;
+//          }
+//          if (currentbutton == bchan1down) {
+//            mouseChan[0]--;
+//            if (mouseChan[0]<0) {
+//              mouseChan[0]=0;
+//            }
+//            if (mouseChan[0] == mouseChan[1]) {
+//              mouseChan[0]--;
+//              if (mouseChan[0]<0) {
+//                mouseChan[0]=mouseChan[1]+1;
+//              }
+//            }
+////            buttons[bchan1].ctext = colorSigM[mouseChan[0]];
+////            buttons[bchan1].label = str(mouseChan[0]+1);
+////            buttons[bchan1].drawButton();
+////            channelsOn[mouseChan[0]] = buttons[bchan1].bOn;
+//          }
+//          if (currentbutton == bchan2up) {
+//            mouseChan[1]++;
+//            if (mouseChan[1]>=currentSignalNumber) {
+//              mouseChan[1]=currentSignalNumber-1;
+//            }
+//            if (mouseChan[1] == mouseChan[0]) {
+//              mouseChan[1]++;
+//              if (mouseChan[1]>=currentSignalNumber) {
+//                mouseChan[1]=mouseChan[0]-1;
+//              }
+//            }
+////            buttons[bchan2].ctext = colorSigM[mouseChan[1]];
+////            buttons[bchan2].label = str(mouseChan[1]+1);
+////            buttons[bchan2].drawButton();
+////            channelsOn[mouseChan[1]] = buttons[bchan2].bOn;
+//          }
+//          if (currentbutton == bchan2down) {
+//            mouseChan[1]--;
+//            if (mouseChan[1]<0) {
+//              mouseChan[1]=0;
+//            }
+//            if (mouseChan[1] == mouseChan[0]) {
+//              mouseChan[1]--;
+//              if (mouseChan[1]<0) {
+//                mouseChan[1]=mouseChan[0]+1;
+//              }
+//            }
+////            buttons[bchan2].ctext = colorSigM[mouseChan[1]];
+////            buttons[bchan2].label = str(mouseChan[1]+1);
+////            buttons[bchan2].drawButton();
+////            channelsOn[mouseChan[1]] = buttons[bchan2].bOn;
+//          }
 
           labelAxes();
         }
@@ -3468,220 +3581,258 @@ public class TargetPracticePage implements pagesClass {
   }
 
   public void drawHelp() {
-    // help text
+    drawGenericHelp();
   }
 
   public void drawTargetPractice() {
     int tmp = 0;
-    if (MouseTuneFlag) {
+    if (mouseTuneFlag) {
       // println("MousetuneFlag!");
-      blankplot();
+      blankPlot();
       textSize(labelsizes);
       strokeWeight(4);
       textAlign(CENTER, CENTER);
-      fill(backgroundcolor);
+      fill(colorBackground);
       rectMode(CENTER);
-      rect(xStep+plotwidth*5/16, yTitle+plotheight/2, plotwidth*5/8-2, plotheight-2);
+      rect(xStep+125, yTitle+plotheight/2, 250-2, plotheight-2);
       fill(0);
-      text("Mouse Calibration", xStep+plotwidth*1/4, yTitle+12);
+      text("Mouse calibration", xStep+125, yTitle+12);
       textSize(labelsizes);
-
-      // // arrows indicating axis directions
-      // // x-axis
-      // int addtmp = -140;
-      // line(xStep+plotwidth/4+50+addtmp,yTitle+80,xStep+plotwidth/4+100+addtmp,yTitle+80);
-      // line(xStep+plotwidth/4+90+addtmp,yTitle+70,xStep+plotwidth/4+100+addtmp,yTitle+80);
-      // line(xStep+plotwidth/4+90+addtmp,yTitle+90,xStep+plotwidth/4+100+addtmp,yTitle+80);
-      // line(xStep+plotwidth/4+60+addtmp,yTitle+70,xStep+plotwidth/4+50+addtmp,yTitle+80);
-      // line(xStep+plotwidth/4+60+addtmp,yTitle+90,xStep+plotwidth/4+50+addtmp,yTitle+80);
-      // // y-axis
-      // addtmp = 100;
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+75+addtmp,yTitle+110);
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+65+addtmp,yTitle+70);
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+60,xStep+plotwidth/4+85+addtmp,yTitle+70);
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+65+addtmp,yTitle+100);
-      // line(xStep+plotwidth/4+75+addtmp,yTitle+110,xStep+plotwidth/4+85+addtmp,yTitle+100);
-
-
-      // x-low
-      tmp = constrain(PApplet.parseInt(map(MouseThresh[XLow]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)), 0, plotheight/2);
-      stroke(255, 255, 0);
-      fill(0);
-      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-      if (MouseThreshInd == XLow) {
-        fill(255, 255, 0);
-      }
-      if (ytmp-tmp +20 > yTitle+plotheight-20) {
-        text("X Low", xStep+plotwidth*11/16, ytmp-tmp-20);
-      }
-      else {    
-        text("X Low", xStep+plotwidth*11/16, ytmp-tmp+20);
-      }
-      // y-low
-      tmp = constrain(PApplet.parseInt(map(MouseThresh[YLow]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
-      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-      fill(0);
-      if (MouseThreshInd == YLow) {
-        fill(255, 255, 0);
-      }
-      text("Y Low", xStep+plotwidth*11/16, ytmp-tmp+20);
-      // x-high
-      stroke(255, 0, 0);
-      tmp = constrain(PApplet.parseInt(map(MouseThresh[XHigh]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)), 0, plotheight/2);
-      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-      fill(0);
-      if (MouseThreshInd == XHigh) {
-        fill(255, 255, 0);
-      }
-      if (ytmp-tmp +20 > yTitle+plotheight-20) {
-        text("X High", xStep+plotwidth*15/16, ytmp-tmp-20);
-      }
-      else {    
-        text("X High", xStep+plotwidth*15/16, ytmp-tmp+20);
-      }
-      // y-high
-      tmp = constrain(PApplet.parseInt(map(MouseThresh[YHigh]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
-      line(xStep+plotwidth*5/8, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
-      fill(0);
-      if (MouseThreshInd == YHigh) {
-        fill(255, 255, 0);
-      }
-      text("Y High", xStep+plotwidth*15/16, ytmp-tmp+20);
-
-      // actual signals
-      stroke(0, 255, 0);
-      fill(0, 255, 0);
-      int tmpind = 0;
-      tmpind = signalindex-datacounter;
+      
+      int tmpind = signalindex-datacounter;
       datacounter = 0;
       while (tmpind < 0) {
-        tmpind+=MaxSignalLength;
+        tmpind+=maxSignalLength;
       }
-      tmp = constrain(PApplet.parseInt(map(signalIn[MouseChan[0]][tmpind]+Calibration[MouseChan[0]]-MaxSignalVal, 0, MaxSignalVal, 0, plotheight/2)), 0, plotheight/2);
-      line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
-      if (tmp < 50) {
-        text("X-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
-      }
-      else {
-        text("X-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
+      
+      if (buttons[b2chctrl].bOn){
+        // x-low
+        tmp = constrain(PApplet.parseInt(map(mouseThresh2Ch[thresh2chxLow]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        stroke(255, 255, 0);
+        fill(0);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        if (mouseThreshInd == thresh2chxLow) {          fill(255, 255, 0);        }
+        text("X Low", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+
+        // y-low
+        tmp = constrain(PApplet.parseInt(map(mouseThresh2Ch[thresh2chyLow]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh2chyLow) {          fill(255, 255, 0);        }
+        text("Y Low", xStep+plotwidth*11/16, ytmp-tmp+20);
+        
+        // x-high
+        stroke(255, 0, 0);
+        tmp = constrain(PApplet.parseInt(map(mouseThresh2Ch[thresh2chxHigh]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh2chxHigh) {          fill(255, 255, 0);        }
+        text("X High", xStep+plotwidth*15/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+
+        // y-high
+        tmp = constrain(PApplet.parseInt(map(mouseThresh2Ch[thresh2chyHigh]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh2chyHigh) {          fill(255, 255, 0);        }
+        text("Y High", xStep+plotwidth*15/16, ytmp-tmp+20);
+  
+        // actual signals
+        stroke(0, 255, 0);
+        fill(0, 255, 0);
+        
+        tmp = constrain(PApplet.parseInt(map(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("X-axis", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        tmp = constrain(PApplet.parseInt(map(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Y-axis", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        String mouse_msg = "";
+        mouse_msg += "In > high => move up/right\nIn < low => move down/left\nlow<In<high => hold position\n";
+        mouse_msg += "\n";
+        mouse_msg += "To Set Thresholds:\n";
+        mouse_msg += " Left/Right = select threshold\n";
+        // mouse_msg += " (Selected threshold turns yellow)\n";
+        mouse_msg += " Up/Down = change threshold\n";
+        // mouse_msg += " (Threshold will move\n";
+        mouse_msg += "\n";
+        mouse_msg += "Adjust green bar below low when completely relaxed, between low and high when slightly flexed, above high when fully flexed.";
+        textSize(labelsizexs);
+        fill(0);
+        textAlign(LEFT, CENTER);
+        text(mouse_msg, xStep+125+3, yTitle+plotheight/2, 250-12, plotheight);
+        textAlign(CENTER, CENTER);
+      } 
+      else if (buttons[b4chctrl].bOn){
+        // Left
+        tmp = constrain(PApplet.parseInt(map(mouseThresh4Ch[thresh4chLeft]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        stroke(255, 255, 0);
+        fill(0);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        if (mouseThreshInd == thresh4chLeft) {          fill(255, 255, 0);        }
+        text("Left", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+
+        // Right
+        tmp = constrain(PApplet.parseInt(map(mouseThresh4Ch[thresh4chRight]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh4chRight) {          fill(255, 255, 0);        }
+        text("Right", xStep+plotwidth*11/16, ytmp-tmp+20);
+        
+        // Down
+        stroke(255, 0, 0);
+        tmp = constrain(PApplet.parseInt(map(mouseThresh4Ch[thresh4chDown]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh4chDown) {          fill(255, 255, 0);        }
+        text("Down", xStep+plotwidth*15/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+
+        // Up
+        tmp = constrain(PApplet.parseInt(map(mouseThresh4Ch[thresh4chUp]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp-tmp, xStep+plotwidth, ytmp-tmp);
+        fill(0);
+        if (mouseThreshInd == thresh4chUp) {          fill(255, 255, 0);        }
+        text("Up", xStep+plotwidth*15/16, ytmp-tmp+20);
+  
+        // actual signals
+        stroke(0, 255, 0);
+        fill(0, 255, 0);
+        
+        tmp = constrain(PApplet.parseInt(map(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Left", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        tmp = constrain(PApplet.parseInt(map(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Right", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+        
+        tmp = constrain(PApplet.parseInt(map(signalIn[mouseChan[2]][tmpind]+calibration[mouseChan[0]]-maxSignalVal, 0, maxSignalVal, 0, plotheight/2)), 0, plotheight/2);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Down", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        tmp = constrain(PApplet.parseInt(map(signalIn[mouseChan[3]][tmpind]+calibration[mouseChan[1]]-maxSignalVal, 0, maxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
+        line(xStep+250, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
+        text("Up", xStep+plotwidth*13/16, constrain(ytmp-tmp+10,yTitle+20,ytmp-20));
+  
+        String mouse_msg = "";
+        mouse_msg += "In > threshold => move\nIn < threshold => hold position\n";
+        mouse_msg += "\n";
+        mouse_msg += "To Set Thresholds:\n";
+        mouse_msg += " Left/Right = select threshold\n";
+        // mouse_msg += " (Selected threshold turns yellow)\n";
+        mouse_msg += " Up/Down = change threshold\n";
+        // mouse_msg += " (Threshold will move\n";
+        mouse_msg += "\n";
+        mouse_msg += "Adjust so green bar is below threshold when relaxed, above threshold when flexed.";
+        textSize(labelsizexs);
+        fill(0);
+        textAlign(LEFT, CENTER);
+        text(mouse_msg, xStep+125+3, yTitle+plotheight/2, 250-12, plotheight);
+        textAlign(CENTER, CENTER);
       }
 
-      tmp = constrain(PApplet.parseInt(map(signalIn[MouseChan[1]][tmpind]+Calibration[MouseChan[1]]-MaxSignalVal, 0, MaxSignalVal, plotheight/2, plotheight)), plotheight/2, plotheight);
-      line(xStep+plotwidth*5/8, ytmp - tmp, xStep+plotwidth, ytmp - tmp);
-      if (tmp<plotheight/2+30) {
-        text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp-20);
-      }
-      else {
-        text("Y-axis", xStep+plotwidth*13/16, ytmp-tmp+20);
-      }
 
-      String mouse_msg = "";
-      mouse_msg += "Input > high => mouse moves up/right\nInput < low => mouse moves down/left\nlow<Input<high => mouse does not move\n";
-      mouse_msg += "\n";
-      mouse_msg += "To Set Thresholds:\n";
-      mouse_msg += " Left/Right arrows select threshold (yellow)\n";
-      // mouse_msg += " (Selected threshold turns yellow)\n";
-      mouse_msg += " Up/Down arrows move selected threshold\n";
-      // mouse_msg += " (Threshold will move\n";
-      mouse_msg += "\n";
-      mouse_msg += "Adjust thresholds so the green bar is below low when completely relaxed, between low and high when slightly flexed, and above high when fully flexed.";
-      textSize(labelsizexs);
-      fill(0);
-      textAlign(LEFT, CENTER);
-      text(mouse_msg, xStep+plotwidth*5/16+3, yTitle+plotheight/2, plotwidth*5/8-12, plotheight);
-      textAlign(CENTER, CENTER);
-
-
-      if (!PauseFlag) {
+      if (!pauseFlag) {
         moveMouse(tmpind);
       }
     }
-    else if (!MouseTuneFlag) {
-      if (!PauseFlag) {//MouseGame
+    else if (!mouseTuneFlag) {
+      if (!pauseFlag) {//Mousegame
         int tmpind = 0;
         tmpind = signalindex-datacounter;
         datacounter = 0;
         while (tmpind < 0) {
-          tmpind+=MaxSignalLength;
+          tmpind+=maxSignalLength;
         }
         moveMouse(tmpind);
-        drawcrosshair(MouseX, MouseY);
+        drawcrosshair(xMouse, yMouse);
         if (iswinner()) {
           print("Winner");
-          GameScore ++;
+          gameScore ++;
           // delayTime -= delayTimeIncrement;
           // if (delayTime < delayTimeMin){delayTime = delayTimeMin;}
-          GamenextStep = second()+GamedelayTime;
-          println(GamenextStep);
+          gamenextStep = second()+gamedelayTime;
+          println(gamenextStep);
           drawTarget();
         }
-        if (second() > GamenextStep) {
-          GamedelayTime += GamedelayTimeIncrement;
-          if (GamedelayTime > GamedelayTimeMax) {
-            GamedelayTime = GamedelayTimeMax;
+        if (second() > gamenextStep) {
+          gamedelayTime += gamedelayTimeIncrement;
+          if (gamedelayTime > gamedelaymaxPlotTime) {
+            gamedelayTime = gamedelaymaxPlotTime;
           }
           drawTarget();
-          GamenextStep = second()+GamedelayTime;
+          gamenextStep = second()+gamedelayTime;
           print("Out Of Time!");
-          println(GamenextStep);
+          println(gamenextStep);
         }
       }
       else {
-        //blankplot();
+        //blankPlot();
         stroke(0);
         fill(255, 69, 0);
-        ellipse(xStep+GameTargetX, ytmp-GameTargetY, Gametargetsize, Gametargetsize);
-        drawcrosshair(MouseX, MouseY);
-        GamenextStep = second()+GamedelayTime;
+        ellipse(xStep+gameTargetX, ytmp-gameTargetY, gametargetsize, gametargetsize);
+        drawcrosshair(xMouse, yMouse);
+        gamenextStep = second()+gamedelayTime;
       }
     }
   }
 
   public void moveMouse(int tmpind) {
     int tmp = 0;
-    int MouseMoveX = 0, MouseMoveY = 0;
-    int MouseOffset = 40;
-    // if (MouseAxis == 'X'){
-    tmp = PApplet.parseInt(signalIn[MouseChan[0]][tmpind]+Calibration[MouseChan[0]]);
-    //print("tmp = ");print(tmp);print(". Thresh = ");println(MouseThresh[0]);
-    if (tmp < MouseThresh[0]) {
-      MouseMoveX = -1*MouseSpeed;//(MouseThresh[0] - tmp)*XMouseFactor1;
+    int mouseMoveX = 0, mouseMoveY = 0;
+    int mouseOffset = 40;
+    if (buttons[b2chctrl].bOn){
+      tmp = PApplet.parseInt(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]);
+      //print("tmp = ");print(tmp);print(". Thresh = ");println(mouseThresh[0]);
+      if      (tmp < mouseThresh2Ch[0]) {      mouseMoveX = -1*mouseSpeed;}
+      else if (tmp < mouseThresh2Ch[1]) {      mouseMoveX = 0;    }
+      else                              {      mouseMoveX = 1*mouseSpeed;}
+      
+      if (!mouseXAxisFlip) {      xMouse += mouseMoveX;    }
+      else                 {      xMouse -= mouseMoveX;    }
+  
+      tmp = PApplet.parseInt(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]);
+      if      (tmp < mouseThresh2Ch[2]) {      mouseMoveY = 1*mouseSpeed;}//(mouseThresh[2] - tmp)*yMouseFactor1;    }
+      else if (tmp < mouseThresh2Ch[3]) {      mouseMoveY = 0;}//(mouseThresh[3] - tmp)*yMouseFactor2;    }
+      else                              {      mouseMoveY = -1*mouseSpeed;}//(tmp - mouseThresh[3])*yMouseFactor3;    }
+      
+      if (!mouseYAxisFlip) {      yMouse += mouseMoveY;    }
+      else                 {      yMouse -= mouseMoveY;    }
     }
-    else if (tmp < MouseThresh[1]) {
-      MouseMoveX = 0;
+    else if (buttons[b4chctrl].bOn){
+      int tmp1 = PApplet.parseInt(signalIn[mouseChan[0]][tmpind]+calibration[mouseChan[0]]);
+      int tmp2 = PApplet.parseInt(signalIn[mouseChan[1]][tmpind]+calibration[mouseChan[1]]);
+      
+      if      (tmp1 > mouseThresh4Ch[0] && tmp2 > mouseThresh4Ch[1]) {
+        if       (tmp1 > tmp2)  {mouseMoveX = -1*mouseSpeed;}
+        else {mouseMoveX = +1*mouseSpeed;}
+      }
+      else if (tmp1 > mouseThresh4Ch[0]) { mouseMoveX = -1*mouseSpeed;}
+      else if (tmp2 > mouseThresh4Ch[1]) { mouseMoveX = 1*mouseSpeed;}
+      else {mouseMoveX = 0;}
+      
+      if (!mouseXAxisFlip) {      xMouse += mouseMoveX;    }
+      else                 {      xMouse -= mouseMoveX;    }
+  
+      tmp1 = PApplet.parseInt(signalIn[mouseChan[2]][tmpind]+calibration[mouseChan[2]]);
+      tmp2 = PApplet.parseInt(signalIn[mouseChan[3]][tmpind]+calibration[mouseChan[3]]);
+      if      (tmp1 > mouseThresh4Ch[2] && tmp2 > mouseThresh4Ch[3]) {
+        if       (tmp1 > tmp2) {mouseMoveY = -1*mouseSpeed;}
+        else                   {mouseMoveY = +1*mouseSpeed;}
+      }
+      else if (tmp1 > mouseThresh4Ch[2]) { mouseMoveY = 1*mouseSpeed;}
+      else if (tmp2 > mouseThresh4Ch[3]) { mouseMoveY = -1*mouseSpeed;}
+      else {mouseMoveY = 0;}
+      
+      if (!mouseYAxisFlip) {      yMouse += mouseMoveY;    }
+      else                 {      yMouse -= mouseMoveY;    }
     }
-    else {
-      MouseMoveX = 1*MouseSpeed;//(tmp - MouseThresh[1])*XMouseFactor3;
-    }
-    if (!MouseXAxisFlip) {
-      MouseX += MouseMoveX;
-    }
-    else {
-      MouseX -= MouseMoveX;
-    }
-
-    tmp = PApplet.parseInt(signalIn[MouseChan[1]][tmpind]+Calibration[MouseChan[1]]);
-    if (tmp < MouseThresh[2]) {
-      MouseMoveY = 1*MouseSpeed;//(MouseThresh[2] - tmp)*YMouseFactor1;
-    }
-    else if (tmp < MouseThresh[3]) {
-      MouseMoveY = 0;//(MouseThresh[3] - tmp)*YMouseFactor2;
-    }
-    else {
-      MouseMoveY = -1*MouseSpeed;//(tmp - MouseThresh[3])*YMouseFactor3;
-    }
-    if (!MouseYAxisFlip) {
-      MouseY += MouseMoveY;
-    }
-    else {
-      MouseY -= MouseMoveY;
-    }
-    // }
 
     // println("MouseMoveX = "+MouseMoveX+". MouseMoveY = "+MouseMoveY);
-    MouseX = constrain(MouseX, xStep+MouseOffset, xStep+plotwidth-MouseOffset);
-    MouseY = constrain(MouseY, yTitle+MouseOffset, yTitle+plotheight-MouseOffset);
-    robot.mouseMove(MouseX+xx, MouseY+yy);
+    xMouse = constrain(xMouse, xStep+mouseOffset, xStep+plotwidth-mouseOffset);
+    yMouse = constrain(yMouse, yTitle+mouseOffset, yTitle+plotheight-mouseOffset);
+    robot.mouseMove(xMouse+xx, yMouse+yy);
   }
 
   public void drawcrosshair(int hx, int hy) {
@@ -3705,13 +3856,13 @@ public class TargetPracticePage implements pagesClass {
   }
 
   public void drawTarget() {
-    blankplot();
+    blankPlot();
     stroke(0);
     fill(255, 69, 0);
-    GameTargetX = PApplet.parseInt(random(0+Gametargetsize, plotwidth-Gametargetsize));
-    GameTargetY = PApplet.parseInt(random(0+Gametargetsize, plotheight-Gametargetsize));
+    gameTargetX = PApplet.parseInt(random(0+gametargetsize, plotwidth-gametargetsize));
+    gameTargetY = PApplet.parseInt(random(0+gametargetsize, plotheight-gametargetsize));
     // ellipseMode(RADIUS);
-    ellipse(xStep+GameTargetX, ytmp-GameTargetY, Gametargetsize, Gametargetsize);
+    ellipse(xStep+gameTargetX, ytmp-gameTargetY, gametargetsize, gametargetsize);
     drawScore();
   }
 
@@ -3721,16 +3872,16 @@ public class TargetPracticePage implements pagesClass {
     stroke(0, 0, 0);
     fill(0, 255, 0);
     text("SCORE = ", 180, 120);
-    text(nf(GameScore, 5, 0), 320, 120);
+    text(nf(gameScore, 5, 0), 320, 120);
   }
 
   public boolean iswinner() {
-    int rx = ((mouseX-xStep)-GameTargetX);
+    int rx = ((mouseX-xStep)-gameTargetX);
     rx = rx*rx;
-    int ry = ((ytmp-mouseY)-GameTargetY);
+    int ry = ((ytmp-mouseY)-gameTargetY);
     ry = ry*ry;
     float r = sqrt(PApplet.parseFloat(rx+ry));
-    if (r < Gametargetsize) {
+    if (r < gametargetsize) {
       return true;
     }
     else {
@@ -3751,20 +3902,20 @@ public class SnakeGamePage implements pagesClass {
   PApplet parent;
 
   GuiButton[] buttons;
-  int ButtonNum = 0;
+  int buttonNumber = 0;
   int
-  Bclear = ButtonNum++, 
-  Bpause = ButtonNum++, 
-  Bchan1 = ButtonNum++, 
-  Bchan2 = ButtonNum++, 
-  Bchan1up = ButtonNum++, 
-  Bchan2up = ButtonNum++, 
-  Bchan1down = ButtonNum++, 
-  Bchan2down = ButtonNum++;
+  bclear = buttonNumber++, 
+  bpause = buttonNumber++, 
+  bchan1 = buttonNumber++, 
+  bchan2 = buttonNumber++, 
+  bchan1up = buttonNumber++, 
+  bchan2up = buttonNumber++, 
+  bchan1down = buttonNumber++, 
+  bchan2down = buttonNumber++;
 
   int snakecolor;
   int foodcolor;
-  int backgroundcolor;
+  int colorBackground;
   int textcolor;
 
   int gamex;
@@ -3795,7 +3946,7 @@ public class SnakeGamePage implements pagesClass {
   boolean gameOver;
   boolean freeBoundaries;
   boolean foodflag;
-  boolean ButtonPressedFlag = false;
+  boolean buttonPressedFlag = false;
 
   String pageName = "FlexVolt Snake Game";
 
@@ -3806,12 +3957,12 @@ public class SnakeGamePage implements pagesClass {
 
     snakecolor = color(250, 220, 180);
     foodcolor = color(255, 0, 0);
-    backgroundcolor = color(0, 0, 0);
+    colorBackground = color(0, 0, 0);
     textcolor = color(240, 240, 240);
 
-    gamex = xStep+FullPlotWidth/2;
+    gamex = xStep+fullPlotWidth/2;
     gamey = yTitle+plotheight/2;
-    gamewidth = FullPlotWidth;
+    gamewidth = fullPlotWidth;
     gameheight = plotheight;
 
     foodSize = 30;
@@ -3842,12 +3993,12 @@ public class SnakeGamePage implements pagesClass {
   }
 
   public void initializeButtons() {
-    gamex = xStep+FullPlotWidth/2;
+    gamex = xStep+fullPlotWidth/2;
     gamey = yTitle+plotheight/2;
-    gamewidth = FullPlotWidth;
+    gamewidth = fullPlotWidth;
     gameheight = plotheight;
 
-    foodSize = 30*FullPlotWidth/500;
+    foodSize = 30*fullPlotWidth/500;
     gridX = gamewidth/(foodSize);
     gridY = gameheight/(foodSize);
     gridXstart = gamex - ((gridX-1)*foodSize)/2;
@@ -3855,36 +4006,36 @@ public class SnakeGamePage implements pagesClass {
     
     int buttony = yTitle+195;
     int controlsy = yTitle+30;
-    buttons = new GuiButton[ButtonNum];
-    buttons[Bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
-    buttons[Bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
-    buttons[Bchan1up]  = new GuiButton("MCh1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
-    buttons[Bchan1down]= new GuiButton("MCh1dn", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
-    buttons[Bchan1]    = new GuiButton("MChan1", ' ', dummypage, xStep+plotwidth+50, yTitle+200, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[0]], ""+(MouseChan[0]+1), Bonoff, true);
-    buttons[Bchan2up]  = new GuiButton("MCh2up", ' ', dummypage, xStep+plotwidth+80, yTitle+260, 20, 20, color(BIdleColor), color(0), ">", Bmomentary, false);
-    buttons[Bchan2down]= new GuiButton("MCh2dn", ' ', dummypage, xStep+plotwidth+16, yTitle+260, 20, 20, color(BIdleColor), color(0), "<", Bmomentary, false);
-    buttons[Bchan2]    = new GuiButton("MChan2", ' ', dummypage, xStep+plotwidth+50, yTitle+260, 30, Bheight, color(BIdleColor), SigColorM[MouseChan[1]], ""+(MouseChan[1]+1), Bonoff, true);
+    buttons = new GuiButton[buttonNumber];
+    buttons[bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false, showButton);
+    buttons[bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false, showButton);
+    buttons[bchan1up]  = new GuiButton("MCh1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+    buttons[bchan1down]= new GuiButton("MCh1dn", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+    buttons[bchan1]    = new GuiButton("MChan1", ' ', dummypage, xStep+plotwidth+50, yTitle+200, 30, bheight, color(colorBIdle), colorSigM[mouseChan[0]], ""+(mouseChan[0]+1), bOnOff, true, showButton);
+    buttons[bchan2up]  = new GuiButton("MCh2up", ' ', dummypage, xStep+plotwidth+80, yTitle+260, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
+    buttons[bchan2down]= new GuiButton("MCh2dn", ' ', dummypage, xStep+plotwidth+16, yTitle+260, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
+    buttons[bchan2]    = new GuiButton("MChan2", ' ', dummypage, xStep+plotwidth+50, yTitle+260, 30, bheight, color(colorBIdle), colorSigM[mouseChan[1]], ""+(mouseChan[1]+1), bOnOff, true, showButton);
   }
 
   public void switchToPage() {
 
-    PauseFlag = true;
+    pauseFlag = true;
 
-    buttons[Bpause].BOn = PauseFlag;
+    buttons[bpause].bOn = pauseFlag;
 
-    plotwidth = FullPlotWidth;
+    plotwidth = fullPlotWidth;
     labelAxes();
     clearGameScreen();
     println("SnakeDomain");
   }
 
   public void drawPage() {
-    if (ButtonPressedFlag) {
-      if (millis() > ButtonColorTimer) {
-        ButtonPressedFlag = false;
+    if (buttonPressedFlag) {
+      if (millis() > buttonColorTimer) {
+        buttonPressedFlag = false;
         println("Current Button = " + currentbutton);
         if (buttons[currentbutton] != null && currentbutton < buttons.length) {
-          buttons[currentbutton].ChangeColorUnpressed();
+          buttons[currentbutton].changeColorUnpressed();
         }
       }
     }
@@ -3951,24 +4102,24 @@ public class SnakeGamePage implements pagesClass {
       if (buttons[i] != null) {
         if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
           outflag = true;
-          buttons[i].BOn = !buttons[i].BOn;
-          buttons[i].ChangeColorPressed();
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
+          buttons[i].bOn = !buttons[i].bOn;
+          buttons[i].changeColorPressed();
+          buttonColorTimer = millis()+buttonColorDelay;
+          buttonPressedFlag = true;
           currentbutton = i;
 
-          if (currentbutton == Bclear) {
-            blankplot();
+          if (currentbutton == bclear) {
+            blankPlot();
             labelAxes();
             println("Plot Cleared");
           }
-          if (currentbutton == Bpause) {
-            PauseFlag = !PauseFlag;
-            if (!PauseFlag) {
+          if (currentbutton == bpause) {
+            pauseFlag = !pauseFlag;
+            if (!pauseFlag) {
               buttons[currentbutton].label = "Pause";
               buttons[currentbutton].drawButton();
             }
-            else if (PauseFlag) {
+            else if (pauseFlag) {
               buttons[currentbutton].label = "Play";
               buttons[currentbutton].drawButton();
             }
@@ -3986,11 +4137,12 @@ public class SnakeGamePage implements pagesClass {
   }
 
   public void drawHelp() {
+    drawGenericHelp();
   }
 
   public void clearGameScreen() {
-    fill(backgroundcolor);
-    stroke(backgroundcolor);
+    fill(colorBackground);
+    stroke(colorBackground);
     rectMode(CENTER);
     rect(gamex, gamey, gamewidth, gameheight);
   }
@@ -4113,10 +4265,10 @@ public class MuscleMusicPage implements pagesClass {
   String pageName = "Muscle Music";
 
   GuiButton[] buttons;
-  int ButtonNum = 0;
+  int buttonNumber = 0;
   int
-    Bclear = ButtonNum++, 
-  Bpause = ButtonNum++;
+    bclear = buttonNumber++, 
+  bpause = buttonNumber++;
 
   MuscleMusicPage() {
     initializeButtons();
@@ -4125,9 +4277,9 @@ public class MuscleMusicPage implements pagesClass {
   public void initializeButtons() {
     int buttony = yTitle+195;
     int controlsy = yTitle+30;
-    buttons = new GuiButton[ButtonNum];
-    buttons[Bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, Bheight, color(BIdleColor), color(0), "Pause", Bonoff, false);
-    buttons[Bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, Bheight, color(BIdleColor), color(0), "Clear", Bmomentary, false);
+    buttons = new GuiButton[buttonNumber];
+    buttons[bpause]    = new GuiButton("Pause ", 'p', dummypage, xStep+plotwidth+45, controlsy+10, 60, bheight, color(colorBIdle), color(0), "Pause", bOnOff, false, showButton);
+    buttons[bclear]    = new GuiButton("Clear ", 'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false, showButton);
   }
 
   public void switchToPage() {
@@ -4170,24 +4322,24 @@ public class MuscleMusicPage implements pagesClass {
       if (buttons[i] != null) {
         if ( (inputDev == mouseInput && buttons[i].IsMouseOver(x, y)) || (inputDev == keyInput && tkey == buttons[i].hotKey) ) {
           outflag = true;
-          buttons[i].BOn = !buttons[i].BOn;
-          buttons[i].ChangeColorPressed();
-          ButtonColorTimer = millis()+ButtonColorDelay;
-          ButtonPressedFlag = true;
+          buttons[i].bOn = !buttons[i].bOn;
+          buttons[i].changeColorPressed();
+          buttonColorTimer = millis()+buttonColorDelay;
+          buttonPressedFlag = true;
           currentbutton = i;
 
-          if (currentbutton == Bclear) {
-            blankplot();
+          if (currentbutton == bclear) {
+            blankPlot();
             labelAxes();
             println("Plot Cleared");
           }
-          if (currentbutton == Bpause) {
-            PauseFlag = !PauseFlag;
-            if (!PauseFlag) {
+          if (currentbutton == bpause) {
+            pauseFlag = !pauseFlag;
+            if (!pauseFlag) {
               buttons[currentbutton].label = "Pause";
               buttons[currentbutton].drawButton();
             }
-            else if (PauseFlag) {
+            else if (pauseFlag) {
               buttons[currentbutton].label = "Play";
               buttons[currentbutton].drawButton();
             }
@@ -4226,6 +4378,7 @@ public class MuscleMusicPage implements pagesClass {
   }
 
   public void drawHelp() {
+    drawGenericHelp();
   }
 }
 
@@ -4264,8 +4417,8 @@ public class MuscleMusicPage implements pagesClass {
 
 public class SerialPortObj {
   PApplet parent;
-  String USBPORTs[];
-  String BlueToothPORTs;
+  String usbPORTs[];
+  String bluetoothPORTs[];
   boolean foundPorts;
   boolean connectingflag;
   boolean portopenflag;
@@ -4273,10 +4426,11 @@ public class SerialPortObj {
   boolean flexvoltfound;
   boolean testingUSBcom;
   boolean connectinglongertime;
+  boolean serialReceivedFlag;
   long timer;
   int portindex;
-  int USBportsN;
-  int BTportsN;
+  int usbPortsN;
+  int bluetoothPortsN;
   int shortwaittimeUSB;
   int longwaittimeUSB;
   int shortwaittimeBT;
@@ -4287,23 +4441,24 @@ public class SerialPortObj {
   int indicator_connected;
   int connectionAtimer = 0;
   int connectionAdelay = 500;
-  long CheckSerialTimer = 0;
+  long checkSerialTimer = 0;
 
 
   public SerialPortObj(PApplet parent_) {
     this.parent = parent_;
-    USBPORTs = new String[0];
-    BluetoothPORTs = new String[0];
+    usbPORTs = new String[0];
+    bluetoothPORTs = new String[0];
     foundPorts = false;
     connectingflag = false;
     portopenflag = false;
     flexvoltconnected = false;
     flexvoltfound = false;
     testingUSBcom = true;
+    serialReceivedFlag = false;
     timer = 0;
     portindex = 0;
-    USBportsN = 0;
-    BTportsN = 0;
+    usbPortsN = 0;
+    bluetoothPortsN = 0;
     shortwaittimeUSB = 500;
     longwaittimeUSB = 2000;
     shortwaittimeBT = 500;
@@ -4314,7 +4469,7 @@ public class SerialPortObj {
     indicator_connected = 2;
   }
 
-  public boolean manageConnection(boolean dataflag, boolean serialreceivedflag) {
+  public boolean manageConnection(boolean data_flag) {
     if (connectingflag) {
       TryPort(); // handles all connecting attempts. monitors timeout for each attempt, increments port to try, etc.
     }
@@ -4352,25 +4507,30 @@ public class SerialPortObj {
       }
     }
 
-    if (dataflag) {
-      if (CheckSerialTimer == 0) {
-        CheckSerialTimer = millis()+CheckSerialDelay;
+    if (data_flag) {
+      if (checkSerialTimer == 0) {
+        checkSerialTimer = millis()+checkSerialDelay;
         println("addon");
       }
-      if (millis()>CheckSerialTimer) {
-        CheckSerialTimer = millis()+CheckSerialDelay;
-        if (!serialreceivedflag) {
+      if (millis()>checkSerialTimer) {
+        checkSerialTimer = millis()+checkSerialDelay;
+        if (!serialReceivedFlag) {
+          println(checkSerialTimer);
           flexvoltconnected = false;
           communicationsflag = false;
-          dataflag = false;
+          data_flag = false;
           println("Serial Timeout");
           connectionindicator = FVserial.indicator_noconnection;
           drawConnectionIndicator();
           display_error("FlexVolt Connection Lost");
         }
+        serialReceivedFlag = false;
       }
     }
-    return dataflag;
+    
+    drawConnectionIndicator();
+    
+    return data_flag;
   }
 
   public void connectserial() {
@@ -4387,7 +4547,7 @@ public class SerialPortObj {
     fill(150);
     strokeWeight(2);
     stroke(0);
-    ellipse(xStep+FullPlotWidth+10, yTitle/2, 24, 24);
+    ellipse(xStep+fullPlotWidth+10, yTitle/2, 24, 24);
     if (connectionindicator == indicator_connected) {
       fill(color(0, 255, 0));
     }
@@ -4398,7 +4558,7 @@ public class SerialPortObj {
       fill(color(255, 0, 0));
     }
     stroke(0);
-    ellipse(xStep+FullPlotWidth+10, yTitle/2, 14, 14);
+    ellipse(xStep+fullPlotWidth+10, yTitle/2, 14, 14);
   }
 
   public void TryPort() {
@@ -4415,7 +4575,7 @@ public class SerialPortObj {
         } 
         else if (!flexvoltfound) {
           if (testingUSBcom) { // try USB connections first. On MAC these are different than the BT ports. WINDOWS - doesn't differentiate com ports....
-            if (portindex >= USBportsN) {
+            if (portindex >= usbPortsN) {
               portindex = 0;
               if (connectinglongertime) {
                 testingUSBcom = false;
@@ -4430,16 +4590,16 @@ public class SerialPortObj {
             } 
             else {
               if (connectinglongertime) {
-                TrySerialConnect(USBPORTs[portindex], longwaittimeUSB);
+                TrySerialConnect(usbPORTs[portindex], longwaittimeUSB);
               } 
               else if (!connectinglongertime) {
-                TrySerialConnect(USBPORTs[portindex], shortwaittimeUSB);
+                TrySerialConnect(usbPORTs[portindex], shortwaittimeUSB);
               }
               portindex++;
             }
           }
           else {
-            if (portindex >= BTportsN) {
+            if (portindex >= bluetoothPortsN) {
               portindex = 0;
               if (connectinglongertime) {
                 connectingflag = false;
@@ -4454,10 +4614,10 @@ public class SerialPortObj {
             } 
             else {
               if (connectinglongertime) {
-                TrySerialConnect(BluetoothPORTs[portindex], longwaittimeBT);
+                TrySerialConnect(bluetoothPORTs[portindex], longwaittimeBT);
               } 
               else if (!connectinglongertime) {
-                TrySerialConnect(BluetoothPORTs[portindex], shortwaittimeBT);
+                TrySerialConnect(bluetoothPORTs[portindex], shortwaittimeBT);
               }
               portindex++;
             }
@@ -4468,8 +4628,8 @@ public class SerialPortObj {
   }
 
   public void reset() {
-    USBPORTs = new String[0];
-    BluetoothPORTs = new String[0];
+    usbPORTs = new String[0];
+    bluetoothPORTs = new String[0];
     foundPorts = false;
     connectingflag = false;
     portopenflag = false;
@@ -4478,8 +4638,8 @@ public class SerialPortObj {
     testingUSBcom = true;
     timer = 0;
     portindex = 0;
-    USBportsN = 0;
-    BTportsN = 0;
+    usbPortsN = 0;
+    bluetoothPortsN = 0;
     connectionindicator = indicator_noconnection;
   }
 
@@ -4489,7 +4649,7 @@ public class SerialPortObj {
         myPort.clear();
         myPort.stop();
       }
-      myPort = new Serial(parent, portname, SerialPortSpeed);//38400
+      myPort = new Serial(parent, portname, serialPortSpeed);//38400
       myPort.clear();
       portopenflag = true;
       println("WroteX");
@@ -4509,8 +4669,8 @@ public class SerialPortObj {
   public void PollSerialDevices() {
     // find serial port
     String[] m1;
-    USBPORTs = new String[0];
-    BluetoothPORTs = new String[0];
+    usbPORTs = new String[0];
+    bluetoothPORTs = new String[0];
 
     println(Serial.list());
 
@@ -4529,11 +4689,12 @@ public class SerialPortObj {
     else if (platform == LINUX) {
       println("Found a Penguin!");
       display_error("Found a Penguin!\n FlexVoltViewer v1.0 has not been tested with the Linux OS!");
-      USBname = "COM";
+      USBname = "tty"; // typically will be dev/ttyS, ttyACMO, ttyUSB, etc.
       Bluetoothname = "tty.FlexVolt";
     }
     else if (platform == OTHER) {
       println("Found an Unknown Operating System!");
+      display_error("Found an Unknown Operating System!\n FlexVoltViewer does not yet know how to connect with your OS!");
       USBname = "COM";
       Bluetoothname = "tty.FlexVolt";
       display_error("Found an Unknown Operating System!");
@@ -4541,34 +4702,34 @@ public class SerialPortObj {
     for (int i = 0; i<Serial.list().length; i++) {
       m1 = match(Serial.list()[i], USBname);
       if (m1 != null) {
-        USBPORTs = append(USBPORTs, Serial.list()[i]);
+        usbPORTs = append(usbPORTs, Serial.list()[i]);
         println("USB Device Found is " + Serial.list()[i]);
       }
     }
     for (int i = 0; i<Serial.list().length; i++) {
       m1 = match(Serial.list()[i], Bluetoothname);
       if (m1 != null) {
-        BluetoothPORTs = append(BluetoothPORTs, Serial.list()[i]);
+        bluetoothPORTs = append(bluetoothPORTs, Serial.list()[i]);
         println("Bluetooth Device Found is " + Serial.list()[i]);
       }
     }
 
-    USBportsN = USBPORTs.length;
-    if (USBportsN == 0) {
+    usbPortsN = usbPORTs.length;
+    if (usbPortsN == 0) {
       println("USB ports = null");
     } 
     else {
       println("USB ports = ");
-      println(USBPORTs);
+      println(usbPORTs);
       foundPorts = true;
     }
-    BTportsN = BluetoothPORTs.length;
-    if (BTportsN == 0) {
+    bluetoothPortsN = bluetoothPORTs.length;
+    if (bluetoothPortsN == 0) {
       println("BT ports = null");
     } 
     else {
       println("BT ports = ");
-      println(BluetoothPORTs);
+      println(bluetoothPORTs);
       foundPorts = true;
     }
   }
@@ -4600,11 +4761,12 @@ class GuiButton {
   String label;
   char hotKey;
   int pageRef;
-  boolean MouseOver;
-  boolean BOn;
-  boolean Bmomentary;
+  boolean mouseOver;
+  boolean bOn;
+  boolean bMomentary;
+  boolean bHidden;
 
-  GuiButton(String name_, char hotKey_, int pageRef_, int xpos_, int ypos_, int xsize_, int ysize_, int cbox_, int ctext_, String label_, boolean Bmomentary_, boolean BOn_) {
+  GuiButton(String name_, char hotKey_, int pageRef_, int xpos_, int ypos_, int xsize_, int ysize_, int cbox_, int ctext_, String label_, boolean bMomentary_, boolean bOn_, boolean bHidden_) {
     name  = name_;
     hotKey = hotKey_;
     pageRef = pageRef_;
@@ -4615,11 +4777,13 @@ class GuiButton {
     cbox  = cbox_;
     ctext = ctext_;
     label = label_;
-    Bmomentary = Bmomentary_;
-    BOn = BOn_;
+    bMomentary = bMomentary_;
+    bOn = bOn_;
+    bHidden = bHidden_;
   }
 
   public boolean IsMouseOver(int x, int y) {
+    if (bHidden){return false;}
     if (x >= xpos - xsize/2 && x <= xpos+xsize/2 &&
       y >= ypos - ysize/2 && y <= ypos+ysize/2) {
       return true;
@@ -4630,22 +4794,23 @@ class GuiButton {
   }
 
   public void drawButton() {
+    if (bHidden) return;
     int ctext_tmp = color(0);
     int rectradius = 0;
-    if (!Bmomentary) {
-      if (BOn) {
+    if (!bMomentary) {
+      if (bOn) {
         // println("on/off, changing color to On");
-        cbox = BOnColor;
+        cbox = colorbOn;
         ctext_tmp = ctext;
       }
-      else if (!BOn) {
+      else if (!bOn) {
         // println("on/off, changing color to Off");
-        cbox = BIdleColor;
+        cbox = colorBIdle;
         ctext_tmp = 0;
       }
     }
     fill(cbox);
-    stroke(BoutlineColor);
+    stroke(colorBOutline);
     strokeWeight(2);
     rectMode(CENTER);
     // rect(xpos, ypos, xsize, ysize, rectradius);
@@ -4666,13 +4831,13 @@ class GuiButton {
     }
   }
 
-  public void ChangeColorUnpressed() {
-    cbox = BIdleColor;
+  public void changeColorUnpressed() {
+    cbox = colorBIdle;
     drawButton();
   }
 
-  public void ChangeColorPressed() {
-    cbox = BPressedColor;
+  public void changeColorPressed() {
+    cbox = colorBPressed;
     drawButton();
   }
 }
