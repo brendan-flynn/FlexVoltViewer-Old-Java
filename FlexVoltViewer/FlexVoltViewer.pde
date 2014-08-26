@@ -4515,7 +4515,7 @@ public class SerialPortObj {
 
   void connectserial() {
     reset();
-    FVserial.PollSerialDevices();
+    FVserial.PollSerialDevices();  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if (foundPorts) {
       connectionindicator = indicator_connecting;
       connectingflag = true;
