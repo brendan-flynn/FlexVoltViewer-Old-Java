@@ -4462,6 +4462,7 @@ public class SerialPortObj {
             println("Wrote 'X' to myport = "+myPort);
             try {  
               myPort.write('X');
+              myPort.write('X');
             }
             catch (RuntimeException e) {
               println("couldn't connect to that one");
