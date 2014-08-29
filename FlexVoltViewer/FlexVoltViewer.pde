@@ -99,7 +99,7 @@ public interface pagesClass {
 
 
 // Constants
-String viewerVersion = "v1.1";
+String viewerVersion = "v1.2";
 String homePath = System.getProperty("user.home"); // default path to save settings files
 String folder = "";
 Serial myPort;
