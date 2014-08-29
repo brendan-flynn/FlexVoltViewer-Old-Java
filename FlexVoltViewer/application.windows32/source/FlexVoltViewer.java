@@ -19,15 +19,12 @@ import java.io.IOException;
 public class FlexVoltViewer extends PApplet {
 
 //  Author:  Brendan Flynn - FlexVolt
-//  Date Modified:    31 July 2014
-/*  FlexVolt Viewer v1.2
+//  Date Modified:    14 Aug 2014
+/*  FlexVolt Viewer v1.2.1-bugfix
  
  Recent Changes:
- page objects
-   huge change, now each page/sub-app is it's own object
-   this makes it easier to add pages/mini apps
- 
- app resize - app can now be resized!
+ Add Linux communication
+ Fix data save
  
  
  Description:
@@ -122,7 +119,7 @@ public interface pagesClass {
 
 
 // Constants
-String viewerVersion = "v1.1";
+String viewerVersion = "v1.2";
 String homePath = System.getProperty("user.home"); // default path to save settings files
 String folder = "";
 Serial myPort;
@@ -289,7 +286,7 @@ int imagesavecounter = 1;
 // data recording
 int[][] recordData;
 int recordDataCols = 9;
-int recordDataTime = 10; // seconds
+int recordDataTime = 5; // seconds
 int recordDataLength = recordDataTime*userFrequency;
 int recordDataIndex = 0;
 int recordDataedCounter = 0;
@@ -333,7 +330,6 @@ boolean channelsOn[]= {
   true, true, true, true, false, false, false, false
 };
 boolean recordDataFlag = false;
-boolean serialReceivedFlag = false;
 boolean medianFilter = false;
 boolean plugTestFlag = false;
 boolean helpFlag = false;
@@ -602,12 +598,28 @@ public void draw () {
     }
   }
 
-  dataflag = FVserial.manageConnection(dataflag, serialReceivedFlag);
-  serialReceivedFlag = false;
+  dataflag = FVserial.manageConnection(dataflag);
 
+  drawRecordIndicator(recordDataFlag);
+  
+  
+  
   if (!helpFlag) {
     FVpages.get(currentpage).drawPage();
   }
+}
+
+public void drawRecordIndicator(boolean isrecording){
+  fill(150);
+  strokeWeight(2);
+  stroke(0);
+  ellipse(xStep+112, yTitle*1/2, 18, 18);
+  fill(color(50, 50, 50));
+  if (isrecording) {
+    fill(color(255, 0, 0));
+  }
+  stroke(0);
+  ellipse(xStep+112, yTitle*1/2, 10, 10);
 }
 
 public void serialEvent (Serial myPort) {
@@ -619,7 +631,7 @@ public void serialEvent (Serial myPort) {
   if (!communicationsflag && !dataflag) {
     int inChar = myPort.readChar(); // get ASCII
     if (inChar != -1) {
-      serialReceivedFlag = true;
+      FVserial.serialReceivedFlag = true;
       println("handshaking, "+inChar+", count = "+testcounter);
       testcounter++;
       if (inChar == 'x') {
@@ -639,7 +651,6 @@ public void serialEvent (Serial myPort) {
         // ConnectingFlag = true;
         FVserial.flexvoltconnected = true;
         FVserial.connectionindicator = FVserial.indicator_connecting;
-        FVserial.drawConnectionIndicator();
         updateSettings(); //establishDataLink is rolled in
         println("updated settings");
         communicationsflag = true;
@@ -649,7 +660,7 @@ public void serialEvent (Serial myPort) {
   else if (communicationsflag && !dataflag) {
     int inChar = myPort.readChar(); // get ASCII
     if (inChar != -1) {
-      serialReceivedFlag = true;
+      FVserial.serialReceivedFlag = true;
       println("handshaking, "+inChar+", count = "+testcounter);
       if (inChar == 'g') {
         myPort.clear();
@@ -657,7 +668,6 @@ public void serialEvent (Serial myPort) {
         blankPlot();
         dataflag = true;
         FVserial.connectionindicator = FVserial.indicator_connected;
-        FVserial.drawConnectionIndicator();
         myPort.buffer((serialBufferN+1)*serialBurstN);
       }
       else if (inChar == 'y') {
@@ -684,7 +694,7 @@ public void serialEvent (Serial myPort) {
       int inChar = myPort.readChar(); // get ASCII
       // print("data, ");println(inChar);
       if (inChar != -1) {
-        serialReceivedFlag = true;
+        FVserial.serialReceivedFlag = true;
 
         if (inChar == 'C' || inChar == 'D' || inChar == 'E' || inChar == 'F') {
           myPort.readBytes(inBuffer);
@@ -709,10 +719,10 @@ public void serialEvent (Serial myPort) {
           }
           if (recordDataFlag) {
             recordDataIndex++;
+            if ((recordDataIndex % 100) == 0) {
+              println("Saving " + recordDataIndex + "/" + recordDataLength + "data point");
+            }
             if (recordDataIndex >= recordDataLength) {
-              if ((recordDataIndex % 10) == 0) {
-                println("Saving"+str(recordData[1][recordDataIndex-1]));
-              }
               recordDataedCounter = saveRecordedData(recordDataedCounter);
               recordDataFlag = false;
             }
@@ -747,8 +757,8 @@ public void serialEvent (Serial myPort) {
           }
           if (recordDataFlag) {
             recordDataIndex++;
-            if ((recordDataIndex % 10) == 0) {
-              println("Saving"+recordDataIndex);
+            if ((recordDataIndex % 100) == 0) {
+              println("Saving " + recordDataIndex + "/" + recordDataLength + "data point");
             }
             if (recordDataIndex >= recordDataLength) {
               recordDataedCounter = saveRecordedData(recordDataedCounter);
@@ -843,7 +853,7 @@ public void useKeyPressedOrMousePressed(int inputDev) {
           if (buttonsCommon[currentbuttonCommon].hotKey == 'r') {
             ResetSerialConnection();
           }
-          if (buttonsCommon[currentbuttonCommon].hotKey == 'g') {
+          if (buttonsCommon[currentbuttonCommon].hotKey == 'i') {
             imagesavecounter = saveImage(imagesavecounter);
           }
           if (buttonsCommon[currentbuttonCommon].hotKey == 'd') {
@@ -995,6 +1005,9 @@ public int saveRecordedData(int datasavecounter) {
     "FlexVolt Saved Data", "Frequency = "+userFrequency, "Signal Amplification Factor = "+signalAmplifierGain, "Index , Ch1, Ch2, Ch3, Ch4, Ch5, Ch6, Ch7, Ch8"
   };
   String[] savearray = concat(saveheader, lines);
+  if (folder.length() == 0){
+    folder = sketchPath("");
+  }
   if (platform == MACOSX) {
     saveStrings(folder+"/FlexVoltData_"+year()+"-"+nf(month(), 2)+"-"+nf(day(), 2)+"_"+ nf(hour(), 2) +"h-"+ nf(minute(), 2) +"m-"+ nf(second(), 2)+"s_"+nf(datasavecounter, 3)+".txt", savearray);
   }
@@ -1007,6 +1020,9 @@ public int saveRecordedData(int datasavecounter) {
 
 public int saveImage(int imagesavecounter) {
   String a0 = "";
+  if (folder.length() == 0){
+    folder = sketchPath("");
+  }
   if (platform == MACOSX) {
     a0=folder+"/FlexVoltPlot";
   }
@@ -1175,6 +1191,7 @@ public void importSettings() {
     if (m == null) {      mouseThresh2Ch[thresh2chyHigh] = PApplet.parseInt(loadedsettings[7]);    }
     println(mouseThresh2Ch);
 
+    if (loadedsettings.length <= 8)return;
     m = match(loadedsettings[8], "null");
     if (m == null) {      mouseThresh4Ch[thresh4chLeft] = PApplet.parseInt(loadedsettings[4]);    }
     m = match(loadedsettings[9], "null");
@@ -1387,6 +1404,43 @@ public void changePage(int newPage) {
   loadPixels();
 }
 
+public void drawGenericHelp(){
+  blankPlot();
+  stroke(0);
+  strokeWeight(4);
+  fill(200);
+  rectMode(CENTER);
+  textAlign(CENTER, CENTER);
+  rect(xStep+fullPlotWidth/2, yTitle+plotheight/2, fullPlotWidth, plotheight, 12);
+
+  fill(0);
+  textSize(labelsizes);
+  int tmptextw = PApplet.parseInt(textWidth("Help Page"))/2; 
+  text("Help Page ", xStep+fullPlotWidth/2, yTitle+12);
+
+  String helpdoc = "";
+  helpdoc = helpdoc + " Troubleshooting:  1. Try resetting the connection using 'Reset'.\n";
+  helpdoc = helpdoc + "       2. Unplug USB cable from computer, plug back in, 'Reset'.\n";
+  helpdoc = helpdoc + "\n";
+  helpdoc = helpdoc + "Use Tabs or Hotkeys to switch Pages:\n";
+  helpdoc = helpdoc + " Time (hotkey 't') - home page, plot signals vs. time\n";
+  helpdoc = helpdoc + " Frequency (hotkey 'f') - plot signal frequencies (using FFT).\n";
+  helpdoc = helpdoc + " Train (workout) (hotey 'w') - monitor reps, work towards a goal\n";
+  helpdoc = helpdoc + " Mouse (hotkey 'm') - control your computer mouse\n";
+  helpdoc = helpdoc + "\n";
+  helpdoc = helpdoc + "Hot Keys: 'h' = help 's' = settings 'r' = reset connection 'c' = clear\n";
+  helpdoc = helpdoc + " 'p' = pause/unpause 'i' = save image 'd' = save data\n";
+  helpdoc = helpdoc + " 'o' = offset plot lines 'j ' = smoothing filter\n";
+  helpdoc = helpdoc + "\n";
+  helpdoc = helpdoc + "For addtional help, go to www.flexvoltbiosensor.com\n";
+  fill(0);
+  textSize(labelsizexs);
+  textAlign(LEFT, CENTER);
+  text(helpdoc, xStep+fullPlotWidth/2, yTitle+plotheight/2+10, fullPlotWidth-10, plotheight-20);
+  textAlign(CENTER, CENTER);
+  textSize(labelsizexs);
+  text("For addtional help: www.flexvoltbiosensor.com", xStep+fullPlotWidth/2, yTitle+plotheight - 15);
+}
 
 
 /************************* BEGIN SETTINGS Page ***********************/
@@ -1543,7 +1597,7 @@ public class SettingsPage implements pagesClass {
     maxPlotTime = PApplet.parseFloat(fullPlotWidth)/PApplet.parseFloat(userFrequency);
 
     // build and save a txt file of settings
-    String[] settingString = new String[8];
+    String[] settingString = new String[12];
     settingString[0] = "FlexVoltViewer User Settings";
     settingString[1] = folder;
     settingString[2] = str(userFreqIndex);
@@ -1690,45 +1744,7 @@ public class SettingsPage implements pagesClass {
   }
 
   public void drawHelp() {
-    println("HELPS");
-    blankPlot();
-    stroke(0);
-    strokeWeight(4);
-    fill(200);
-    rectMode(CENTER);
-    textAlign(CENTER, CENTER);
-    rect(width/2, height/2+10, width/2+200, height/2+180, 12);
-  
-    fill(0);
-    textSize(30);
-    text("Help Page", width/2-200, height/2-240);
-  
-    fill(0);
-    textSize(20);
-    text("Press Any Key or Click Anywhere To Go Back", width/2+150, height/2-240);
-  
-    String helpdoc = "";
-    helpdoc = helpdoc + "This App should connect FlexVolt to your computer automatically.\n";
-    helpdoc = helpdoc + " For troubleshooting, try resetting the connection using 'Reset'.\n";
-    helpdoc = helpdoc + " If that does not work, unplug the USB cable, then plug back in and click 'Reset'.\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Use View Mode Button or Hotkeys to go to Pages:\n";
-    helpdoc = helpdoc + " Time (hotkey 't') - home page, plot signals vs. time\n";
-    helpdoc = helpdoc + " Frequency (hotkey 'f') - plot signal frequencies (using FFT).\n";
-    helpdoc = helpdoc + " Train (workout) (hotey 'w') - monitor reps, work towards a goal\n";
-    helpdoc = helpdoc + " Mouse (hotkey 'm') - control your computer mouse\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Hot Keys Can Also be Used to Toggle:\n";
-    helpdoc = helpdoc + " 'h' = help page 's' = settings page 'r' = reset connection\n";
-    helpdoc = helpdoc + " 'c' = clear plot 'p' = pause/unpause 'k' = calibrate mouse\n";
-    helpdoc = helpdoc + " 'o' = offset plot lines 'j ' = smoothing filter\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "For addtional help, go to www.flexvoltbiosensor.com\n";
-    fill(0);
-    textSize(18);
-    textAlign(LEFT, CENTER);
-    text(helpdoc, width/2, height/2+40, width/2+140, height/2+120);
-    textAlign(CENTER, CENTER);
+    drawGenericHelp();
   }
 
   public void restoreDefaults() {
@@ -1894,7 +1910,7 @@ public class TimeDomainPlotPage implements pagesClass {
     buttons[bchan6] = new GuiButton("Chan6",  '6', dummypage, xStep+plotwidth+65, buttony+30, 30, bheight, color(colorBIdle), colorSig6, "6", bOnOff, false, showButton);
     buttons[bchan7] = new GuiButton("Chan7",  '7', dummypage, xStep+plotwidth+65, buttony+60, 30, bheight, color(colorBIdle), colorSig7, "7", bOnOff, false, showButton);
     buttons[bchan8] = new GuiButton("Chan8",  '8', dummypage, xStep+plotwidth+65, buttony+90, 30, bheight, color(colorBIdle), colorSig8, "8", bOnOff, false, showButton);
-    buttons[bdomain]= new GuiButton("Domain", 'd', dummypage, xStep+80, yTitle+plotheight+30, 160, 18, color(colorBIdle), color(0), domainStr, bMomentary, false, showButton);
+    buttons[bdomain]= new GuiButton("Domain", 't', dummypage, xStep+80, yTitle+plotheight+30, 160, 18, color(colorBIdle), color(0), domainStr, bMomentary, false, showButton);
 
     if (flagTimeDomain){
       offSet2[0] = plotheight*3/4;
@@ -2211,48 +2227,7 @@ public class TimeDomainPlotPage implements pagesClass {
   }
 
   public void drawHelp() {
-    blankPlot();
-    stroke(0);
-    strokeWeight(4);
-    fill(200);
-    rectMode(CENTER);
-    textAlign(CENTER, CENTER);
-    rect(xStep+fullPlotWidth/2, yTitle+plotheight/2, fullPlotWidth, plotheight, 12);
-  
-    fill(0);
-    textSize(labelsize);
-    int tmptextw = PApplet.parseInt(textWidth("Help Page"))/2; 
-    text("Help Page ", xStep+fullPlotWidth/2, yTitle+12);
-       
-  
-//    fill(0);
-//    textSize(labelsizes);
-////    int tmptextw+= int(textWidth("Press Any Key or Click Anywhere To Go Back"))/2; 
-//    text("Press Any Key or Click Anywhere To Go Back", xStep+fullPlotWidth/2+tmptextw/2+10, yTitle+14);
-  
-    String helpdoc = "";
-    helpdoc = helpdoc + "This App should connect FlexVolt to your computer automatically.\n";
-    helpdoc = helpdoc + " For troubleshooting, try resetting the connection using 'Reset'.\n";
-    helpdoc = helpdoc + " If that fails, unplug the USB cable, plug back in, and click 'Reset'.\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Use View Mode Tab Buttons or Hotkeys to go to Pages:\n";
-    helpdoc = helpdoc + "  Plot ('t') - plot signals vs. time or frequency\n";
-    helpdoc = helpdoc + "  Workout ('w') - monitor reps, work towards a goal\n";
-    helpdoc = helpdoc + "  Mouse ('m') - calibrate, control your computer mouse\n";
-    helpdoc = helpdoc + "  Snake Game ('g') - play an arcade game\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Hot Keys Can Also be Used to Toggle:\n";
-    helpdoc = helpdoc + "  'h' = help   's' = settings   'r' = reset connection\n";
-    helpdoc = helpdoc + "  'c' = clear   'p' = pause     'k' = calibrate mouse\n";
-    helpdoc = helpdoc + "  'o' = offset plot lines        'j ' = smoothing filter\n";
-    helpdoc = helpdoc + "\n";
-    fill(0);
-    textSize(labelsizexs);
-    textAlign(LEFT, CENTER);
-    text(helpdoc, xStep+fullPlotWidth/2, yTitle+plotheight/2+10, fullPlotWidth-10, plotheight-20);
-    textAlign(CENTER, CENTER);
-    textSize(labelsizes);
-    text("For addtional help: www.flexvoltbiosensor.com", xStep+fullPlotWidth/2, yTitle+plotheight - 18);
+    drawGenericHelp();
   }
 
   public void drawTrace() {
@@ -2941,42 +2916,7 @@ public class workoutPage implements pagesClass {
   }
 
   public void drawHelp() {
-    blankPlot();
-    stroke(0);
-    strokeWeight(4);
-    fill(200);
-    rectMode(CENTER);
-    textAlign(CENTER, CENTER);
-    rect(xStep+fullPlotWidth/2, yTitle+plotheight/2, fullPlotWidth, plotheight, 12);
-  
-    fill(0);
-    textSize(labelsize);
-    int tmptextw = PApplet.parseInt(textWidth("Help Page"))/2; 
-    text("Help Page ", xStep+fullPlotWidth/2, yTitle+12);
-  
-    String helpdoc = "";
-    helpdoc = helpdoc + "This App should connect FlexVolt to your computer automatically.\n";
-    helpdoc = helpdoc + " For troubleshooting, try resetting the connection using 'Reset'.\n";
-    helpdoc = helpdoc + " If that fails, unplug the USB cable, plug back in, and click 'Reset'.\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Use View Mode Tab Buttons or Hotkeys to go to Pages:\n";
-    helpdoc = helpdoc + "  Plot ('t') - plot signals vs. time or frequency\n";
-    helpdoc = helpdoc + "  Workout ('w') - monitor reps, work towards a goal\n";
-    helpdoc = helpdoc + "  Mouse ('m') - calibrate, control your computer mouse\n";
-    helpdoc = helpdoc + "  Snake Game ('g') - play an arcade game\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Hot Keys Can Also be Used to Toggle:\n";
-    helpdoc = helpdoc + "  'h' = help   's' = settings   'r' = reset connection\n";
-    helpdoc = helpdoc + "  'c' = clear   'p' = pause     'k' = calibrate mouse\n";
-    helpdoc = helpdoc + "  'o' = offset plot lines        'j ' = smoothing filter\n";
-    helpdoc = helpdoc + "\n";
-    fill(0);
-    textSize(labelsizexs);
-    textAlign(LEFT, CENTER);
-    text(helpdoc, xStep+fullPlotWidth/2, yTitle+plotheight/2+10, fullPlotWidth-10, plotheight-20);
-    textAlign(CENTER, CENTER);
-    textSize(labelsizes);
-    text("For addtional help: www.flexvoltbiosensor.com", xStep+fullPlotWidth/2, yTitle+plotheight - 18);
+    drawGenericHelp();
   }
 
   public void drawTrace() {
@@ -3276,7 +3216,7 @@ public class TargetPracticePage implements pagesClass {
     buttons[bclear]        = new GuiButton("Clear",    'c', dummypage, xStep+plotwidth+45, controlsy+40, 60, bheight, color(colorBIdle), color(0), "Clear", bMomentary, false, showButton);
     buttons[b2chctrl]      = new GuiButton("M2chCtrl", '2', dummypage, xStep+plotwidth+27, yTitle+150, 36, bheight, color(colorBIdle), color(0), "2Ch", bOnOff, true, showButton);
     buttons[b4chctrl]      = new GuiButton("M4chCtrl", '4', dummypage, xStep+plotwidth+63, yTitle+150, 36, bheight, color(colorBIdle), color(0), "4Ch", bOnOff, false, showButton);
-    buttons[badjustthresh] = new GuiButton("Adjthresh",'a', dummypage, xStep+80, yTitle+plotheight+20, 150, bheight, color(colorBIdle), color(0), "Adjust Thresholds", bOnOff, false, showButton);
+    buttons[badjustthresh] = new GuiButton("Adjthresh",'a', dummypage, xStep+90, yTitle+plotheight+20, 170, bheight, color(colorBIdle), color(0), "Adjust Thresholds 'a'", bOnOff, false, showButton);
 
 //    buttons[bchan1up]  = new GuiButton("MChan1up", ' ', dummypage, xStep+plotwidth+80, yTitle+200, 20, 20, color(colorBIdle), color(0), ">", bMomentary, false, showButton);
 //    buttons[bchan1down]= new GuiButton("MChan1down", ' ', dummypage, xStep+plotwidth+16, yTitle+200, 20, 20, color(colorBIdle), color(0), "<", bMomentary, false, showButton);
@@ -3362,7 +3302,7 @@ public class TargetPracticePage implements pagesClass {
     text("Mode", xStep+fullPlotWidth+45,yTitle+120);
     
     textSize(labelsizes);
-    text("'p' (pause) to get your mouse back!", xStep+plotwidth/2+60, yTitle+plotheight+12);
+    text("'p' (pause) to get your mouse back!", xStep+plotwidth/2+80, yTitle+plotheight+15);
 //    text("'k' = set sensitivity for mouse control.", xStep+plotwidth/2, yTitle+plotheight+26);
 //    text("x=left/right", xStep+plotwidth+barWidth/2, yTitle+120);
 //    text("y=up/down", xStep+plotwidth+barWidth/2, yTitle+140);
@@ -3641,42 +3581,7 @@ public class TargetPracticePage implements pagesClass {
   }
 
   public void drawHelp() {
-    blankPlot();
-    stroke(0);
-    strokeWeight(4);
-    fill(200);
-    rectMode(CENTER);
-    textAlign(CENTER, CENTER);
-    rect(xStep+fullPlotWidth/2, yTitle+plotheight/2, fullPlotWidth, plotheight, 12);
-  
-    fill(0);
-    textSize(labelsize);
-    int tmptextw = PApplet.parseInt(textWidth("Help Page"))/2; 
-    text("Help Page ", xStep+fullPlotWidth/2, yTitle+12);
-  
-    String helpdoc = "";
-    helpdoc = helpdoc + "This App should connect FlexVolt to your computer automatically.\n";
-    helpdoc = helpdoc + " For troubleshooting, try resetting the connection using 'Reset'.\n";
-    helpdoc = helpdoc + " If that fails, unplug the USB cable, plug back in, and click 'Reset'.\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Use View Mode Tab Buttons or Hotkeys to go to Pages:\n";
-    helpdoc = helpdoc + "  Plot ('t') - plot signals vs. time or frequency\n";
-    helpdoc = helpdoc + "  Workout ('w') - monitor reps, work towards a goal\n";
-    helpdoc = helpdoc + "  Mouse ('m') - calibrate, control your computer mouse\n";
-    helpdoc = helpdoc + "  Snake Game ('g') - play an arcade game\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Hot Keys Can Also be Used to Toggle:\n";
-    helpdoc = helpdoc + "  'h' = help   's' = settings   'r' = reset connection\n";
-    helpdoc = helpdoc + "  'c' = clear   'p' = pause     'k' = calibrate mouse\n";
-    helpdoc = helpdoc + "  'o' = offset plot lines        'j ' = smoothing filter\n";
-    helpdoc = helpdoc + "\n";
-    fill(0);
-    textSize(labelsizexs);
-    textAlign(LEFT, CENTER);
-    text(helpdoc, xStep+fullPlotWidth/2, yTitle+plotheight/2+10, fullPlotWidth-10, plotheight-20);
-    textAlign(CENTER, CENTER);
-    textSize(labelsizes);
-    text("For addtional help: www.flexvoltbiosensor.com", xStep+fullPlotWidth/2, yTitle+plotheight - 18);
+    drawGenericHelp();
   }
 
   public void drawTargetPractice() {
@@ -4232,42 +4137,7 @@ public class SnakeGamePage implements pagesClass {
   }
 
   public void drawHelp() {
-    blankPlot();
-    stroke(0);
-    strokeWeight(4);
-    fill(200);
-    rectMode(CENTER);
-    textAlign(CENTER, CENTER);
-    rect(xStep+fullPlotWidth/2, yTitle+plotheight/2, fullPlotWidth, plotheight, 12);
-  
-    fill(0);
-    textSize(labelsize);
-    int tmptextw = PApplet.parseInt(textWidth("Help Page"))/2; 
-    text("Help Page ", xStep+fullPlotWidth/2, yTitle+12);
-  
-    String helpdoc = "";
-    helpdoc = helpdoc + "This App should connect FlexVolt to your computer automatically.\n";
-    helpdoc = helpdoc + " For troubleshooting, try resetting the connection using 'Reset'.\n";
-    helpdoc = helpdoc + " If that fails, unplug the USB cable, plug back in, and click 'Reset'.\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Use View Mode Tab Buttons or Hotkeys to go to Pages:\n";
-    helpdoc = helpdoc + "  Plot ('t') - plot signals vs. time or frequency\n";
-    helpdoc = helpdoc + "  Workout ('w') - monitor reps, work towards a goal\n";
-    helpdoc = helpdoc + "  Mouse ('m') - calibrate, control your computer mouse\n";
-    helpdoc = helpdoc + "  Snake Game ('g') - play an arcade game\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Hot Keys Can Also be Used to Toggle:\n";
-    helpdoc = helpdoc + "  'h' = help   's' = settings   'r' = reset connection\n";
-    helpdoc = helpdoc + "  'c' = clear   'p' = pause     'k' = calibrate mouse\n";
-    helpdoc = helpdoc + "  'o' = offset plot lines        'j ' = smoothing filter\n";
-    helpdoc = helpdoc + "\n";
-    fill(0);
-    textSize(labelsizexs);
-    textAlign(LEFT, CENTER);
-    text(helpdoc, xStep+fullPlotWidth/2, yTitle+plotheight/2+10, fullPlotWidth-10, plotheight-20);
-    textAlign(CENTER, CENTER);
-    textSize(labelsizes);
-    text("For addtional help: www.flexvoltbiosensor.com", xStep+fullPlotWidth/2, yTitle+plotheight - 18);
+    drawGenericHelp();
   }
 
   public void clearGameScreen() {
@@ -4508,42 +4378,7 @@ public class MuscleMusicPage implements pagesClass {
   }
 
   public void drawHelp() {
-    blankPlot();
-    stroke(0);
-    strokeWeight(4);
-    fill(200);
-    rectMode(CENTER);
-    textAlign(CENTER, CENTER);
-    rect(xStep+fullPlotWidth/2, yTitle+plotheight/2, fullPlotWidth, plotheight, 12);
-  
-    fill(0);
-    textSize(labelsize);
-    int tmptextw = PApplet.parseInt(textWidth("Help Page"))/2; 
-    text("Help Page ", xStep+fullPlotWidth/2, yTitle+12);
-  
-    String helpdoc = "";
-    helpdoc = helpdoc + "This App should connect FlexVolt to your computer automatically.\n";
-    helpdoc = helpdoc + " For troubleshooting, try resetting the connection using 'Reset'.\n";
-    helpdoc = helpdoc + " If that fails, unplug the USB cable, plug back in, and click 'Reset'.\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Use View Mode Tab Buttons or Hotkeys to go to Pages:\n";
-    helpdoc = helpdoc + "  Plot ('t') - plot signals vs. time or frequency\n";
-    helpdoc = helpdoc + "  Workout ('w') - monitor reps, work towards a goal\n";
-    helpdoc = helpdoc + "  Mouse ('m') - calibrate, control your computer mouse\n";
-    helpdoc = helpdoc + "  Snake Game ('g') - play an arcade game\n";
-    helpdoc = helpdoc + "\n";
-    helpdoc = helpdoc + "Hot Keys Can Also be Used to Toggle:\n";
-    helpdoc = helpdoc + "  'h' = help   's' = settings   'r' = reset connection\n";
-    helpdoc = helpdoc + "  'c' = clear   'p' = pause     'k' = calibrate mouse\n";
-    helpdoc = helpdoc + "  'o' = offset plot lines        'j ' = smoothing filter\n";
-    helpdoc = helpdoc + "\n";
-    fill(0);
-    textSize(labelsizexs);
-    textAlign(LEFT, CENTER);
-    text(helpdoc, xStep+fullPlotWidth/2, yTitle+plotheight/2+10, fullPlotWidth-10, plotheight-20);
-    textAlign(CENTER, CENTER);
-    textSize(labelsizes);
-    text("For addtional help: www.flexvoltbiosensor.com", xStep+fullPlotWidth/2, yTitle+plotheight - 18);
+    drawGenericHelp();
   }
 }
 
@@ -4591,6 +4426,7 @@ public class SerialPortObj {
   boolean flexvoltfound;
   boolean testingUSBcom;
   boolean connectinglongertime;
+  boolean serialReceivedFlag;
   long timer;
   int portindex;
   int usbPortsN;
@@ -4618,6 +4454,7 @@ public class SerialPortObj {
     flexvoltconnected = false;
     flexvoltfound = false;
     testingUSBcom = true;
+    serialReceivedFlag = false;
     timer = 0;
     portindex = 0;
     usbPortsN = 0;
@@ -4632,7 +4469,7 @@ public class SerialPortObj {
     indicator_connected = 2;
   }
 
-  public boolean manageConnection(boolean dataflag, boolean serialreceivedflag) {
+  public boolean manageConnection(boolean data_flag) {
     if (connectingflag) {
       TryPort(); // handles all connecting attempts. monitors timeout for each attempt, increments port to try, etc.
     }
@@ -4644,6 +4481,7 @@ public class SerialPortObj {
           if (myPort != null) {
             println("Wrote 'X' to myport = "+myPort);
             try {  
+              myPort.write('X');
               myPort.write('X');
             }
             catch (RuntimeException e) {
@@ -4670,30 +4508,35 @@ public class SerialPortObj {
       }
     }
 
-    if (dataflag) {
+    if (data_flag) {
       if (checkSerialTimer == 0) {
         checkSerialTimer = millis()+checkSerialDelay;
         println("addon");
       }
       if (millis()>checkSerialTimer) {
         checkSerialTimer = millis()+checkSerialDelay;
-        if (!serialreceivedflag) {
+        if (!serialReceivedFlag) {
+          println(checkSerialTimer);
           flexvoltconnected = false;
           communicationsflag = false;
-          dataflag = false;
+          data_flag = false;
           println("Serial Timeout");
           connectionindicator = FVserial.indicator_noconnection;
           drawConnectionIndicator();
           display_error("FlexVolt Connection Lost");
         }
+        serialReceivedFlag = false;
       }
     }
-    return dataflag;
+    
+    drawConnectionIndicator();
+    
+    return data_flag;
   }
 
   public void connectserial() {
     reset();
-    FVserial.PollSerialDevices();
+    FVserial.PollSerialDevices();  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if (foundPorts) {
       connectionindicator = indicator_connecting;
       connectingflag = true;
@@ -4847,11 +4690,12 @@ public class SerialPortObj {
     else if (platform == LINUX) {
       println("Found a Penguin!");
       display_error("Found a Penguin!\n FlexVoltViewer v1.0 has not been tested with the Linux OS!");
-      USBname = "COM";
+      USBname = "tty"; // typically will be dev/ttyS, ttyACMO, ttyUSB, etc.
       Bluetoothname = "tty.FlexVolt";
     }
     else if (platform == OTHER) {
       println("Found an Unknown Operating System!");
+      display_error("Found an Unknown Operating System!\n FlexVoltViewer does not yet know how to connect with your OS!");
       USBname = "COM";
       Bluetoothname = "tty.FlexVolt";
       display_error("Found an Unknown Operating System!");
