@@ -99,7 +99,7 @@ public interface pagesClass {
 
 
 // Constants
-String viewerVersion = "v1.1";
+String viewerVersion = "v1.2";
 String homePath = System.getProperty("user.home"); // default path to save settings files
 String folder = "";
 Serial myPort;
@@ -986,7 +986,7 @@ int saveRecordedData(int datasavecounter) {
   };
   String[] savearray = concat(saveheader, lines);
   if (folder.length() == 0){
-    folder = homePath;
+    folder = sketchPath("");
   }
   if (platform == MACOSX) {
     saveStrings(folder+"/FlexVoltData_"+year()+"-"+nf(month(), 2)+"-"+nf(day(), 2)+"_"+ nf(hour(), 2) +"h-"+ nf(minute(), 2) +"m-"+ nf(second(), 2)+"s_"+nf(datasavecounter, 3)+".txt", savearray);
@@ -4462,6 +4462,7 @@ public class SerialPortObj {
             println("Wrote 'X' to myport = "+myPort);
             try {  
               myPort.write('X');
+              myPort.write('X');
             }
             catch (RuntimeException e) {
               println("couldn't connect to that one");
@@ -4515,7 +4516,7 @@ public class SerialPortObj {
 
   void connectserial() {
     reset();
-    FVserial.PollSerialDevices();
+    FVserial.PollSerialDevices();  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     if (foundPorts) {
       connectionindicator = indicator_connecting;
       connectingflag = true;
